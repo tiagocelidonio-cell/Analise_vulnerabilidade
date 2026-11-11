@@ -33,20 +33,55 @@ VM com **Ubuntu 24.04 LTS**. É o caminho mais simples e estável. Pode ser:
 
 ## Etapa 1 — Baixar o projeto
 
-Você precisa do **Git** (vem junto no script da Etapa 2, no Ubuntu).
+> ⚠️ **Este repositório é PRIVADO.** Para baixá-lo é preciso estar autenticado
+> na sua conta do GitHub (que tem acesso a ele). Escolha **uma** das 3 formas
+> abaixo. Não é preciso tornar o repositório público.
 
-Abra o **Terminal** e rode:
+### Forma A — Baixar o ZIP (mais fácil, sem comandos)
+
+1. No navegador, **logado na sua conta GitHub**, abra o repositório.
+2. Clique no botão verde **`Code`** → **`Download ZIP`**.
+3. Extraia a pasta e abra o Terminal **dentro** dela.
+
+> Limitação: o ZIP **não** inclui o histórico do Git, então o `update.sh`
+> (atualização automática) não funciona. Para atualizar, baixe o ZIP de novo.
+> Se quiser atualização com um comando, use a Forma B ou C.
+
+### Forma B — GitHub CLI (recomendada) — atualização fácil
+
+Faça login uma vez e clone:
+
+```bash
+gh auth login
+gh repo clone tiagocelidonio-cell/Analise_vulnerabilidade
+cd Analise_vulnerabilidade
+```
+
+> No Ubuntu, o `gh` é instalado junto pelo `install.sh` da Etapa 2. Se precisar
+> clonar **antes** da Etapa 2, instale com: `sudo apt install gh` (ou veja
+> https://cli.github.com).
+
+### Forma C — Token de acesso pessoal (PAT)
+
+1. No GitHub: **Settings → Developer settings → Personal access tokens →
+   Fine-grained tokens → Generate new token**.
+2. Dê acesso a este repositório, com permissão de leitura em **Contents**.
+3. Copie o token e clone:
 
 ```bash
 git clone https://github.com/tiagocelidonio-cell/Analise_vulnerabilidade.git
 cd Analise_vulnerabilidade
+# Usuário: seu login do GitHub
+# Senha:   cole o TOKEN (não a sua senha da conta)
 ```
+
+---
 
 > **Windows:** abra o "Terminal" ou o "PowerShell". Se não tiver o Git, baixe em
 > https://git-scm.com/download/win e instale com as opções padrão.
 
-Pronto: agora você está **dentro da pasta do projeto**. Todos os comandos
-seguintes são rodados aqui.
+Ao final de qualquer das formas, você estará **dentro da pasta do projeto**.
+Todos os comandos seguintes são rodados aqui.
 
 ---
 
