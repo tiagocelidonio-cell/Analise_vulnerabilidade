@@ -1,16 +1,9 @@
 // Cliente da API VulnScope.
-// Base: usa VITE_API_URL se definido; senao, detecta automaticamente o mesmo
-// host pelo qual o painel foi aberto, na porta 8000. Isso evita o erro
-// "Failed to fetch" ao acessar de outra maquina sem configurar o IP.
-function defaultBase() {
-  try {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000`;
-  } catch {
-    return "http://localhost:8000";
-  }
-}
-const BASE = import.meta.env.VITE_API_URL || defaultBase();
+// Base padrao: "/api" (mesma origem do painel). O servidor do painel (Vite)
+// repassa /api/* para a API internamente, entao o navegador so usa a porta
+// 5173 — nao precisa alcancar a 8000. Pode-se forcar outro endereco com
+// VITE_API_URL (ex: atras de um dominio/HTTPS proprio).
+const BASE = import.meta.env.VITE_API_URL || "/api";
 const TOKEN_KEY = "vulnscope_token";
 
 export function getToken() {
