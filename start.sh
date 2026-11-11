@@ -83,7 +83,6 @@ fi
 echo
 echo "   Painel:   http://localhost:5173    <- comece aqui"
 echo "   API/docs: http://localhost:8000/docs"
-echo "   MinIO:    http://localhost:9001    (login: minioadmin / minioadmin)"
 echo
 echo " Para ver os logs:  docker compose logs -f"
 echo " Para parar:        bash stop.sh"

@@ -141,7 +141,6 @@ Quando terminar, aparece:
  VulnScope ESTA NO AR!
    Painel:   http://localhost:5173
    API/docs: http://localhost:8000/docs
-   MinIO:    http://localhost:9001
 ```
 
 ---

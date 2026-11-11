@@ -57,7 +57,7 @@ backend/app/
   reporting/           relatório PDF (WeasyPrint): executivo + técnico
   worker/              pipeline de scan em background (ARQ)
 frontend/              painel React (Vite): dashboard de risco, scans, achados
-docker-compose.yml     db + redis + minio + api + worker + web
+docker-compose.yml     db + redis + api + worker + web
 ```
 
 ## Exploração (validação) — segurança por desenho
@@ -86,7 +86,6 @@ docker compose up --build
 - Painel:  http://localhost:5173  ← comece por aqui
 - API:     http://localhost:8000
 - Swagger: http://localhost:8000/docs
-- MinIO:   http://localhost:9001 (evidências)
 
 > A chave da Claude é opcional. Sem `ANTHROPIC_API_KEY`, a IA cai num modo
 > *stub* determinístico e o sistema roda de ponta a ponta mesmo assim.
