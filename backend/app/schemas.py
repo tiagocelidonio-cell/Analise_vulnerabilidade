@@ -53,6 +53,7 @@ class EngagementUpdate(BaseModel):
 class EngagementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    owner_id: str | None
     client_name: str
     name: str
     scope: list[str]
@@ -76,6 +77,9 @@ class ScanOut(BaseModel):
     ports: list[int]
     collectors: list[str]
     status: str
+    progress: int
+    phase: str
+    findings_count: int
     error: str | None
     created_at: datetime
     finished_at: datetime | None

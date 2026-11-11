@@ -1,4 +1,4 @@
-"""Disparo e acompanhamento de scans. Aqui mora o gate de autorizacao."""
+"""Disparo e acompanhamento de scans. Gate de autorizacao + controle de acesso."""
 from __future__ import annotations
 
 from arq import create_pool
@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import can_access, get_current_user, require_engagement_access
 from app.db import get_session
-from app.models import Engagement, ScanJob, ScanStatus
+from app.models import Engagement, ScanJob, ScanStatus, User
 from app.schemas import ScanCreate, ScanOut
 from app.scope import validate_targets
 
@@ -17,15 +18,11 @@ router = APIRouter(tags=["scans"])
 
 @router.post("/engagements/{engagement_id}/scans", response_model=ScanOut, status_code=201)
 async def create_scan(
-    engagement_id: str,
     body: ScanCreate,
     request: Request,
+    eng: Engagement = Depends(require_engagement_access),
     session: AsyncSession = Depends(get_session),
 ) -> ScanJob:
-    eng = await session.get(Engagement, engagement_id)
-    if eng is None:
-        raise HTTPException(404, "Engagement nao encontrado")
-
     # GATE 1: autorizacao assinada.
     if not eng.authorized:
         raise HTTPException(
@@ -35,12 +32,10 @@ async def create_scan(
     # GATE 2: todo alvo precisa estar no escopo autorizado.
     out_of_scope = validate_targets(body.targets, eng.scope)
     if out_of_scope:
-        raise HTTPException(
-            422, f"Alvos fora do escopo autorizado: {out_of_scope}"
-        )
+        raise HTTPException(422, f"Alvos fora do escopo autorizado: {out_of_scope}")
 
     scan = ScanJob(
-        engagement_id=engagement_id,
+        engagement_id=eng.id,
         targets=body.targets,
         ports=body.ports,
         collectors=body.collectors,
@@ -50,7 +45,6 @@ async def create_scan(
     await session.commit()
     await session.refresh(scan)
 
-    # Enfileira no worker (nao trava o painel).
     pool = getattr(request.app.state, "redis_pool", None)
     if pool is None:
         pool = await create_pool(RedisSettings.from_dsn(request.app.state.redis_url))
@@ -61,21 +55,27 @@ async def create_scan(
 
 @router.get("/scans/{scan_id}", response_model=ScanOut)
 async def get_scan(
-    scan_id: str, session: AsyncSession = Depends(get_session)
+    scan_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> ScanJob:
     scan = await session.get(ScanJob, scan_id)
     if scan is None:
         raise HTTPException(404, "Scan nao encontrado")
+    eng = await session.get(Engagement, scan.engagement_id)
+    if eng is None or not can_access(user, eng):
+        raise HTTPException(403, "Sem acesso a este scan")
     return scan
 
 
 @router.get("/engagements/{engagement_id}/scans", response_model=list[ScanOut])
 async def list_scans(
-    engagement_id: str, session: AsyncSession = Depends(get_session)
+    eng: Engagement = Depends(require_engagement_access),
+    session: AsyncSession = Depends(get_session),
 ) -> list[ScanJob]:
     rows = await session.scalars(
         select(ScanJob)
-        .where(ScanJob.engagement_id == engagement_id)
+        .where(ScanJob.engagement_id == eng.id)
         .order_by(ScanJob.created_at.desc())
     )
     return list(rows)

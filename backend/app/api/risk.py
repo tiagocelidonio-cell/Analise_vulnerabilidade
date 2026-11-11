@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import require_engagement_access
 from app.db import get_session
 from app.models import Engagement, Finding
 from app.risk import build_matrix
@@ -14,14 +15,11 @@ router = APIRouter(tags=["risk"])
 
 @router.get("/engagements/{engagement_id}/risk")
 async def engagement_risk(
-    engagement_id: str, session: AsyncSession = Depends(get_session)
+    eng: Engagement = Depends(require_engagement_access),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
-    eng = await session.get(Engagement, engagement_id)
-    if eng is None:
-        raise HTTPException(404, "Engagement nao encontrado")
-
     rows = await session.scalars(
-        select(Finding).where(Finding.engagement_id == engagement_id)
+        select(Finding).where(Finding.engagement_id == eng.id)
     )
     findings = [
         {

@@ -44,18 +44,30 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             return {"error": scan.error}
 
         scan.status = ScanStatus.running
+        scan.phase = "iniciando"
+        scan.progress = 2
         await session.commit()
 
         try:
             selected = scan.collectors or DEFAULT_COLLECTORS
             facts = []
-            for name in selected:
+            for i, name in enumerate(selected):
                 collector = COLLECTORS.get(name)
                 if collector is None:
                     continue
+                scan.phase = f"coletando: {name}"
+                await session.commit()
                 facts.extend(
                     await collector.run(scan.targets, ports=scan.ports or None)
                 )
+                # coleta ocupa ate 45% do progresso
+                scan.progress = 5 + int(40 * (i + 1) / max(len(selected), 1))
+                await session.commit()
+
+            total = max(len(facts), 1)
+            scan.phase = f"analisando {len(facts)} achado(s)"
+            scan.progress = 50
+            await session.commit()
 
             created = 0
             for fact in facts:
@@ -102,8 +114,16 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     )
                 )
                 created += 1
+                # analise ocupa de 50% a 95%
+                if created % 5 == 0:
+                    scan.progress = 50 + int(45 * created / total)
+                    scan.findings_count = created
+                    await session.commit()
 
             scan.status = ScanStatus.completed
+            scan.phase = "concluido"
+            scan.progress = 100
+            scan.findings_count = created
             scan.finished_at = datetime.now(timezone.utc)
             await session.commit()
             return {"findings": created}

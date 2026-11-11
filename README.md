@@ -126,8 +126,16 @@ curl -s localhost:8000/engagements/<ID>/findings
 - [x] Autenticação + multi-usuário (login JWT, senha com hash, papéis admin/analyst)
 - [x] Sondas "intrusive" opt-in (SQLi/XSS/redirect/LFI, não-destrutivas)
 - [x] Relatório PDF incluindo a matriz de risco e top riscos
+- [x] Marca Lozinsky VulnScope (logo, cores e fonte configuráveis em branding.js)
+- [x] Gestão de cliente: excluir e editar escopo (IP/CIDR/domínio/host)
+- [x] Multi-tenant: cada consultor vê só seus clientes; admin vê todos
+- [x] Painel admin de usuários (criar, papel admin/analyst, excluir)
+- [x] Status de evolução do scan (progresso % + fase, em tempo real)
+- [x] Aba de validação com log do que foi executado + comando reproduzível
+- [x] Benchmarking e dashboard global (vulnerabilidades mais comuns na base)
 - [ ] HTTPS/reverse-proxy e deploy de produção numa VM com domínio
-- [ ] Alembic para migrações (hoje o schema é criado no boot)
+- [ ] Captura de screenshot como evidência (precisa de headless browser)
+- [ ] Alembic para migrações (hoje há auto-migração leve no boot)
 - [ ] Persistência de evidências grandes no S3/MinIO (hoje inline)
 
 ## Aviso legal

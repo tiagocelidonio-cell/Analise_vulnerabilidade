@@ -63,3 +63,40 @@ async def create_user(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+async def update_user(
+    user_id: str,
+    body: UserCreate,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """Admin altera papel/senha/ativacao de um usuario."""
+    u = await session.get(User, user_id)
+    if u is None:
+        raise HTTPException(404, "Usuario nao encontrado")
+    if body.role in ("admin", "analyst"):
+        u.role = body.role
+    if body.name:
+        u.name = body.name
+    if body.password:
+        u.hashed_password = hash_password(body.password)
+    await session.commit()
+    await session.refresh(u)
+    return u
+
+
+@router.delete("/users/{user_id}", status_code=204)
+async def delete_user(
+    user_id: str,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    if user_id == admin.id:
+        raise HTTPException(400, "Nao e possivel excluir o proprio usuario")
+    u = await session.get(User, user_id)
+    if u is None:
+        raise HTTPException(404, "Usuario nao encontrado")
+    await session.delete(u)
+    await session.commit()

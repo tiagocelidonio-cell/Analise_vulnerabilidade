@@ -26,7 +26,22 @@ body { margin: 0; background: var(--bg); color: var(--text);
 .main { flex: 1; padding: 24px 32px; overflow: auto; }
 .empty { color: var(--muted); margin-top: 20vh; text-align: center; }
 
-.list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.nav { display: flex; flex-direction: column; gap: 4px; }
+.navbtn { text-align: left; background: transparent; border: 1px solid transparent;
+  border-radius: 8px; padding: 8px 10px; color: var(--text); cursor: pointer; font: inherit;
+  font-weight: 600; }
+.navbtn:hover { background: var(--card); }
+.navbtn.active { background: var(--card); border-color: var(--accent); }
+
+.list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px;
+  border-top: 1px solid var(--line); padding-top: 8px; }
+select { background: var(--bg); border: 1px solid var(--line); color: var(--text);
+  border-radius: 7px; padding: 8px 10px; font: inherit; }
+
+.probe { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 8px 0; }
+.cmd { background: #052e16; color: #bbf7d0; padding: 7px 9px; border-radius: 6px;
+  font-family: 'DejaVu Sans Mono', monospace; font-size: 11px; white-space: pre-wrap;
+  word-break: break-all; }
 .eng { text-align: left; background: transparent; border: 1px solid transparent;
   border-radius: 8px; padding: 8px 10px; color: var(--text); cursor: pointer; }
 .eng:hover { background: var(--card); }

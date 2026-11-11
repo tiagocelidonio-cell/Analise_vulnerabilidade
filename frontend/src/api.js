@@ -40,6 +40,9 @@ export const api = {
   logout: () => setToken(null),
   listUsers: () => req("/auth/users"),
   createUser: (body) => req("/auth/users", { method: "POST", body: JSON.stringify(body) }),
+  updateUser: (id, body) => req(`/auth/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteUser: (id) => req(`/auth/users/${id}`, { method: "DELETE" }),
+  overview: () => req("/overview"),
   // engagements
   listEngagements: () => req("/engagements"),
   createEngagement: (body) =>

@@ -64,6 +64,8 @@ class Engagement(Base):
     __tablename__ = "engagements"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    # Consultor dono deste cliente (multi-tenant). Admin ve todos.
+    owner_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
     client_name: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     # Escopo autorizado: lista de hosts, IPs, CIDRs e dominios.
@@ -96,6 +98,10 @@ class ScanJob(Base):
     status: Mapped[ScanStatus] = mapped_column(
         Enum(ScanStatus), default=ScanStatus.queued
     )
+    # Progresso para acompanhamento em tempo real.
+    progress: Mapped[int] = mapped_column(Integer, default=0)   # 0..100
+    phase: Mapped[str] = mapped_column(String, default="")      # etapa atual
+    findings_count: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(

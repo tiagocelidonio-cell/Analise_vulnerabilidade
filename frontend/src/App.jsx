@@ -2,6 +2,9 @@ import React, { useEffect, useState, useCallback } from "react";
 import { api, getToken } from "./api.js";
 import { branding } from "./branding.js";
 import Dashboard from "./Dashboard.jsx";
+import Validation from "./Validation.jsx";
+import Overview from "./Overview.jsx";
+import Admin from "./Admin.jsx";
 import Login from "./Login.jsx";
 
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
@@ -261,11 +264,13 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           onClick={() => setTab("dashboard")}>Dashboard</button>
         <button className={`tab ${tab === "ops" ? "active" : ""}`}
           onClick={() => setTab("ops")}>Operação</button>
+        <button className={`tab ${tab === "validation" ? "active" : ""}`}
+          onClick={() => setTab("validation")}>Validação</button>
       </div>
 
-      {tab === "dashboard" ? (
-        <Dashboard engagement={engagement} />
-      ) : (
+      {tab === "dashboard" && <Dashboard engagement={engagement} />}
+      {tab === "validation" && <Validation engagement={engagement} />}
+      {tab === "ops" && (
       <>
       <div className="head">
         <div>
@@ -299,17 +304,30 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
 
       <h3>Scans</h3>
       <table className="t">
-        <thead><tr><th>Status</th><th>Alvos</th><th>Coletores</th><th>Erro</th></tr></thead>
+        <thead><tr><th>Status</th><th>Progresso</th><th>Alvos</th><th>Coletores</th><th>Achados</th></tr></thead>
         <tbody>
           {scans.map((s) => (
             <tr key={s.id}>
               <td><span className={`status ${s.status}`}>{s.status}</span></td>
+              <td style={{ minWidth: 160 }}>
+                {s.status === "completed" ? (
+                  <span className="muted">concluído</span>
+                ) : s.status === "failed" ? (
+                  <span className="muted" title={s.error || ""}>falhou: {(s.error || "").slice(0, 40)}</span>
+                ) : (
+                  <>
+                    <div className="bartrack"><div className="barfill"
+                      style={{ width: `${s.progress || 0}%`, background: "var(--accent)" }} /></div>
+                    <span className="muted" style={{ fontSize: 11 }}>{s.progress || 0}% · {s.phase || "na fila"}</span>
+                  </>
+                )}
+              </td>
               <td>{s.targets.join(", ")}</td>
               <td>{(s.collectors.length ? s.collectors : ["todos"]).join(", ")}</td>
-              <td className="muted">{s.error || "-"}</td>
+              <td>{s.findings_count || 0}</td>
             </tr>
           ))}
-          {scans.length === 0 && <tr><td colSpan={4} className="muted">Nenhum scan ainda.</td></tr>}
+          {scans.length === 0 && <tr><td colSpan={5} className="muted">Nenhum scan ainda.</td></tr>}
         </tbody>
       </table>
 
@@ -332,6 +350,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [engagements, setEngagements] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [view, setView] = useState("overview"); // overview | client | admin
   const [error, setError] = useState("");
 
   // Verifica a sessao ao abrir.
@@ -373,27 +392,38 @@ export default function App() {
           </div>
           <button className="btn" onClick={logout}>Sair</button>
         </div>
-        <NewEngagement onCreated={(e) => { load(); setSelected(e); }} />
+        <nav className="nav">
+          <button className={`navbtn ${view === "overview" ? "active" : ""}`}
+            onClick={() => { setView("overview"); setSelected(null); }}>Visão geral</button>
+          {user.role === "admin" && (
+            <button className={`navbtn ${view === "admin" ? "active" : ""}`}
+              onClick={() => { setView("admin"); setSelected(null); }}>Usuários</button>
+          )}
+        </nav>
+        <NewEngagement onCreated={(e) => { load(); setSelected(e); setView("client"); }} />
         <div className="list">
           {engagements.map((e) => (
             <button key={e.id}
-              className={`eng ${selected?.id === e.id ? "active" : ""}`}
-              onClick={() => setSelected(e)}>
+              className={`eng ${selected?.id === e.id && view === "client" ? "active" : ""}`}
+              onClick={() => { setSelected(e); setView("client"); }}>
               <div className="ename">{e.name}</div>
               <div className="eclient muted">{e.client_name}{e.authorized ? "" : " · nao autorizado"}</div>
             </button>
           ))}
-          {engagements.length === 0 && <p className="muted">Nenhum engagement.</p>}
+          {engagements.length === 0 && <p className="muted">Nenhum cliente.</p>}
         </div>
         {error && <div className="err">{error}</div>}
         <div className="api muted">API: {api.base}</div>
       </aside>
       <main className="main">
-        {selected
-          ? <EngagementView key={selected.id} engagement={selected}
-              onDeleted={() => { setSelected(null); load(); }}
-              onUpdated={(e) => { setSelected(e); load(); }} />
-          : <div className="empty">Selecione ou crie um engagement.</div>}
+        {view === "overview" && <Overview />}
+        {view === "admin" && <Admin me={user} />}
+        {view === "client" && selected && (
+          <EngagementView key={selected.id} engagement={selected}
+            onDeleted={() => { setSelected(null); setView("overview"); load(); }}
+            onUpdated={(e) => { setSelected(e); load(); }} />
+        )}
+        {view === "client" && !selected && <div className="empty">Selecione um cliente.</div>}
       </main>
     </div>
   );

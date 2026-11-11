@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import require_engagement_access
 from app.db import get_session
+from app.models import Engagement
 from app.reporting.report import html_to_pdf, render_html
 
 router = APIRouter(tags=["reports"])
@@ -13,9 +15,10 @@ router = APIRouter(tags=["reports"])
 
 @router.get("/engagements/{engagement_id}/report.html", response_class=HTMLResponse)
 async def report_html(
-    engagement_id: str, session: AsyncSession = Depends(get_session)
+    eng: Engagement = Depends(require_engagement_access),
+    session: AsyncSession = Depends(get_session),
 ) -> HTMLResponse:
-    html = await render_html(session, engagement_id)
+    html = await render_html(session, eng.id)
     if html is None:
         raise HTTPException(404, "Engagement nao encontrado")
     return HTMLResponse(html)
@@ -23,9 +26,10 @@ async def report_html(
 
 @router.get("/engagements/{engagement_id}/report.pdf")
 async def report_pdf(
-    engagement_id: str, session: AsyncSession = Depends(get_session)
+    eng: Engagement = Depends(require_engagement_access),
+    session: AsyncSession = Depends(get_session),
 ) -> Response:
-    html = await render_html(session, engagement_id)
+    html = await render_html(session, eng.id)
     if html is None:
         raise HTTPException(404, "Engagement nao encontrado")
     try:
@@ -38,6 +42,6 @@ async def report_pdf(
         content=pdf,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="report-{engagement_id}.pdf"'
+            "Content-Disposition": f'attachment; filename="report-{eng.id}.pdf"'
         },
     )

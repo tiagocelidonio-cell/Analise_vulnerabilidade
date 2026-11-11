@@ -54,7 +54,6 @@ function RiskMatrix({ matrix }) {
 
 export default function Dashboard({ engagement }) {
   const [data, setData] = useState(null);
-  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
   const load = useCallback(async () => {
@@ -63,21 +62,6 @@ export default function Dashboard({ engagement }) {
   }, [engagement.id]);
 
   useEffect(() => { load(); }, [load]);
-
-  async function runValidation(intrusive = false) {
-    if (intrusive && !window.confirm(
-      "Validação INTRUSIVA: envia entradas manipuladas (SQLi/XSS/redirect/LFI) " +
-      "de forma não-destrutiva. Confirme que há autorização por escrito do cliente."
-    )) return;
-    setBusy(true); setMsg("");
-    try {
-      const r = await api.validate(engagement.id, intrusive);
-      setMsg(`Validação ${intrusive ? "INTRUSIVE" : "SAFE"} concluída: `
-        + `${r.confirmed} confirmada(s) em ${r.tested_targets} alvo(s).`);
-      await load();
-    } catch (e) { setMsg(e.message); }
-    finally { setBusy(false); }
-  }
 
   if (!data) return <div className="muted">Carregando risco…</div>;
 
@@ -92,17 +76,9 @@ export default function Dashboard({ engagement }) {
         </div>
         <div className="row">
           <button className="btn" onClick={load}>Atualizar</button>
-          <button className="btn primary" onClick={() => runValidation(false)} disabled={busy}>
-            {busy ? "Validando…" : "Validar (SAFE)"}
-          </button>
-          {engagement.allow_intrusive && (
-            <button className="btn danger" onClick={() => runValidation(true)} disabled={busy}>
-              Validar (INTRUSIVE)
-            </button>
-          )}
         </div>
       </div>
-      {msg && <div className="info">{msg}</div>}
+      {msg && <div className="err">{msg}</div>}
 
       {/* KPIs executivos */}
       <div className="kpis">

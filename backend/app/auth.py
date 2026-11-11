@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db import get_session
-from app.models import User
+from app.models import Engagement, User
 
 _ALGO = "HS256"
 _ITER = 200_000
@@ -91,6 +91,24 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(403, "Requer privilegio de administrador")
     return user
+
+
+def can_access(user: User, eng: Engagement) -> bool:
+    return user.role == "admin" or eng.owner_id == user.id
+
+
+async def require_engagement_access(
+    engagement_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Engagement:
+    """Garante que o usuario e dono do cliente (ou admin)."""
+    eng = await session.get(Engagement, engagement_id)
+    if eng is None:
+        raise HTTPException(404, "Engagement nao encontrado")
+    if not can_access(user, eng):
+        raise HTTPException(403, "Voce nao tem acesso a este cliente")
+    return eng
 
 
 async def ensure_seed_admin(session: AsyncSession) -> None:
