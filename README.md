@@ -42,12 +42,14 @@ backend/app/
   scope.py             GATE de autorização/escopo
   schemas.py           contratos da API (Pydantic)
   main.py              app FastAPI
-  api/                 rotas: engagements, scans, findings
-  collectors/          coletores (port_scan asyncio = o "sem nmap")
-  enrichment/          EPSS (FIRST) + KEV (CISA)
+  api/                 rotas: engagements, scans, findings, reports
+  collectors/          port_scan (asyncio, "sem nmap") + http_probe (web/TLS)
+  enrichment/          cve_match (banner→CVE/NVD) + EPSS (FIRST) + KEV (CISA)
   ai/                  camada de IA isolada e provider-agnóstica
+  reporting/           relatório PDF (WeasyPrint): executivo + técnico
   worker/              pipeline de scan em background (ARQ)
-docker-compose.yml     db + redis + minio + api + worker
+frontend/              painel React (Vite): clientes, scans, achados, relatório
+docker-compose.yml     db + redis + minio + api + worker + web
 ```
 
 ## Como rodar (um comando)
@@ -57,6 +59,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
+- Painel:  http://localhost:5173  ← comece por aqui
 - API:     http://localhost:8000
 - Swagger: http://localhost:8000/docs
 - MinIO:   http://localhost:9001 (evidências)
@@ -84,14 +87,18 @@ curl -s localhost:8000/scans/<SCAN_ID>
 curl -s localhost:8000/engagements/<ID>/findings
 ```
 
-## Roadmap (próximos módulos)
+## Roadmap
 
-- [ ] Coletores web: HTTP fingerprint, TLS, descoberta de subdomínios
-- [ ] Correlação banner → CPE → CVE (NVD)
-- [ ] Relatório PDF (WeasyPrint) por público (executivo / técnico)
-- [ ] Painel React (lista de clientes, achados, evidências, export)
-- [ ] Autenticação + multi-usuário
-- [ ] Alembic para migrações
+- [x] Coletor de portas assíncrono (sem nmap) + banner grab
+- [x] Correlação banner → produto/versão → CVE (NVD) com CVSS
+- [x] Enriquecimento EPSS (FIRST) + KEV (CISA)
+- [x] Coletor web: HTTP fingerprint, TLS, security headers
+- [x] Relatório PDF (WeasyPrint): executivo + técnico
+- [x] Painel React (clientes, scans, achados, evidências, export)
+- [ ] Autenticação + multi-usuário (RBAC)
+- [ ] Descoberta de subdomínios e varredura de diretórios web
+- [ ] Alembic para migrações (hoje o schema é criado no boot)
+- [ ] Persistência de evidências grandes no S3/MinIO (hoje inline)
 
 ## Aviso legal
 
