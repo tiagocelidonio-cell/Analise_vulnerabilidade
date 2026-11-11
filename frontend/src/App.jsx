@@ -105,15 +105,19 @@ function NewScan({ engagement, onStarted }) {
       <input placeholder="Portas (vazio = padrao)" value={form.ports}
         onChange={(e) => setForm({ ...form, ports: e.target.value })} />
       <div className="row collectors">
-        {["port_scan", "http_probe"].map((c) => (
+        {["port_scan", "http_probe", "subdomain_enum", "wayback", "google_dorks"].map((c) => (
           <label key={c} className="check">
             <input type="checkbox" checked={form.collectors.includes(c)}
               onChange={() => toggleCollector(c)} />
             {c}
           </label>
         ))}
-        <span className="muted">(nenhum marcado = todos)</span>
+        <span className="muted">(nenhum marcado = port_scan + http_probe)</span>
       </div>
+      <p className="muted" style={{ marginTop: "-2px" }}>
+        Recon (subdomain_enum, wayback, google_dorks) usa o alvo como <b>domínio</b>
+        {" "}(ex.: example.com).
+      </p>
       {err && <div className="err">{err}</div>}
       <button className="btn primary" type="submit">Disparar scan</button>
     </form>

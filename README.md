@@ -46,7 +46,8 @@ backend/app/
   schemas.py           contratos da API (Pydantic)
   main.py              app FastAPI
   api/                 rotas: engagements, scans, findings, reports
-  collectors/          port_scan (asyncio, "sem nmap") + http_probe (web/TLS)
+  collectors/          port_scan ("sem nmap") + http_probe (web/TLS) +
+                       subdomain_enum (CT/DNS/AXFR) + wayback + google_dorks
   enrichment/          cve_match (banner→CVE/NVD) + EPSS (FIRST) + KEV (CISA)
   ai/                  camada de IA isolada e provider-agnóstica
   reporting/           relatório PDF (WeasyPrint): executivo + técnico
@@ -98,8 +99,10 @@ curl -s localhost:8000/engagements/<ID>/findings
 - [x] Coletor web: HTTP fingerprint, TLS, security headers
 - [x] Relatório PDF (WeasyPrint): executivo + técnico
 - [x] Painel React (clientes, scans, achados, evidências, export)
+- [x] Recon: subdomínios (Certificate Transparency + DNS + brute-force + AXFR)
+- [x] OSINT: Wayback Machine (arquivos sensíveis históricos) + gerador de Google dorks
 - [ ] Autenticação + multi-usuário (RBAC)
-- [ ] Descoberta de subdomínios e varredura de diretórios web
+- [ ] Varredura de diretórios/arquivos web (brute-force de paths)
 - [ ] Alembic para migrações (hoje o schema é criado no boot)
 - [ ] Persistência de evidências grandes no S3/MinIO (hoje inline)
 
