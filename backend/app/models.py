@@ -44,6 +44,20 @@ class ScanStatus(str, enum.Enum):
     failed = "failed"
 
 
+class User(Base):
+    """Usuario do sistema. Senha guardada apenas como hash."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String, default="")
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, default="analyst")  # admin | analyst
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Engagement(Base):
     """Um trabalho para um cliente. Carrega o escopo e a autorizacao assinada."""
 

@@ -1,11 +1,24 @@
 // Cliente da API VulnScope. Base configuravel via VITE_API_URL.
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const TOKEN_KEY = "vulnscope_token";
+
+export function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+}
+export function setToken(t) {
+  try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {}
+}
 
 async function req(path, opts = {}) {
-  const res = await fetch(BASE + path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(BASE + path, { ...opts, headers });
+  if (res.status === 401) {
+    setToken(null);
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail.detail || `Erro ${res.status}`);
@@ -15,6 +28,19 @@ async function req(path, opts = {}) {
 
 export const api = {
   base: BASE,
+  // auth
+  login: async (email, password) => {
+    const r = await req("/auth/login", {
+      method: "POST", body: JSON.stringify({ email, password }),
+    });
+    setToken(r.access_token);
+    return r;
+  },
+  me: () => req("/auth/me"),
+  logout: () => setToken(null),
+  listUsers: () => req("/auth/users"),
+  createUser: (body) => req("/auth/users", { method: "POST", body: JSON.stringify(body) }),
+  // engagements
   listEngagements: () => req("/engagements"),
   createEngagement: (body) =>
     req("/engagements", { method: "POST", body: JSON.stringify(body) }),
@@ -26,6 +52,7 @@ export const api = {
   listFindings: (id) => req(`/engagements/${id}/findings`),
   risk: (id) => req(`/engagements/${id}/risk`),
   validate: (id) => req(`/engagements/${id}/validate`, { method: "POST" }),
-  reportHtmlUrl: (id) => `${BASE}/engagements/${id}/report.html`,
-  reportPdfUrl: (id) => `${BASE}/engagements/${id}/report.pdf`,
+  // relatorios: token no query para abrir em nova aba
+  reportHtmlUrl: (id) => `${BASE}/engagements/${id}/report.html?token=${getToken() || ""}`,
+  reportPdfUrl: (id) => `${BASE}/engagements/${id}/report.pdf?token=${getToken() || ""}`,
 };

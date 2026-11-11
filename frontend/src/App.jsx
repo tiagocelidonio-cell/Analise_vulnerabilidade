@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { api } from "./api.js";
+import { api, getToken } from "./api.js";
 import Dashboard from "./Dashboard.jsx";
+import Login from "./Login.jsx";
 
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
 const SEV_COLOR = {
@@ -255,21 +256,48 @@ function EngagementView({ engagement }) {
 }
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [engagements, setEngagements] = useState([]);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState("");
+
+  // Verifica a sessao ao abrir.
+  useEffect(() => {
+    (async () => {
+      if (getToken()) {
+        try { setUser(await api.me()); } catch { /* token invalido */ }
+      }
+      setAuthChecked(true);
+    })();
+  }, []);
 
   const load = useCallback(async () => {
     try { setEngagements(await api.listEngagements()); }
     catch (e) { setError(e.message); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (user) load(); }, [user, load]);
+
+  function logout() {
+    api.logout();
+    setUser(null); setSelected(null); setEngagements([]);
+  }
+
+  if (!authChecked) return <div className="empty">Carregando…</div>;
+  if (!user) return <Login onLogin={setUser} />;
 
   return (
     <div className="app">
       <aside className="sidebar">
         <div className="brand">VulnScope</div>
+        <div className="userbox">
+          <div>
+            <div className="uname">{user.name || user.email}</div>
+            <div className="muted" style={{ fontSize: 11 }}>{user.role}</div>
+          </div>
+          <button className="btn" onClick={logout}>Sair</button>
+        </div>
         <NewEngagement onCreated={(e) => { load(); setSelected(e); }} />
         <div className="list">
           {engagements.map((e) => (

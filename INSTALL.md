@@ -149,7 +149,13 @@ Quando terminar, aparece:
 ## Etapa 4 — Acessar e usar
 
 1. Abra o navegador em **http://localhost:5173**
-2. Clique em **"+ Novo cliente / engagement"** e preencha:
+2. **Faça login** com as credenciais iniciais (definidas no `.env`):
+   - E-mail: `admin@vulnscope.local`
+   - Senha: `changeme`
+   > ⚠️ **Troque a senha e o `JWT_SECRET` no `.env` antes de publicar** o sistema
+   > em qualquer endereço acessível por outras pessoas. Edite o `.env` e rode
+   > `bash stop.sh && bash start.sh`.
+3. Clique em **"+ Novo cliente / engagement"** e preencha:
    - **Cliente** e **Nome do trabalho**
    - **Escopo**: um alvo por linha (ex.: `scanme.nmap.org`, `127.0.0.1`,
      `10.0.0.0/24`)

@@ -5,17 +5,21 @@ from contextlib import asynccontextmanager
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import auth as auth_api
 from app.api import engagements, exploit, findings, reports, risk, scans
+from app.auth import ensure_seed_admin, get_current_user
 from app.config import settings
-from app.db import init_db
+from app.db import SessionLocal, init_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    async with SessionLocal() as session:
+        await ensure_seed_admin(session)
     app.state.redis_url = settings.redis_url
     app.state.redis_pool = await create_pool(
         RedisSettings.from_dsn(settings.redis_url)
@@ -33,12 +37,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(engagements.router)
-app.include_router(scans.router)
-app.include_router(findings.router)
-app.include_router(reports.router)
-app.include_router(risk.router)
-app.include_router(exploit.router)
+# Rotas publicas (sem auth): login e health.
+app.include_router(auth_api.router)
+
+# Rotas de negocio: exigem usuario autenticado.
+_auth = [Depends(get_current_user)]
+app.include_router(engagements.router, dependencies=_auth)
+app.include_router(scans.router, dependencies=_auth)
+app.include_router(findings.router, dependencies=_auth)
+app.include_router(reports.router, dependencies=_auth)
+app.include_router(risk.router, dependencies=_auth)
+app.include_router(exploit.router, dependencies=_auth)
 
 
 @app.get("/health", tags=["meta"])

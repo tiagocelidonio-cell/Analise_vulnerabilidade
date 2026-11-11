@@ -45,7 +45,8 @@ backend/app/
   scope.py             GATE de autorização/escopo
   schemas.py           contratos da API (Pydantic)
   main.py              app FastAPI
-  api/                 rotas: engagements, scans, findings, reports, risk, exploit
+  auth.py              hash de senha (pbkdf2) + JWT + dependências de acesso
+  api/                 rotas: auth, engagements, scans, findings, reports, risk, exploit
   collectors/          port_scan ("sem nmap") + http_probe (web/TLS) +
                        web_content (brute-force de paths) + subdomain_enum
                        (CT/DNS/AXFR) + wayback + google_dorks
@@ -123,7 +124,8 @@ curl -s localhost:8000/engagements/<ID>/findings
 - [x] Varredura de diretórios/arquivos web (brute-force de paths)
 - [x] Dashboard executivo com matriz de risco (probabilidade × impacto)
 - [x] Exploração/validação SAFE não-destrutiva (prova a falha, sem DoS)
-- [ ] Autenticação + multi-usuário (RBAC) ← próximo antes de publicar externamente
+- [x] Autenticação + multi-usuário (login JWT, senha com hash, papéis admin/analyst)
+- [ ] HTTPS/reverse-proxy e deploy de produção numa VM com domínio
 - [ ] Sondas "intrusive" (opt-in) e relatório incluindo a matriz de risco
 - [ ] Alembic para migrações (hoje o schema é criado no boot)
 - [ ] Persistência de evidências grandes no S3/MinIO (hoje inline)

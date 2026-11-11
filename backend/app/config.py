@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     scan_max_concurrency: int = 200
     scan_connect_timeout: float = 2.0
 
+    # Autenticacao
+    jwt_secret: str = "change-me-in-production"
+    jwt_expire_minutes: int = 720
+    admin_email: str = "admin@vulnscope.local"
+    admin_password: str = "changeme"
+
     @property
     def ai_enabled(self) -> bool:
         return bool(self.anthropic_api_key)

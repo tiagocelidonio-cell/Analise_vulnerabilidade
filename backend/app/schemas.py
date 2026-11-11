@@ -6,6 +6,32 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserCreate(BaseModel):
+    email: str
+    name: str = ""
+    password: str
+    role: str = "analyst"
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    email: str
+    name: str
+    role: str
+    is_active: bool
+
+
 class EngagementCreate(BaseModel):
     client_name: str
     name: str
