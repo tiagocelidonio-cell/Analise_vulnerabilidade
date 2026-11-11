@@ -133,6 +133,10 @@ curl -s localhost:8000/engagements/<ID>/findings
 - [x] Status de evolução do scan (progresso % + fase, em tempo real)
 - [x] Aba de validação com log do que foi executado + comando reproduzível
 - [x] Benchmarking e dashboard global (vulnerabilidades mais comuns na base)
+- [x] Playbook guiado: pentest em 6 fases (recon→reteste) por cliente
+- [x] Detecção segura de automação/OT/IoT (Modbus, S7, MQTT, BACnet, DNP3, câmeras)
+- [x] Pós-exploração guiada (mapa de impacto + checklist, sem ataque automático)
+- [x] Reteste real: re-executa validações e marca corrigido/ainda aberto
 - [ ] HTTPS/reverse-proxy e deploy de produção numa VM com domínio
 - [ ] Captura de screenshot como evidência (precisa de headless browser)
 - [ ] Alembic para migrações (hoje há auto-migração leve no boot)

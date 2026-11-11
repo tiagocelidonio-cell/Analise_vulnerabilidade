@@ -9,7 +9,16 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth as auth_api
-from app.api import engagements, exploit, findings, overview, reports, risk, scans
+from app.api import (
+    engagements,
+    exploit,
+    findings,
+    overview,
+    postexploit,
+    reports,
+    risk,
+    scans,
+)
 from app.auth import ensure_seed_admin, get_current_user
 from app.config import settings
 from app.db import SessionLocal, init_db
@@ -49,6 +58,7 @@ app.include_router(reports.router, dependencies=_auth)
 app.include_router(risk.router, dependencies=_auth)
 app.include_router(exploit.router, dependencies=_auth)
 app.include_router(overview.router, dependencies=_auth)
+app.include_router(postexploit.router, dependencies=_auth)
 
 
 @app.get("/health", tags=["meta"])

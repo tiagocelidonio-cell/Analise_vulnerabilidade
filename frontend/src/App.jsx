@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { api, getToken } from "./api.js";
 import { branding } from "./branding.js";
 import Dashboard from "./Dashboard.jsx";
+import Playbook from "./Playbook.jsx";
 import Validation from "./Validation.jsx";
 import Overview from "./Overview.jsx";
 import Admin from "./Admin.jsx";
@@ -255,11 +256,13 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     sev: s, n: findings.filter((f) => f.severity === s).length,
   }));
 
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState("playbook");
 
   return (
     <div>
       <div className="tabs">
+        <button className={`tab ${tab === "playbook" ? "active" : ""}`}
+          onClick={() => setTab("playbook")}>Playbook</button>
         <button className={`tab ${tab === "dashboard" ? "active" : ""}`}
           onClick={() => setTab("dashboard")}>Dashboard</button>
         <button className={`tab ${tab === "ops" ? "active" : ""}`}
@@ -268,6 +271,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           onClick={() => setTab("validation")}>Validação</button>
       </div>
 
+      {tab === "playbook" && <Playbook engagement={engagement} />}
       {tab === "dashboard" && <Dashboard engagement={engagement} />}
       {tab === "validation" && <Validation engagement={engagement} />}
       {tab === "ops" && (

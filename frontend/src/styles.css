@@ -46,6 +46,19 @@ select { background: var(--bg); border: 1px solid var(--line); color: var(--text
 .cmd { background: #052e16; color: #bbf7d0; padding: 7px 9px; border-radius: 6px;
   font-family: 'DejaVu Sans Mono', monospace; font-size: 11px; white-space: pre-wrap;
   word-break: break-all; }
+
+/* Playbook — fases */
+.phase { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  margin: 10px 0; overflow: hidden; }
+.phaseHead { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border-bottom: 1px solid var(--line); }
+.phaseNum { width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+  color: #04120a; font-weight: 800; display: flex; align-items: center;
+  justify-content: center; flex: 0 0 auto; font-family: var(--heading-font, inherit); }
+.phaseTitle { font-weight: 700; font-family: var(--heading-font, inherit); }
+.phaseBody { padding: 12px 14px; }
+.checklist { margin: 6px 0; padding-left: 18px; }
+.checklist li { margin: 4px 0; }
 .eng { text-align: left; background: transparent; border: 1px solid transparent;
   border-radius: 8px; padding: 8px 10px; color: var(--text); cursor: pointer; }
 .eng:hover { background: var(--card); }
