@@ -7,6 +7,9 @@ provados — nunca inventa**.
 
 Roda igual no seu desktop, numa VM on-prem ou na nuvem: tudo containerizado.
 
+> 🚀 **É iniciante?** Siga o passo a passo completo em **[INSTALL.md](INSTALL.md)**
+> — instala tudo com dois comandos (`install.sh` e `start.sh`).
+
 ## Princípios
 
 1. **Coleta ≠ raciocínio.** Coletores provam fatos (porta aberta, banner).
