@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Lozinsky VulnScope">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1f6feb"/>
-      <stop offset="1" stop-color="#00b3a4"/>
+      <stop offset="0" stop-color="#0fdb2b"/>
+      <stop offset="1" stop-color="#0f942b"/>
     </linearGradient>
   </defs>
   <path d="M32 3 L56 12 V30 C56 46 46 56 32 61 C18 56 8 46 8 30 V12 Z"

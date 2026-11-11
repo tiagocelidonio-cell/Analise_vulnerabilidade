@@ -1,27 +1,26 @@
-// Identidade visual — ponto unico de configuracao da marca.
-// Ajuste aqui para refletir a identidade da Lozinsky (cores/fonte exatas).
-// O logo fica em frontend/public/logo.svg — troque o arquivo pelo seu.
+// Identidade visual — alinhada ao site lozinskyconsultoria.com.br
+// Verde da marca #0fdb2b, fundo preto, títulos em IBM Plex Mono.
 export const branding = {
   appName: "Lozinsky VulnScope",
   logo: "/logo.svg",
 
-  // Paleta (placeholder profissional escuro — troque pelos hex da marca).
   colors: {
-    bg: "#0a0f1a",
-    panel: "#0f1626",
-    card: "#141d30",
-    line: "#243049",
-    text: "#e8edf5",
-    muted: "#9aa7bd",
-    accent: "#1f6feb",   // COR PRIMARIA — ajustar para a cor da Lozinsky
-    accent2: "#00b3a4",  // cor secundaria
+    bg: "#000000",
+    panel: "#0b0b0c",
+    card: "#121214",
+    line: "#26262b",
+    text: "#f2f2f2",
+    muted: "#9aa3ad",
+    accent: "#0fdb2b",    // verde Lozinsky
+    accent2: "#1c476b",   // azul secundário
   },
 
-  // Fonte (carregada no index.html). Troque pela fonte do site se for outra.
-  font: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  // Fontes do site (carregadas no index.html).
+  font: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+  headingFont: "'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace",
 };
 
-// Aplica as cores da marca como variaveis CSS no :root.
+// Aplica a marca como variáveis CSS no :root.
 export function applyBranding() {
   const r = document.documentElement;
   const c = branding.colors;
@@ -34,5 +33,6 @@ export function applyBranding() {
   r.style.setProperty("--accent", c.accent);
   r.style.setProperty("--accent2", c.accent2);
   r.style.setProperty("--font", branding.font);
+  r.style.setProperty("--heading-font", branding.headingFont);
   document.title = branding.appName;
 }

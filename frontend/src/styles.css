@@ -7,11 +7,15 @@ body { margin: 0; background: var(--bg); color: var(--text);
   font-family: var(--font, system-ui, -apple-system, Segoe UI, Roboto, sans-serif);
   font-size: 14px; }
 
+/* Títulos na fonte da marca (IBM Plex Mono) */
+h1, h2, h3, h4 { font-family: var(--heading-font, inherit); font-weight: 600;
+  letter-spacing: -.01em; }
+
 .app { display: flex; min-height: 100vh; }
 .sidebar { width: 300px; background: var(--panel); border-right: 1px solid var(--line);
   padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.brand { font-size: 19px; font-weight: 800; letter-spacing: .3px;
-  display: flex; align-items: center; gap: 9px; }
+.brand { font-family: var(--heading-font, inherit); font-size: 17px; font-weight: 600;
+  letter-spacing: .3px; display: flex; align-items: center; gap: 9px; }
 .brandLogo { width: 26px; height: 26px; }
 .loginLogo { width: 56px; height: 56px; display: block; margin: 0 auto 4px; }
 
@@ -64,7 +68,9 @@ textarea { resize: vertical; }
   border-radius: 7px; padding: 8px 12px; cursor: pointer; text-decoration: none;
   display: inline-block; font: inherit; }
 .btn:hover { border-color: var(--accent); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #04120a;
+  font-weight: 700; }
+.btn.primary:hover { background: #0f942b; border-color: #0f942b; }
 .btn.danger { background: #b91c1c; border-color: #b91c1c; color: #fff; }
 .btn.danger:hover { background: #991b1b; border-color: #991b1b; }
 .btn.block { width: 100%; }
