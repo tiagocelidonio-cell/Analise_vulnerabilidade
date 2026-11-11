@@ -45,6 +45,9 @@ export const api = {
   createEngagement: (body) =>
     req("/engagements", { method: "POST", body: JSON.stringify(body) }),
   getEngagement: (id) => req(`/engagements/${id}`),
+  updateEngagement: (id, body) =>
+    req(`/engagements/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteEngagement: (id) => req(`/engagements/${id}`, { method: "DELETE" }),
   listScans: (id) => req(`/engagements/${id}/scans`),
   createScan: (id, body) =>
     req(`/engagements/${id}/scans`, { method: "POST", body: JSON.stringify(body) }),

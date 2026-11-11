@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { api } from "./api.js";
+import { branding } from "./branding.js";
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -21,7 +22,8 @@ export default function Login({ onLogin }) {
   return (
     <div className="loginWrap">
       <form className="loginCard" onSubmit={submit}>
-        <div className="brand" style={{ fontSize: 26, textAlign: "center" }}>VulnScope</div>
+        <img src={branding.logo} alt="logo" className="loginLogo" />
+        <div className="brand" style={{ fontSize: 24, textAlign: "center" }}>{branding.appName}</div>
         <p className="muted" style={{ textAlign: "center", marginTop: 0 }}>
           Acesso restrito — faça login
         </p>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api, getToken } from "./api.js";
+import { branding } from "./branding.js";
 import Dashboard from "./Dashboard.jsx";
 import Login from "./Login.jsx";
 
@@ -168,9 +169,65 @@ function FindingRow({ f }) {
   );
 }
 
-function EngagementView({ engagement }) {
+function ScopeEditor({ engagement, onSaved, onCancel }) {
+  const [list, setList] = useState([...(engagement.scope || [])]);
+  const [entry, setEntry] = useState("");
+  const [err, setErr] = useState("");
+
+  function add() {
+    const v = entry.trim().toLowerCase();
+    if (v && !list.includes(v)) setList([...list, v]);
+    setEntry("");
+  }
+  async function save() {
+    try {
+      const upd = await api.updateEngagement(engagement.id, { scope: list });
+      onSaved(upd);
+    } catch (e) { setErr(e.message); }
+  }
+
+  return (
+    <div className="card">
+      <h3>Editar escopo (IPs, CIDRs, domínios, hosts)</h3>
+      <div className="scopeList">
+        {list.map((s) => (
+          <span key={s} className="chip">
+            {s}
+            <button type="button" className="chipx"
+              onClick={() => setList(list.filter((x) => x !== s))}>×</button>
+          </span>
+        ))}
+        {list.length === 0 && <span className="muted">Escopo vazio.</span>}
+      </div>
+      <div className="row">
+        <input placeholder="Adicionar (ex: 10.0.0.0/24, example.com, 1.2.3.4)"
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+        <button className="btn" type="button" onClick={add}>Adicionar</button>
+      </div>
+      {err && <div className="err">{err}</div>}
+      <div className="row">
+        <button className="btn primary" type="button" onClick={save}>Salvar escopo</button>
+        <button className="btn" type="button" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function EngagementView({ engagement, onDeleted, onUpdated }) {
   const [scans, setScans] = useState([]);
   const [findings, setFindings] = useState([]);
+  const [editingScope, setEditingScope] = useState(false);
+
+  async function removeEngagement() {
+    if (!window.confirm(
+      `Excluir o cliente "${engagement.client_name}" e TODOS os seus scans, `
+      + `achados e evidências? Esta ação não pode ser desfeita.`
+    )) return;
+    await api.deleteEngagement(engagement.id);
+    onDeleted();
+  }
 
   const refresh = useCallback(async () => {
     const [s, f] = await Promise.all([
@@ -216,10 +273,18 @@ function EngagementView({ engagement }) {
           <p className="muted">{engagement.client_name} · {engagement.scope.join(", ") || "sem escopo"}</p>
         </div>
         <div className="row">
+          <button className="btn" onClick={() => setEditingScope(!editingScope)}>Editar escopo</button>
           <a className="btn" href={api.reportHtmlUrl(engagement.id)} target="_blank" rel="noreferrer">Preview</a>
           <a className="btn primary" href={api.reportPdfUrl(engagement.id)}>Baixar PDF</a>
+          <button className="btn danger" onClick={removeEngagement}>Excluir cliente</button>
         </div>
       </div>
+
+      {editingScope && (
+        <ScopeEditor engagement={engagement}
+          onSaved={(upd) => { setEditingScope(false); onUpdated(upd); }}
+          onCancel={() => setEditingScope(false)} />
+      )}
 
       <div className="kpis">
         {counts.map((c) => (
@@ -297,7 +362,10 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">VulnScope</div>
+        <div className="brand">
+          <img src={branding.logo} alt="logo" className="brandLogo" />
+          {branding.appName}
+        </div>
         <div className="userbox">
           <div>
             <div className="uname">{user.name || user.email}</div>
@@ -322,7 +390,9 @@ export default function App() {
       </aside>
       <main className="main">
         {selected
-          ? <EngagementView key={selected.id} engagement={selected} />
+          ? <EngagementView key={selected.id} engagement={selected}
+              onDeleted={() => { setSelected(null); load(); }}
+              onUpdated={(e) => { setSelected(e); load(); }} />
           : <div className="empty">Selecione ou crie um engagement.</div>}
       </main>
     </div>

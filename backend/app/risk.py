@@ -82,6 +82,7 @@ def score_finding(finding: dict) -> dict:
         "title": finding.get("title"),
         "target": finding.get("target"),
         "severity": finding.get("severity"),
+        "cve_ids": finding.get("cve_ids", []),
         "probability": p,
         "impact": i,
         "score": s,

@@ -149,20 +149,23 @@ export default function Dashboard({ engagement }) {
       <div className="card">
         <h3>Top 10 riscos priorizados</h3>
         <table className="t">
-          <thead><tr><th>#</th><th>Risco</th><th>Alvo</th><th>Prob.</th><th>Impacto</th><th>Score</th><th>Nível</th></tr></thead>
+          <thead><tr><th>#</th><th>Risco</th><th>Alvo</th><th>CVEs</th><th>Prob.</th><th>Impacto</th><th>Score</th><th>Nível</th></tr></thead>
           <tbody>
             {data.top_risks.map((r, idx) => (
               <tr key={r.id || idx}>
                 <td>{idx + 1}</td>
                 <td>{r.title}</td>
                 <td>{r.target}</td>
+                <td>{r.cve_ids && r.cve_ids.length
+                  ? r.cve_ids.slice(0, 3).join(", ") + (r.cve_ids.length > 3 ? ` +${r.cve_ids.length - 3}` : "")
+                  : "—"}</td>
                 <td>{r.probability}</td>
                 <td>{r.impact}</td>
                 <td><b>{r.score}</b></td>
                 <td><span className="pill" style={{ background: scoreColor(r.score) }}>{r.level.toUpperCase()}</span></td>
               </tr>
             ))}
-            {data.top_risks.length === 0 && <tr><td colSpan={7} className="muted">Sem achados ainda.</td></tr>}
+            {data.top_risks.length === 0 && <tr><td colSpan={8} className="muted">Sem achados ainda.</td></tr>}
           </tbody>
         </table>
       </div>

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models import Engagement
-from app.schemas import EngagementCreate, EngagementOut
+from app.schemas import EngagementCreate, EngagementOut, EngagementUpdate
 
 router = APIRouter(prefix="/engagements", tags=["engagements"])
 
@@ -39,3 +39,32 @@ async def get_engagement(
     if eng is None:
         raise HTTPException(404, "Engagement nao encontrado")
     return eng
+
+
+@router.patch("/{engagement_id}", response_model=EngagementOut)
+async def update_engagement(
+    engagement_id: str,
+    body: EngagementUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> Engagement:
+    eng = await session.get(Engagement, engagement_id)
+    if eng is None:
+        raise HTTPException(404, "Engagement nao encontrado")
+    # So atualiza os campos enviados (ex: editar escopo).
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(eng, field, value)
+    await session.commit()
+    await session.refresh(eng)
+    return eng
+
+
+@router.delete("/{engagement_id}", status_code=204)
+async def delete_engagement(
+    engagement_id: str, session: AsyncSession = Depends(get_session)
+) -> None:
+    eng = await session.get(Engagement, engagement_id)
+    if eng is None:
+        raise HTTPException(404, "Engagement nao encontrado")
+    # Cascata remove scans, achados e evidencias do cliente.
+    await session.delete(eng)
+    await session.commit()

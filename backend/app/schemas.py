@@ -41,6 +41,15 @@ class EngagementCreate(BaseModel):
     allow_intrusive: bool = False
 
 
+class EngagementUpdate(BaseModel):
+    client_name: str | None = None
+    name: str | None = None
+    scope: list[str] | None = None
+    authorized: bool | None = None
+    authorized_by: str | None = None
+    allow_intrusive: bool | None = None
+
+
 class EngagementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str

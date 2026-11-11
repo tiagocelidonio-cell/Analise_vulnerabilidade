@@ -28,6 +28,7 @@ async def engagement_risk(
             "id": f.id, "title": f.title, "target": f.target,
             "service": f.service, "severity": f.severity.value,
             "cvss": f.cvss, "epss": f.epss, "in_kev": f.in_kev,
+            "cve_ids": f.cve_ids,
         }
         for f in rows
     ]

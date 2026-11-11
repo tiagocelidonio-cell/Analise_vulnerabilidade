@@ -4,12 +4,25 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; font-size: 14px; }
+  font-family: var(--font, system-ui, -apple-system, Segoe UI, Roboto, sans-serif);
+  font-size: 14px; }
 
 .app { display: flex; min-height: 100vh; }
 .sidebar { width: 300px; background: var(--panel); border-right: 1px solid var(--line);
   padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.brand { font-size: 20px; font-weight: 800; letter-spacing: .5px; }
+.brand { font-size: 19px; font-weight: 800; letter-spacing: .3px;
+  display: flex; align-items: center; gap: 9px; }
+.brandLogo { width: 26px; height: 26px; }
+.loginLogo { width: 56px; height: 56px; display: block; margin: 0 auto 4px; }
+
+/* Chips do editor de escopo */
+.scopeList { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 14px; padding: 3px 6px 3px 10px;
+  font-size: 12px; }
+.chipx { background: transparent; border: none; color: var(--muted); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0 2px; }
+.chipx:hover { color: #fca5a5; }
 .main { flex: 1; padding: 24px 32px; overflow: auto; }
 .empty { color: var(--muted); margin-top: 20vh; text-align: center; }
 
