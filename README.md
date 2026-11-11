@@ -45,16 +45,35 @@ backend/app/
   scope.py             GATE de autorização/escopo
   schemas.py           contratos da API (Pydantic)
   main.py              app FastAPI
-  api/                 rotas: engagements, scans, findings, reports
+  api/                 rotas: engagements, scans, findings, reports, risk, exploit
   collectors/          port_scan ("sem nmap") + http_probe (web/TLS) +
-                       subdomain_enum (CT/DNS/AXFR) + wayback + google_dorks
+                       web_content (brute-force de paths) + subdomain_enum
+                       (CT/DNS/AXFR) + wayback + google_dorks
   enrichment/          cve_match (banner→CVE/NVD) + EPSS (FIRST) + KEV (CISA)
   ai/                  camada de IA isolada e provider-agnóstica
+  risk.py              modelo de risco: probabilidade × impacto → matriz 5×5
+  exploitation/        framework de validação SAFE (não-destrutivo, sem DoS)
   reporting/           relatório PDF (WeasyPrint): executivo + técnico
   worker/              pipeline de scan em background (ARQ)
-frontend/              painel React (Vite): clientes, scans, achados, relatório
+frontend/              painel React (Vite): dashboard de risco, scans, achados
 docker-compose.yml     db + redis + minio + api + worker + web
 ```
+
+## Exploração (validação) — segurança por desenho
+
+A plataforma **comprova** vulnerabilidades, mas de forma não-destrutiva, em
+níveis de risco:
+
+| Nível | O que faz | Padrão |
+|-------|-----------|--------|
+| 🟢 **safe** | Confirma a falha lendo o que está exposto (`.git`, `.env`, listing, backups) | Habilitado |
+| 🟡 **intrusive** | Ação ativa sem quebrar nada | Opt-in (interface pronta) |
+| 🔴 **DoS / indisponibilidade** | Derrubar o serviço | **Não implementado** |
+
+O motor **recusa** qualquer sonda com risco de disponibilidade. Testes de
+indisponibilidade são manuais e exigem autorização separada por escrito. Toda
+confirmação vira um achado de confiança 1.0 com a prova anexada (segredos são
+mascarados na evidência).
 
 ## Como rodar (um comando)
 
@@ -101,8 +120,11 @@ curl -s localhost:8000/engagements/<ID>/findings
 - [x] Painel React (clientes, scans, achados, evidências, export)
 - [x] Recon: subdomínios (Certificate Transparency + DNS + brute-force + AXFR)
 - [x] OSINT: Wayback Machine (arquivos sensíveis históricos) + gerador de Google dorks
-- [ ] Autenticação + multi-usuário (RBAC)
-- [ ] Varredura de diretórios/arquivos web (brute-force de paths)
+- [x] Varredura de diretórios/arquivos web (brute-force de paths)
+- [x] Dashboard executivo com matriz de risco (probabilidade × impacto)
+- [x] Exploração/validação SAFE não-destrutiva (prova a falha, sem DoS)
+- [ ] Autenticação + multi-usuário (RBAC) ← próximo antes de publicar externamente
+- [ ] Sondas "intrusive" (opt-in) e relatório incluindo a matriz de risco
 - [ ] Alembic para migrações (hoje o schema é criado no boot)
 - [ ] Persistência de evidências grandes no S3/MinIO (hoje inline)
 

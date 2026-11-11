@@ -24,6 +24,8 @@ export const api = {
     req(`/engagements/${id}/scans`, { method: "POST", body: JSON.stringify(body) }),
   getScan: (sid) => req(`/scans/${sid}`),
   listFindings: (id) => req(`/engagements/${id}/findings`),
+  risk: (id) => req(`/engagements/${id}/risk`),
+  validate: (id) => req(`/engagements/${id}/validate`, { method: "POST" }),
   reportHtmlUrl: (id) => `${BASE}/engagements/${id}/report.html`,
   reportPdfUrl: (id) => `${BASE}/engagements/${id}/report.pdf`,
 };

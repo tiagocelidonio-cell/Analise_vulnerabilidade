@@ -3,11 +3,13 @@ from app.collectors.http_probe import HttpProbeCollector
 from app.collectors.port_scan import PortScanCollector
 from app.collectors.subdomain_enum import SubdomainEnumCollector
 from app.collectors.wayback import WaybackCollector
+from app.collectors.web_content import WebContentCollector
 
 # Registro de coletores disponiveis. Adicione novos aqui.
 COLLECTORS = {
     "port_scan": PortScanCollector(),
     "http_probe": HttpProbeCollector(),
+    "web_content": WebContentCollector(),
     "subdomain_enum": SubdomainEnumCollector(),
     "wayback": WaybackCollector(),
     "google_dorks": GoogleDorksCollector(),

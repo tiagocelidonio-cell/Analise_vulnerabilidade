@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
+import Dashboard from "./Dashboard.jsx";
 
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
 const SEV_COLOR = {
@@ -186,8 +187,21 @@ function EngagementView({ engagement }) {
     sev: s, n: findings.filter((f) => f.severity === s).length,
   }));
 
+  const [tab, setTab] = useState("dashboard");
+
   return (
     <div>
+      <div className="tabs">
+        <button className={`tab ${tab === "dashboard" ? "active" : ""}`}
+          onClick={() => setTab("dashboard")}>Dashboard</button>
+        <button className={`tab ${tab === "ops" ? "active" : ""}`}
+          onClick={() => setTab("ops")}>Operação</button>
+      </div>
+
+      {tab === "dashboard" ? (
+        <Dashboard engagement={engagement} />
+      ) : (
+      <>
       <div className="head">
         <div>
           <h2>{engagement.name}</h2>
@@ -234,6 +248,8 @@ function EngagementView({ engagement }) {
           {findings.length === 0 && <tr><td colSpan={7} className="muted">Sem achados. Dispare um scan.</td></tr>}
         </tbody>
       </table>
+      </>
+      )}
     </div>
   );
 }

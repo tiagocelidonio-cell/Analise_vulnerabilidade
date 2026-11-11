@@ -8,7 +8,7 @@ from arq.connections import RedisSettings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import engagements, findings, reports, scans
+from app.api import engagements, exploit, findings, reports, risk, scans
 from app.config import settings
 from app.db import init_db
 
@@ -37,6 +37,8 @@ app.include_router(engagements.router)
 app.include_router(scans.router)
 app.include_router(findings.router)
 app.include_router(reports.router)
+app.include_router(risk.router)
+app.include_router(exploit.router)
 
 
 @app.get("/health", tags=["meta"])
