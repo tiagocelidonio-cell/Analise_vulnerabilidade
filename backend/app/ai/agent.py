@@ -50,6 +50,8 @@ def _stub_assessment(fact: dict, enrichment: dict) -> AiAssessment:
     any_kev = enrichment.get("any_kev", False)
     max_epss = enrichment.get("max_epss", 0.0)
     service = (fact.get("service") or "").lower()
+    hint = (fact.get("data") or {}).get("severity_hint")
+    _order = ["info", "low", "medium", "high", "critical"]
 
     if any_kev:
         sev = "critical"
@@ -59,6 +61,10 @@ def _stub_assessment(fact: dict, enrichment: dict) -> AiAssessment:
         sev = "medium"
     else:
         sev = "info"
+
+    # Respeita a dica do coletor (ex: header ausente, cert vencido) se for mais alta.
+    if hint in _order and _order.index(hint) > _order.index(sev):
+        sev = hint
 
     return AiAssessment(
         severity=sev,

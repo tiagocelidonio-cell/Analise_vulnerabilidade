@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from arq.connections import RedisSettings
 
 from app.ai.agent import analyst
-from app.collectors import COLLECTORS
+from app.collectors import COLLECTORS, DEFAULT_COLLECTORS
 from app.config import settings
 from app.db import SessionLocal, init_db
 from app.enrichment.cve_match import correlate
@@ -47,10 +47,15 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
         await session.commit()
 
         try:
-            collector = COLLECTORS["port_scan"]
-            facts = await collector.run(
-                scan.targets, ports=scan.ports or None
-            )
+            selected = scan.collectors or DEFAULT_COLLECTORS
+            facts = []
+            for name in selected:
+                collector = COLLECTORS.get(name)
+                if collector is None:
+                    continue
+                facts.extend(
+                    await collector.run(scan.targets, ports=scan.ports or None)
+                )
 
             created = 0
             for fact in facts:

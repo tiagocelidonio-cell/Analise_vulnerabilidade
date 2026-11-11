@@ -43,6 +43,7 @@ async def create_scan(
         engagement_id=engagement_id,
         targets=body.targets,
         ports=body.ports,
+        collectors=body.collectors,
         status=ScanStatus.queued,
     )
     session.add(scan)

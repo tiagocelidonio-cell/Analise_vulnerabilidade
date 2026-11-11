@@ -76,6 +76,7 @@ class ScanJob(Base):
     engagement_id: Mapped[str] = mapped_column(ForeignKey("engagements.id"))
     targets: Mapped[list] = mapped_column(JSON, default=list)
     ports: Mapped[list] = mapped_column(JSON, default=list)
+    collectors: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[ScanStatus] = mapped_column(
         Enum(ScanStatus), default=ScanStatus.queued
     )

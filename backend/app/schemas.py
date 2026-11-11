@@ -28,6 +28,7 @@ class EngagementOut(BaseModel):
 class ScanCreate(BaseModel):
     targets: list[str]
     ports: list[int] = Field(default_factory=list)
+    collectors: list[str] = Field(default_factory=list)  # vazio = todos os padrao
 
 
 class ScanOut(BaseModel):
@@ -36,6 +37,7 @@ class ScanOut(BaseModel):
     engagement_id: str
     targets: list[str]
     ports: list[int]
+    collectors: list[str]
     status: str
     error: str | None
     created_at: datetime
