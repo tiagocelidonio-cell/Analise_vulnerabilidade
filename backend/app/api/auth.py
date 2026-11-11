@@ -92,7 +92,7 @@ async def delete_user(
     user_id: str,
     admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
-) -> None:
+):
     if user_id == admin.id:
         raise HTTPException(400, "Nao e possivel excluir o proprio usuario")
     u = await session.get(User, user_id)

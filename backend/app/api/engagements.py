@@ -63,6 +63,6 @@ async def update_engagement(
 async def delete_engagement(
     eng: Engagement = Depends(require_engagement_access),
     session: AsyncSession = Depends(get_session),
-) -> None:
+):
     await session.delete(eng)
     await session.commit()
