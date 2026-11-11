@@ -68,7 +68,7 @@ níveis de risco:
 | Nível | O que faz | Padrão |
 |-------|-----------|--------|
 | 🟢 **safe** | Confirma a falha lendo o que está exposto (`.git`, `.env`, listing, backups) | Habilitado |
-| 🟡 **intrusive** | Ação ativa sem quebrar nada | Opt-in (interface pronta) |
+| 🟡 **intrusive** | Detecção ativa não-destrutiva: SQLi (erro), XSS refletido, open redirect, path traversal/LFI | Opt-in por engagement (`allow_intrusive`) |
 | 🔴 **DoS / indisponibilidade** | Derrubar o serviço | **Não implementado** |
 
 O motor **recusa** qualquer sonda com risco de disponibilidade. Testes de
@@ -125,8 +125,9 @@ curl -s localhost:8000/engagements/<ID>/findings
 - [x] Dashboard executivo com matriz de risco (probabilidade × impacto)
 - [x] Exploração/validação SAFE não-destrutiva (prova a falha, sem DoS)
 - [x] Autenticação + multi-usuário (login JWT, senha com hash, papéis admin/analyst)
+- [x] Sondas "intrusive" opt-in (SQLi/XSS/redirect/LFI, não-destrutivas)
+- [x] Relatório PDF incluindo a matriz de risco e top riscos
 - [ ] HTTPS/reverse-proxy e deploy de produção numa VM com domínio
-- [ ] Sondas "intrusive" (opt-in) e relatório incluindo a matriz de risco
 - [ ] Alembic para migrações (hoje o schema é criado no boot)
 - [ ] Persistência de evidências grandes no S3/MinIO (hoje inline)
 

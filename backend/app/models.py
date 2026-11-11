@@ -71,6 +71,8 @@ class Engagement(Base):
     # Gate de autorizacao: sem isso, nenhum scan roda.
     authorized: Mapped[bool] = mapped_column(Boolean, default=False)
     authorized_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Opt-in para sondas intrusivas (ativas, nao-destrutivas). Padrao: desligado.
+    allow_intrusive: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     scans: Mapped[list[ScanJob]] = relationship(

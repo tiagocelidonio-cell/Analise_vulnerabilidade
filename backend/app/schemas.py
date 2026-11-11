@@ -38,6 +38,7 @@ class EngagementCreate(BaseModel):
     scope: list[str] = Field(default_factory=list)
     authorized: bool = False
     authorized_by: str | None = None
+    allow_intrusive: bool = False
 
 
 class EngagementOut(BaseModel):
@@ -48,6 +49,7 @@ class EngagementOut(BaseModel):
     scope: list[str]
     authorized: bool
     authorized_by: str | None
+    allow_intrusive: bool
     created_at: datetime
 
 

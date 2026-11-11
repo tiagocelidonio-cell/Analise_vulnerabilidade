@@ -21,6 +21,7 @@ function NewEngagement({ onCreated }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     client_name: "", name: "", scope: "", authorized: false, authorized_by: "",
+    allow_intrusive: false,
   });
   const [err, setErr] = useState("");
 
@@ -33,7 +34,8 @@ function NewEngagement({ onCreated }) {
         scope: form.scope.split("\n").map((s) => s.trim()).filter(Boolean),
       };
       const eng = await api.createEngagement(body);
-      setForm({ client_name: "", name: "", scope: "", authorized: false, authorized_by: "" });
+      setForm({ client_name: "", name: "", scope: "", authorized: false,
+        authorized_by: "", allow_intrusive: false });
       setOpen(false);
       onCreated(eng);
     } catch (e) { setErr(e.message); }
@@ -58,6 +60,11 @@ function NewEngagement({ onCreated }) {
         <input type="checkbox" checked={form.authorized}
           onChange={(e) => setForm({ ...form, authorized: e.target.checked })} />
         Autorizo o scan deste escopo (obrigatorio)
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={form.allow_intrusive}
+          onChange={(e) => setForm({ ...form, allow_intrusive: e.target.checked })} />
+        Permitir sondas intrusivas (ativas, não-destrutivas) — opt-in
       </label>
       {err && <div className="err">{err}</div>}
       <div className="row">

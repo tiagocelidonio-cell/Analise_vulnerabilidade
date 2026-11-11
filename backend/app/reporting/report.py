@@ -13,8 +13,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Engagement, Finding
+from app.risk import build_matrix
 
 _SEV_ORDER = ["critical", "high", "medium", "low", "info"]
+
+
+def _score_color(score: int) -> str:
+    if score >= 20:
+        return "#7f1d1d"
+    if score >= 15:
+        return "#b91c1c"
+    if score >= 10:
+        return "#c2410c"
+    if score >= 5:
+        return "#a16207"
+    return "#15803d"
 _SEV_COLOR = {
     "critical": "#7f1d1d", "high": "#b91c1c", "medium": "#c2410c",
     "low": "#a16207", "info": "#334155",
@@ -42,6 +55,10 @@ _TEMPLATE = Template(
   .evi { background:#0f172a; color:#e2e8f0; font-family:'DejaVu Sans Mono',monospace;
        font-size:9px; padding:8px; border-radius:6px; white-space:pre-wrap; word-break:break-all; }
   .meta { color:#475569; font-size:10px; }
+  .rmatrix { border-collapse:collapse; margin:8px 0; }
+  .rmatrix td { width:40px; height:30px; text-align:center; color:#fff;
+       font-weight:bold; border:2px solid #fff; font-size:11px; }
+  .rmatrix th { color:#64748b; font-size:9px; padding:3px; }
 </style></head><body>
 
 <div class="cover">
@@ -61,6 +78,32 @@ _TEMPLATE = Template(
 </div>
 <p>Foram identificados <strong>{{ total }}</strong> achados em
    {{ hosts|length }} host(s). {{ exec_line }}</p>
+
+<h2>Matriz de risco (probabilidade × impacto)</h2>
+<p>Score médio de risco: <strong>{{ risk.avg_score }}</strong> &nbsp;|&nbsp;
+   Explorados ativamente (KEV): <strong>{{ risk.kev_count }}</strong></p>
+<table class="rmatrix">
+  {% for row in risk_rows %}
+  <tr><th>P{{ row.p }}</th>
+    {% for c in row.cells %}
+    <td style="background:{{ c.color }}">{{ c.n if c.n else '' }}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  <tr><th></th>{% for i in [1,2,3,4,5] %}<th>I{{ i }}</th>{% endfor %}</tr>
+</table>
+<p class="muted">Linhas = probabilidade (P1 baixa … P5 alta); colunas = impacto
+   (I1 baixo … I5 alto). Número = quantidade de achados na célula.</p>
+
+<h3>Top 10 riscos priorizados</h3>
+<table><thead><tr><th>#</th><th>Risco</th><th>Alvo</th><th>Prob</th>
+  <th>Impacto</th><th>Score</th><th>Nível</th></tr></thead><tbody>
+{% for r in top_risks %}
+<tr><td>{{ loop.index }}</td><td>{{ r.title }}</td><td>{{ r.target }}</td>
+  <td>{{ r.probability }}</td><td>{{ r.impact }}</td><td><strong>{{ r.score }}</strong></td>
+  <td><span class="pill" style="background:{{ r.color }}">{{ r.level|upper }}</span></td></tr>
+{% endfor %}
+</tbody></table>
 
 <h2>Achados por severidade</h2>
 <table><thead><tr><th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th>
@@ -135,10 +178,32 @@ async def render_html(session: AsyncSession, engagement_id: str) -> str | None:
         return None
     counts = {s: sum(1 for f in findings if f.severity.value == s) for s in _SEV_ORDER}
     hosts = sorted({f.target for f in findings})
+
+    # Dados de risco (matriz 5x5 + top riscos) para o relatorio executivo.
+    risk = build_matrix(
+        [
+            {"id": f.id, "title": f.title, "target": f.target, "service": f.service,
+             "severity": f.severity.value, "cvss": f.cvss, "epss": f.epss,
+             "in_kev": f.in_kev}
+            for f in findings
+        ]
+    )
+    matrix = risk["matrix"]
+    risk_rows = [
+        {"p": p, "cells": [
+            {"n": matrix[p - 1][i - 1],
+             "color": _score_color(p * i) if matrix[p - 1][i - 1] else "#e2e8f0"}
+            for i in range(1, 6)
+        ]}
+        for p in (5, 4, 3, 2, 1)
+    ]
+    top_risks = [dict(r, color=_score_color(r["score"])) for r in risk["top_risks"]]
+
     return _TEMPLATE.render(
         eng=eng, findings=findings, counts=counts, total=len(findings),
         hosts=hosts, sev_order=_SEV_ORDER, sev_color=_SEV_COLOR,
-        exec_line=_exec_line(counts),
+        exec_line=_exec_line(counts), risk=risk, risk_rows=risk_rows,
+        top_risks=top_risks,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     )
 

@@ -51,7 +51,8 @@ export const api = {
   getScan: (sid) => req(`/scans/${sid}`),
   listFindings: (id) => req(`/engagements/${id}/findings`),
   risk: (id) => req(`/engagements/${id}/risk`),
-  validate: (id) => req(`/engagements/${id}/validate`, { method: "POST" }),
+  validate: (id, intrusive = false) =>
+    req(`/engagements/${id}/validate?intrusive=${intrusive}`, { method: "POST" }),
   // relatorios: token no query para abrir em nova aba
   reportHtmlUrl: (id) => `${BASE}/engagements/${id}/report.html?token=${getToken() || ""}`,
   reportPdfUrl: (id) => `${BASE}/engagements/${id}/report.pdf?token=${getToken() || ""}`,
