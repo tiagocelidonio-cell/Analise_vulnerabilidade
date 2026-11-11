@@ -59,8 +59,9 @@ services:
   web:
     build: ./frontend
     environment:
-      # URL da API vista pelo navegador (roda no host).
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      # Vazio por padrao: o painel usa o proxy /api (mesma origem, porta 5173).
+      # So preencha VITE_API_URL no .env para apontar a API a outro host/porta.
+      VITE_API_URL: ${VITE_API_URL:-}
     ports:
       - "5173:5173"
     volumes:
