@@ -14,6 +14,7 @@ from app.ai.agent import analyst
 from app.collectors import COLLECTORS
 from app.config import settings
 from app.db import SessionLocal, init_db
+from app.enrichment.cve_match import correlate
 from app.enrichment.sources import enrich_cves
 from app.models import Evidence, Finding, ScanJob, ScanStatus, Severity
 from app.scope import validate_targets
@@ -54,11 +55,18 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             created = 0
             for fact in facts:
                 fact_dict = asdict(fact)
-                cve_ids = fact.data.get("cve_ids", [])
+
+                # 1) Correlaciona o banner com CVEs reais (NVD).
+                correlation = await correlate(fact.data.get("banner", "") or fact.raw)
+                cve_ids = correlation["cve_ids"]
+                fact_dict["correlation"] = correlation
+
+                # 2) Enriquece esses CVEs com EPSS (probabilidade) e KEV (exploracao ativa).
                 enrichment = await enrich_cves(cve_ids) if cve_ids else {
                     "epss": {}, "kev": {}, "max_epss": 0.0, "any_kev": False
                 }
 
+                # 3) IA raciocina sobre os fatos ja provados.
                 assessment = await analyst.assess(fact_dict, enrichment)
 
                 finding = Finding(
@@ -70,6 +78,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     title=fact.title,
                     description=assessment.risk_summary,
                     severity=Severity(assessment.severity),
+                    cvss=correlation.get("max_cvss"),
                     epss=enrichment.get("max_epss") or None,
                     in_kev=enrichment.get("any_kev", False),
                     cve_ids=cve_ids,
