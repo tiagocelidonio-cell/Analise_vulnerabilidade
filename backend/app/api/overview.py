@@ -30,7 +30,9 @@ async def compute_overview(session: AsyncSession, user: User) -> dict:
 
     empty = {"total_clients": 0, "total_findings": 0, "severity_dist": {},
              "level_dist": {}, "top_clients": [], "benchmark": [], "insights": [],
-             "matrix": [[0] * 5 for _ in range(5)], "avg_score": 0.0, "kev_count": 0}
+             "matrix": [[0] * 5 for _ in range(5)], "avg_score": 0.0, "kev_count": 0,
+             "cve_stats": {"distinct": 0, "kev": 0, "high_epss": 0, "top": [],
+                           "sources": "NVD + EPSS (FIRST) + CISA KEV + templates nuclei"}}
     if not engagements:
         return empty
 
@@ -43,12 +45,24 @@ async def compute_overview(session: AsyncSession, user: User) -> dict:
     per_client: dict[str, dict] = {}
     bench_items = []
     fd_list = []
+    cve_agg: dict[str, dict] = {}  # cve_id -> {clients:set, cvss, epss, kev}
 
     for f in findings:
         eng = eng_by_id.get(f.engagement_id)
         if eng is None:
             continue
         sev = f.severity.value
+        for cid in (f.cve_ids or []):
+            c = cve_agg.setdefault(cid, {
+                "cve_id": cid, "clients": set(), "cvss": None,
+                "epss": None, "in_kev": False})
+            c["clients"].add(eng.id)
+            if f.cvss is not None:
+                c["cvss"] = max(c["cvss"] or 0.0, f.cvss)
+            if f.epss is not None:
+                c["epss"] = max(c["epss"] or 0.0, f.epss)
+            if f.in_kev:
+                c["in_kev"] = True
         severity_dist[sev] = severity_dist.get(sev, 0) + 1
         fd = {"severity": sev, "cvss": f.cvss, "epss": f.epss, "in_kev": f.in_kev,
               "service": f.service}
@@ -78,6 +92,25 @@ async def compute_overview(session: AsyncSession, user: User) -> dict:
     benchmark = build_benchmark(bench_items)
     agg = build_matrix(fd_list)
 
+    # Base de CVEs detectada na carteira (item: CVE atualizada na Visao Geral).
+    # Prevalencia = % de clientes em que o CVE aparece (anonimo, p/ benchmarking).
+    n_clients = max(len(engagements), 1)
+    top_cves = sorted(
+        ({"cve_id": c["cve_id"],
+          "clients": len(c["clients"]),
+          "prevalence": round(100 * len(c["clients"]) / n_clients),
+          "cvss": c["cvss"], "epss": c["epss"], "in_kev": c["in_kev"]}
+         for c in cve_agg.values()),
+        key=lambda x: (x["in_kev"], x["clients"], x["cvss"] or 0, x["epss"] or 0),
+        reverse=True)[:15]
+    cve_stats = {
+        "distinct": len(cve_agg),
+        "kev": sum(1 for c in cve_agg.values() if c["in_kev"]),
+        "high_epss": sum(1 for c in cve_agg.values() if (c["epss"] or 0) >= 0.5),
+        "top": top_cves,
+        "sources": "NVD + EPSS (FIRST) + CISA KEV + templates nuclei",
+    }
+
     insights = []
     if benchmark:
         top = benchmark[0]
@@ -102,6 +135,7 @@ async def compute_overview(session: AsyncSession, user: User) -> dict:
         "matrix": agg["matrix"],
         "avg_score": agg["avg_score"],
         "kev_count": agg["kev_count"],
+        "cve_stats": cve_stats,
     }
 
 

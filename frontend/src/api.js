@@ -62,6 +62,8 @@ export const api = {
     req(`/engagements/${id}/scans`, { method: "POST", body: JSON.stringify(body) }),
   getScan: (sid) => req(`/scans/${sid}`),
   cancelScan: (sid) => req(`/scans/${sid}/cancel`, { method: "POST" }),
+  pauseScan: (sid) => req(`/scans/${sid}/pause`, { method: "POST" }),
+  resumeScan: (sid) => req(`/scans/${sid}/resume`, { method: "POST" }),
   listFindings: (id) => req(`/engagements/${id}/findings`),
   risk: (id) => req(`/engagements/${id}/risk`),
   assets: (id) => req(`/engagements/${id}/assets`),

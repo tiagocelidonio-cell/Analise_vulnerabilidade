@@ -111,6 +111,14 @@ select { background: var(--bg); border: 1px solid var(--line); color: var(--text
   border-radius: 8px; padding: 8px 10px; color: var(--text); cursor: pointer; }
 .eng:hover { background: var(--card); }
 .eng.active { background: var(--card); border-color: var(--accent); }
+.engrow { display: flex; align-items: stretch; gap: 2px; }
+.engrow .eng { flex: 1; min-width: 0; }
+.engrow.active .eng { background: var(--card); border-color: var(--accent); }
+.engdel { background: transparent; border: 1px solid transparent; border-radius: 8px;
+  color: var(--muted); cursor: pointer; padding: 0 8px; font-size: 13px; opacity: 0;
+  transition: opacity .12s; }
+.engrow:hover .engdel { opacity: 1; }
+.engdel:hover { color: #fca5a5; border-color: #7f1d1d; background: #450a0a; }
 .ename { font-weight: 600; }
 .eclient, .muted { color: var(--muted); font-size: 12px; }
 .api { margin-top: auto; font-size: 11px; }
@@ -162,6 +170,7 @@ textarea { resize: vertical; }
 .status.running, .status.queued { background: #713f12; color: #fde68a; }
 .status.failed { background: #7f1d1d; color: #fecaca; }
 .status.cancelled { background: #334155; color: #cbd5e1; }
+.status.paused { background: #3b2f0a; color: #fde68a; }
 .progwrap { display: flex; align-items: center; gap: 10px; }
 .selbar { display: flex; align-items: center; justify-content: space-between;
   gap: 10px; background: var(--card); border: 1px solid var(--accent);
@@ -175,6 +184,9 @@ textarea { resize: vertical; }
   padding: 8px 10px; border-radius: 7px; font-size: 13px; }
 .info { background: #0c2a4d; color: #bfdbfe; border: 1px solid #1e40af;
   padding: 8px 10px; border-radius: 7px; font-size: 13px; margin: 8px 0; }
+.warn { background: #3b2f0a; color: #fde68a; border: 1px solid #a16207;
+  padding: 8px 10px; border-radius: 7px; font-size: 13px; margin: 8px 0; }
+.checklist .ck { color: var(--accent); font-weight: 800; margin-right: 4px; }
 
 /* Abas */
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }

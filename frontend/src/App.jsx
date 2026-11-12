@@ -13,8 +13,17 @@ import Login from "./Login.jsx";
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
 const STATUS_PT = {
   queued: "na fila", running: "em andamento", completed: "concluído",
-  failed: "falhou", cancelled: "cancelado",
+  failed: "falhou", cancelled: "cancelado", paused: "pausado",
 };
+const COLLECTOR_LABEL = {
+  port_scan: "Portas (nmap)", http_probe: "Web recon", web_content: "Conteúdo web",
+  web_vuln: "Vuln (nuclei)", subdomain_enum: "Subdomínios", wayback: "Wayback",
+  google_dorks: "Dorks",
+};
+function scanTypeLabel(collectors) {
+  if (!collectors || !collectors.length) return "padrão";
+  return collectors.map((c) => COLLECTOR_LABEL[c] || c).join(" + ");
+}
 const SEV_COLOR = {
   critical: "#7f1d1d", high: "#b91c1c", medium: "#c2410c",
   low: "#a16207", info: "#334155",
@@ -245,6 +254,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
   const [sel, setSel] = useState(() => new Set());
   const [pickedTool, setPickedTool] = useState(null);
   const [pickOpen, setPickOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   function toggleSel(f) {
     setSel((prev) => {
@@ -265,6 +275,14 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
 
   async function cancelScan(id) {
     try { await api.cancelScan(id); } catch { /* ignore */ }
+    await refresh();
+  }
+  async function pauseScan(id) {
+    try { await api.pauseScan(id); } catch { /* ignore */ }
+    await refresh();
+  }
+  async function resumeScan(id) {
+    try { await api.resumeScan(id); } catch { /* ignore */ }
     await refresh();
   }
 
@@ -289,6 +307,10 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
 
   const [tab, setTab] = useState("dashboard");
 
+  // Sempre que entrar na aba Achados, recarrega (garante que o scan recem
+  // iniciado apareca).
+  useEffect(() => { if (tab === "ops") refresh(); }, [tab, refresh]);
+
   return (
     <div>
       <div className="tabs">
@@ -304,7 +326,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
 
       {tab === "dashboard" && <Dashboard engagement={engagement} />}
       {tab === "tools" && <ToolCatalog engagement={engagement}
-        onUpdated={onUpdated} onRan={() => setTab("ops")} />}
+        onUpdated={onUpdated} onRan={() => { setTab("ops"); refresh(); }} />}
       {tab === "assets" && <Assets engagement={engagement} onUpdated={onUpdated} />}
       {tab === "ops" && (
       <>
@@ -315,7 +337,6 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         </div>
         <div className="row">
           <button className="btn" onClick={() => setEditingScope(!editingScope)}>Editar escopo</button>
-          <button className="btn danger" onClick={removeEngagement}>Excluir cliente</button>
         </div>
       </div>
 
@@ -325,45 +346,73 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           onCancel={() => setEditingScope(false)} />
       )}
 
-      <p className="muted" style={{ fontSize: 13 }}>
-        Os scans são disparados pelo <b>Playbook</b>. Aqui você acompanha o
-        progresso e vê todos os achados.
-      </p>
-
-      <h3>Scans</h3>
-      <table className="t">
-        <thead><tr><th>Status</th><th style={{ width: "34%" }}>Progresso</th><th>Alvos</th><th>Resumo</th><th></th></tr></thead>
-        <tbody>
-          {scans.map((s) => {
-            const running = s.status === "queued" || s.status === "running";
-            return (
+      {(() => {
+        const ACTIVE = ["queued", "running", "paused"];
+        const active = scans.filter((s) => ACTIVE.includes(s.status));
+        const history = scans.filter((s) => !ACTIVE.includes(s.status));
+        const Row = (s) => {
+          const running = s.status === "queued" || s.status === "running";
+          const paused = s.status === "paused";
+          return (
             <tr key={s.id}>
               <td><span className={`status ${s.status}`}>{STATUS_PT[s.status] || s.status}</span></td>
+              <td className="muted" style={{ fontSize: 12 }}>{scanTypeLabel(s.collectors)}</td>
               <td>
-                {running ? (
+                {running || paused ? (
                   <div className="progwrap">
                     <div className="bartrack" style={{ flex: 1 }}><div className="barfill"
-                      style={{ width: `${s.progress || 0}%`, background: "var(--accent)" }} /></div>
+                      style={{ width: `${s.progress || 0}%`, background: paused ? "#a16207" : "var(--accent)" }} /></div>
                     <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
-                      {s.progress || 0}% · {s.phase || "na fila"}</span>
+                      {s.progress || 0}% · {s.phase || (paused ? "pausado" : "na fila")}</span>
                   </div>
-                ) : s.status === "failed" ? (
-                  <span className="muted" title={s.error || ""}>falhou</span>
-                ) : s.status === "cancelled" ? (
-                  <span className="muted">—</span>
-                ) : <span className="muted">concluído</span>}
+                ) : s.status === "failed" ? <span className="muted" title={s.error || ""}>falhou</span>
+                  : s.status === "cancelled" ? <span className="muted">cancelado</span>
+                  : <span className="muted">concluído</span>}
               </td>
               <td>{s.targets.join(", ")}</td>
               <td>{s.summary || `${s.findings_count || 0} achados`}</td>
               <td style={{ textAlign: "right" }}>
-                {running && <button className="btn danger" style={{ padding: "3px 12px" }}
-                  onClick={() => cancelScan(s.id)}>Parar</button>}
+                <div className="row" style={{ gap: 4, justifyContent: "flex-end", flexWrap: "nowrap" }}>
+                  {running && <button className="btn" style={{ padding: "3px 10px" }}
+                    title="Pausa e preserva os achados; dá para retomar depois"
+                    onClick={() => pauseScan(s.id)}>⏸ Pausar</button>}
+                  {paused && <button className="btn primary" style={{ padding: "3px 10px" }}
+                    title="Continua as fases pendentes (sem duplicar achados)"
+                    onClick={() => resumeScan(s.id)}>▶ Retomar</button>}
+                  {(running || paused) && <button className="btn danger" style={{ padding: "3px 10px" }}
+                    onClick={() => cancelScan(s.id)}>⏹ Parar</button>}
+                </div>
               </td>
             </tr>
-          );})}
-          {scans.length === 0 && <tr><td colSpan={5} className="muted">Nenhum scan ainda.</td></tr>}
-        </tbody>
-      </table>
+          );
+        };
+        return (
+        <>
+          <h3>Scans em andamento</h3>
+          <table className="t">
+            <thead><tr><th>Status</th><th>Tipo</th><th style={{ width: "28%" }}>Progresso</th><th>Alvos</th><th>Resumo</th><th></th></tr></thead>
+            <tbody>
+              {active.map(Row)}
+              {active.length === 0 && <tr><td colSpan={6} className="muted">Nenhum scan em andamento.</td></tr>}
+            </tbody>
+          </table>
+
+          {history.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <button className="btn" onClick={() => setShowHistory(!showHistory)}>
+                {showHistory ? "▾" : "▸"} Histórico de scans ({history.length})
+              </button>
+              {showHistory && (
+                <table className="t">
+                  <thead><tr><th>Status</th><th>Tipo</th><th style={{ width: "28%" }}>Progresso</th><th>Alvos</th><th>Resumo</th><th></th></tr></thead>
+                  <tbody>{history.map(Row)}</tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </>
+        );
+      })()}
 
       <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
         <h3 style={{ margin: 0 }}>Achados ({findings.length})</h3>
@@ -504,12 +553,22 @@ export default function App() {
         <NewEngagement onCreated={(e) => { load(); setSelected(e); setView("client"); }} />
         <div className="list">
           {engagements.map((e) => (
-            <button key={e.id}
-              className={`eng ${selected?.id === e.id && view === "client" ? "active" : ""}`}
-              onClick={() => { setSelected(e); setView("client"); }}>
-              <div className="ename">{e.name}</div>
-              <div className="eclient muted">{e.client_name}{e.authorized ? "" : " · nao autorizado"}</div>
-            </button>
+            <div key={e.id} className={`engrow ${selected?.id === e.id && view === "client" ? "active" : ""}`}>
+              <button className="eng"
+                onClick={() => { setSelected(e); setView("client"); }}>
+                <div className="ename">{e.name}</div>
+                <div className="eclient muted">{e.client_name}{e.authorized ? "" : " · nao autorizado"}</div>
+              </button>
+              <button className="engdel" title="Excluir cliente"
+                onClick={async () => {
+                  if (!window.confirm(`Excluir o cliente "${e.client_name}" e TODOS os seus scans, achados e evidências?\n\nEsta ação não pode ser desfeita.`)) return;
+                  try {
+                    await api.deleteEngagement(e.id);
+                    if (selected?.id === e.id) { setSelected(null); setView("overview"); }
+                    load();
+                  } catch (err) { setError(err.message); }
+                }}>🗑</button>
+            </div>
           ))}
           {engagements.length === 0 && <p className="muted">Nenhum cliente.</p>}
         </div>

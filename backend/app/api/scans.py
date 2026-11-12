@@ -99,6 +99,59 @@ async def cancel_scan(
     return scan
 
 
+@router.post("/scans/{scan_id}/pause", response_model=ScanOut)
+async def pause_scan(
+    scan_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ScanJob:
+    """Pausa o scan: ele para no proximo checkpoint, PRESERVANDO os achados ja
+    coletados. Diferente de 'cancelar', pode ser retomado depois."""
+    scan = await session.get(ScanJob, scan_id)
+    if scan is None:
+        raise HTTPException(404, "Scan nao encontrado")
+    eng = await session.get(Engagement, scan.engagement_id)
+    if eng is None or not can_access(user, eng):
+        raise HTTPException(403, "Sem acesso a este scan")
+    if scan.status in (ScanStatus.queued, ScanStatus.running):
+        scan.pause_requested = True
+        scan.status = ScanStatus.paused
+        scan.phase = "pausado"
+        await session.commit()
+        await session.refresh(scan)
+    return scan
+
+
+@router.post("/scans/{scan_id}/resume", response_model=ScanOut)
+async def resume_scan(
+    scan_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ScanJob:
+    """Retoma um scan pausado. Re-enfileira a execucao; a deduplicacao por
+    assinatura evita achados repetidos, entao as fases restantes continuam."""
+    scan = await session.get(ScanJob, scan_id)
+    if scan is None:
+        raise HTTPException(404, "Scan nao encontrado")
+    eng = await session.get(Engagement, scan.engagement_id)
+    if eng is None or not can_access(user, eng):
+        raise HTTPException(403, "Sem acesso a este scan")
+    if scan.status == ScanStatus.paused:
+        scan.pause_requested = False
+        scan.cancel_requested = False
+        scan.status = ScanStatus.queued
+        scan.phase = "na fila (retomando)"
+        await session.commit()
+        await session.refresh(scan)
+
+        pool = getattr(request.app.state, "redis_pool", None)
+        if pool is None:
+            pool = await create_pool(RedisSettings.from_dsn(request.app.state.redis_url))
+        await pool.enqueue_job("run_scan", scan.id)
+    return scan
+
+
 @router.get("/engagements/{engagement_id}/scans", response_model=list[ScanOut])
 async def list_scans(
     eng: Engagement = Depends(require_engagement_access),

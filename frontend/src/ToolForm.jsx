@@ -1,13 +1,30 @@
 import React, { useState } from "react";
 import { api } from "./api.js";
 
-// Portas do modo "Light" (rápido). "Completo" usa o padrão do servidor (todas).
+// Portas do modo "Rápido". "Completo" usa top-200 do nmap (ports vazio).
 const LIGHT_PORTS = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389,
   5432, 8080, 8443, 502, 102, 1883];
+
+// Máscara/ajuda por tipo de alvo (tool.kind).
+const MASKS = {
+  domain: {
+    placeholder: "cliente.com.br",
+    hint: "Informe o domínio (sem http://). Ex.: cliente.com.br",
+  },
+  url: {
+    placeholder: "https://cliente.com.br",
+    hint: "Informe o site COM http:// ou https://. Ex.: https://app.cliente.com.br",
+  },
+  host: {
+    placeholder: "10.0.0.0/24   ou   192.168.1.44   ou   host.cliente.com.br",
+    hint: "IP, range/CIDR (ex.: 10.0.0.0/24) ou hostname. Encontra hosts ativos mesmo sem ping.",
+  },
+};
 
 export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, initialTarget }) {
   const isExploit = tool.exploit !== undefined;
   const isPortTool = (tool.collectors || []).includes("port_scan");
+  const mask = MASKS[tool.kind] || MASKS.host;
 
   const [target, setTarget] = useState(initialTarget || (engagement.scope || []).join(" "));
   const [scanType, setScanType] = useState("light");
@@ -54,6 +71,20 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
     } finally { setBusy(false); }
   }
 
+  // Item 8: a "validação" deixa claro O QUE faz e QUAIS ativos analisa.
+  const validationActions = tool.exploit
+    ? [
+        "Prova de SQL injection (payloads de leitura, não-destrutivos)",
+        "Prova de XSS refletido (injeção inofensiva, sem persistência)",
+        "Prova de LFI / path traversal (leitura de arquivo de teste)",
+        "Checagem de cabeçalhos e exposições já sinalizadas",
+      ]
+    : [
+        "Confirma, sem explorar, as falhas já encontradas",
+        "Revalida cabeçalhos de segurança e TLS dos serviços web",
+        "Repete requisições de leitura (GET) para evidência",
+      ];
+
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -63,30 +94,57 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
         </div>
         <p className="muted">{tool.desc}</p>
 
-        {isExploit ? (
-          <div className="info">
-            Valida as falhas já encontradas nos serviços web (fases anteriores).
-            Não-destrutivo.
-          </div>
+        {tool.exploit !== undefined ? (
+          /* ---- Validação (SAFE / avançada) — item 8 ---- */
+          <>
+            <div className={tool.exploit ? "warn" : "info"}>
+              <b>O que será feito</b> {tool.exploit
+                ? "— validação avançada, intrusiva porém NÃO-destrutiva (requer opt-in do cliente):"
+                : "— validação segura, apenas confirmação não-intrusiva:"}
+              <ul className="checklist">
+                {validationActions.map((a) => (
+                  <li key={a}><span className="ck">☑</span> {a}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="info" style={{ marginTop: 8 }}>
+              <b>Quais ativos</b> — somente os <b>serviços web já descobertos</b> nas
+              fases anteriores (não varre todo o escopo). Sem ataques de
+              disponibilidade (DoS), sem alteração de dados.
+            </div>
+          </>
         ) : (
+          /* ---- Ferramentas de varredura/recon ---- */
           <>
             <label className="muted" style={{ fontSize: 12 }}>Alvo(s)</label>
             <input autoFocus value={target} onChange={(e) => setTarget(e.target.value)}
-              placeholder="ex: cliente.com.br  10.0.0.0/24  1.2.3.4" />
+              placeholder={mask.placeholder} />
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{mask.hint}</div>
 
-            <div className="row" style={{ gap: 18, marginTop: 10 }}>
-              <span className="muted" style={{ fontSize: 13 }}>Tipo:</span>
-              <label className="check"><input type="radio" checked={scanType === "light"}
-                onChange={() => setScanType("light")} /> Rápido</label>
-              <label className="check"><input type="radio" checked={scanType === "full"}
-                onChange={() => setScanType("full")} /> Completo</label>
-            </div>
-
-            {isPortTool && (
-              <div style={{ marginTop: 8 }}>
-                <label className="muted" style={{ fontSize: 12 }}>Portas (opcional — vazio usa o padrão)</label>
-                <input value={customPorts} onChange={(e) => setCustomPorts(e.target.value)}
-                  placeholder="ex: 80, 443, 8080, 502" />
+            {isPortTool ? (
+              <>
+                <div className="row" style={{ gap: 18, marginTop: 12 }}>
+                  <span className="muted" style={{ fontSize: 13 }}>Profundidade:</span>
+                  <label className="check"><input type="radio" checked={scanType === "light"}
+                    onChange={() => setScanType("light")} /> Rápido</label>
+                  <label className="check"><input type="radio" checked={scanType === "full"}
+                    onChange={() => setScanType("full")} /> Completo</label>
+                </div>
+                <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                  {scanType === "light"
+                    ? "Básico: 18 portas mais comuns (rápido, bom para triagem)."
+                    : "Completo: top-200 portas com detecção de versão (nmap -sV). Mais lento, mais cobertura."}
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <label className="muted" style={{ fontSize: 12 }}>Portas específicas (opcional — vazio usa o padrão acima)</label>
+                  <input value={customPorts} onChange={(e) => setCustomPorts(e.target.value)}
+                    placeholder="ex: 80, 443, 8080, 502" />
+                </div>
+              </>
+            ) : (
+              <div className="info" style={{ marginTop: 12 }}>
+                <b>Como funciona:</b> {tool.desc} Scan único e padronizado — sem
+                configuração extra necessária.
               </div>
             )}
           </>
@@ -107,7 +165,7 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
         <div className="modalFoot">
           <button className="btn" onClick={onClose}>Cancelar</button>
           <button className="btn primary" disabled={busy} onClick={() => start(false)}>
-            {busy ? "Iniciando…" : "▶ Iniciar scan"}
+            {busy ? "Iniciando…" : (tool.exploit !== undefined ? "▶ Executar validação" : "▶ Iniciar scan")}
           </button>
         </div>
       </div>

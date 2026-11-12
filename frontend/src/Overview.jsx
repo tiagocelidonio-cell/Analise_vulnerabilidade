@@ -24,6 +24,8 @@ export default function Overview() {
 
   const critHigh = (d.severity_dist.critical || 0) + (d.severity_dist.high || 0);
   const maxBench = Math.max(1, ...d.benchmark.map((b) => b.clients));
+  const cve = d.cve_stats || { distinct: 0, kev: 0, high_epss: 0, top: [], sources: "" };
+  const fmtPct = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 
   return (
     <div>
@@ -50,9 +52,8 @@ export default function Overview() {
         <div className="kpi"><div className="n">{d.total_clients}</div><div className="l">CLIENTES</div></div>
         <div className="kpi"><div className="n">{d.total_findings}</div><div className="l">ACHADOS</div></div>
         <div className="kpi"><div className="n" style={{ color: "#b91c1c" }}>{critHigh}</div><div className="l">CRÍTICO + ALTO</div></div>
-        <div className="kpi"><div className="n" style={{ color: "#7f1d1d" }}>
-          {d.benchmark.reduce((a, b) => a + (b.category.includes("CVE") ? b.occurrences : 0), 0)}
-        </div><div className="l">COM CVE</div></div>
+        <div className="kpi"><div className="n" style={{ color: "#7f1d1d" }}>{cve.distinct}</div><div className="l">CVEs DISTINTOS</div></div>
+        <div className="kpi"><div className="n" style={{ color: "#b91c1c" }}>{cve.kev}</div><div className="l">KEV (EXPL. ATIVA)</div></div>
       </div>
 
       <div className="dashGrid">
@@ -111,6 +112,41 @@ export default function Overview() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Base de CVEs detectada na carteira (atualizada a cada scan) */}
+      <div className="card">
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+          <h3 style={{ margin: 0 }}>Base de CVEs — mais relevantes na carteira</h3>
+          <span className="muted" style={{ fontSize: 11 }}>
+            {cve.distinct} CVEs · {cve.kev} em KEV · {cve.high_epss} com EPSS ≥ 50%
+          </span>
+        </div>
+        <p className="muted" style={{ fontSize: 12, margin: "2px 0 8px" }}>
+          Fontes: {cve.sources}. Atualizada a cada varredura; prevalência = % de
+          clientes afetados (anônimo, para benchmarking).
+        </p>
+        <table className="t">
+          <thead><tr><th>CVE</th><th>Clientes</th><th>Prevalência</th><th>CVSS</th><th>EPSS</th><th>KEV</th></tr></thead>
+          <tbody>
+            {cve.top.map((c) => (
+              <tr key={c.cve_id}>
+                <td>
+                  <a href={`https://nvd.nist.gov/vuln/detail/${c.cve_id}`}
+                    target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{c.cve_id}</a>
+                </td>
+                <td>{c.clients}</td>
+                <td>{c.prevalence}%</td>
+                <td>{c.cvss != null ? c.cvss.toFixed(1) : "—"}</td>
+                <td>{fmtPct(c.epss)}</td>
+                <td>{c.in_kev ? <span className="pill" style={{ background: "#b91c1c" }}>KEV</span> : "—"}</td>
+              </tr>
+            ))}
+            {cve.top.length === 0 && <tr><td colSpan={6} className="muted">
+              Nenhum CVE detectado ainda. Rode um Vulnerability Scanner (nuclei) ou Port Scanner com versão.
+            </td></tr>}
+          </tbody>
+        </table>
       </div>
     </div>
   );

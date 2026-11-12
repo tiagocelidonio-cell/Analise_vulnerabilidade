@@ -43,6 +43,7 @@ class ScanStatus(str, enum.Enum):
     completed = "completed"
     failed = "failed"
     cancelled = "cancelled"
+    paused = "paused"
 
 
 class User(Base):
@@ -105,6 +106,7 @@ class ScanJob(Base):
     findings_count: Mapped[int] = mapped_column(Integer, default=0)
     summary: Mapped[str] = mapped_column(String, default="")    # resumo (ex: "4 subdominios")
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    pause_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(

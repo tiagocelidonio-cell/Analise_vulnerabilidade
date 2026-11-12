@@ -35,9 +35,16 @@ _MIGRATIONS = [
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS findings_count INTEGER DEFAULT 0",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS summary VARCHAR DEFAULT ''",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS cancel_requested BOOLEAN DEFAULT false",
+    "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS pause_requested BOOLEAN DEFAULT false",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS signature VARCHAR DEFAULT ''",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS times_seen INTEGER DEFAULT 1",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ",
+]
+
+# Valores novos do enum nativo do Postgres precisam entrar FORA de transacao
+# (autocommit). Idempotente via IF NOT EXISTS. Em bancos nao-PG, o except ignora.
+_ENUM_MIGRATIONS = [
+    "ALTER TYPE scanstatus ADD VALUE IF NOT EXISTS 'paused'",
 ]
 
 
@@ -54,3 +61,12 @@ async def init_db() -> None:
                 await conn.execute(text(stmt))
             except Exception:  # noqa: BLE001  coluna ja existe / variacao de engine
                 pass
+
+    # ALTER TYPE ... ADD VALUE nao roda dentro de transacao -> autocommit.
+    for stmt in _ENUM_MIGRATIONS:
+        try:
+            async with engine.connect() as conn:
+                conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
+                await conn.execute(text(stmt))
+        except Exception:  # noqa: BLE001  valor ja existe / engine sem enum nativo
+            pass

@@ -50,15 +50,42 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
         scan.progress = 2
         await session.commit()
 
-        async def _cancelled() -> bool:
-            return bool(await session.scalar(
-                select(ScanJob.cancel_requested).where(ScanJob.id == scan.id)))
+        async def _control() -> str | None:
+            """Le as flags frescas do banco: 'cancel', 'pause' ou None."""
+            row = (await session.execute(
+                select(ScanJob.cancel_requested, ScanJob.pause_requested)
+                .where(ScanJob.id == scan.id)
+            )).first()
+            if row is None:
+                return None
+            if row[0]:
+                return "cancel"
+            if row[1]:
+                return "pause"
+            return None
 
         async def _finish_cancelled():
             scan.status = ScanStatus.cancelled
             scan.phase = "cancelado"
             scan.finished_at = datetime.now(timezone.utc)
             await session.commit()
+
+        async def _finish_paused():
+            # Preserva progresso e achados ja gravados; nao marca finished_at.
+            scan.status = ScanStatus.paused
+            scan.phase = "pausado"
+            await session.commit()
+
+        async def _halted() -> bool:
+            """Checkpoint: trata cancel/pause. Retorna True se deve parar."""
+            ctrl = await _control()
+            if ctrl == "cancel":
+                await _finish_cancelled()
+                return True
+            if ctrl == "pause":
+                await _finish_paused()
+                return True
+            return False
 
         try:
             selected = scan.collectors or DEFAULT_COLLECTORS
@@ -70,9 +97,8 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             host_collectors = {"port_scan", "http_probe", "web_content", "web_vuln"}
             facts = []
             for i, name in enumerate(selected):
-                if await _cancelled():
-                    await _finish_cancelled()
-                    return {"cancelled": True}
+                if await _halted():
+                    return {"halted": True}
                 collector = COLLECTORS.get(name)
                 if collector is None:
                     continue
@@ -83,9 +109,8 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 # atualizar progresso enquanto varre muitos IPs.
                 if name in host_collectors and len(tlist) > 16:
                     for j in range(0, len(tlist), 16):
-                        if await _cancelled():
-                            await _finish_cancelled()
-                            return {"cancelled": True}
+                        if await _halted():
+                            return {"halted": True}
                         batch = tlist[j:j + 16]
                         facts.extend(await collector.run(batch, ports=scan.ports or None))
                         frac = (j + len(batch)) / len(tlist)
@@ -105,9 +130,8 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 
             created = 0
             for n, fact in enumerate(facts):
-                if n % 20 == 0 and await _cancelled():
-                    await _finish_cancelled()
-                    return {"cancelled": True}
+                if n % 20 == 0 and await _halted():
+                    return {"halted": True}
                 fact_dict = asdict(fact)
                 now = datetime.now(timezone.utc)
                 # Assinatura para deduplicar o mesmo achado entre scans.
@@ -183,9 +207,8 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     scan.findings_count = created
                     await session.commit()
 
-            if await _cancelled():
-                await _finish_cancelled()
-                return {"cancelled": True}
+            if await _halted():
+                return {"halted": True}
 
             # Resumo amigavel do que foi encontrado (estilo "4 subdominios").
             parts = []
