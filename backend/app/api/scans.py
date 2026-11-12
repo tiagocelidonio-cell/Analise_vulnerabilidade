@@ -88,11 +88,12 @@ async def cancel_scan(
     if eng is None or not can_access(user, eng):
         raise HTTPException(403, "Sem acesso a este scan")
     if scan.status in (ScanStatus.queued, ScanStatus.running):
+        # Cancela de imediato (feedback instantaneo e cobre scan orfao).
+        # O worker, se ainda estiver vivo, para no proximo checkpoint; como ele
+        # so atualiza progress/phase, nao sobrescreve o status cancelado.
         scan.cancel_requested = True
-        # Se ainda nem comecou, cancela de imediato.
-        if scan.status == ScanStatus.queued:
-            scan.status = ScanStatus.cancelled
-            scan.phase = "cancelado"
+        scan.status = ScanStatus.cancelled
+        scan.phase = "cancelado"
         await session.commit()
         await session.refresh(scan)
     return scan

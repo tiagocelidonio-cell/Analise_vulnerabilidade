@@ -9,6 +9,10 @@ import Admin from "./Admin.jsx";
 import Login from "./Login.jsx";
 
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
+const STATUS_PT = {
+  queued: "na fila", running: "em andamento", completed: "concluído",
+  failed: "falhou", cancelled: "cancelado",
+};
 const SEV_COLOR = {
   critical: "#7f1d1d", high: "#b91c1c", medium: "#c2410c",
   low: "#a16207", info: "#334155",
@@ -312,33 +316,36 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
 
       <h3>Scans</h3>
       <table className="t">
-        <thead><tr><th>Status</th><th>Progresso</th><th>Alvos</th><th>Resumo</th></tr></thead>
+        <thead><tr><th>Status</th><th style={{ width: "34%" }}>Progresso</th><th>Alvos</th><th>Resumo</th><th></th></tr></thead>
         <tbody>
-          {scans.map((s) => (
+          {scans.map((s) => {
+            const running = s.status === "queued" || s.status === "running";
+            return (
             <tr key={s.id}>
-              <td><span className={`status ${s.status}`}>{s.status}</span></td>
-              <td style={{ minWidth: 160 }}>
-                {s.status === "completed" ? (
-                  <span className="muted">concluído</span>
-                ) : s.status === "failed" ? (
-                  <span className="muted" title={s.error || ""}>falhou: {(s.error || "").slice(0, 40)}</span>
-                ) : (
-                  <>
-                    <div className="bartrack"><div className="barfill"
+              <td><span className={`status ${s.status}`}>{STATUS_PT[s.status] || s.status}</span></td>
+              <td>
+                {running ? (
+                  <div className="progwrap">
+                    <div className="bartrack" style={{ flex: 1 }}><div className="barfill"
                       style={{ width: `${s.progress || 0}%`, background: "var(--accent)" }} /></div>
-                    <div className="row" style={{ justifyContent: "space-between", marginTop: 2 }}>
-                      <span className="muted" style={{ fontSize: 11 }}>{s.progress || 0}% · {s.phase || "na fila"}</span>
-                      <button className="btn danger" style={{ padding: "1px 8px", fontSize: 11 }}
-                        onClick={() => cancelScan(s.id)}>Parar</button>
-                    </div>
-                  </>
-                )}
+                    <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                      {s.progress || 0}% · {s.phase || "na fila"}</span>
+                  </div>
+                ) : s.status === "failed" ? (
+                  <span className="muted" title={s.error || ""}>falhou</span>
+                ) : s.status === "cancelled" ? (
+                  <span className="muted">—</span>
+                ) : <span className="muted">concluído</span>}
               </td>
               <td>{s.targets.join(", ")}</td>
               <td>{s.summary || `${s.findings_count || 0} achados`}</td>
+              <td style={{ textAlign: "right" }}>
+                {running && <button className="btn danger" style={{ padding: "3px 12px" }}
+                  onClick={() => cancelScan(s.id)}>Parar</button>}
+              </td>
             </tr>
-          ))}
-          {scans.length === 0 && <tr><td colSpan={4} className="muted">Nenhum scan ainda.</td></tr>}
+          );})}
+          {scans.length === 0 && <tr><td colSpan={5} className="muted">Nenhum scan ainda.</td></tr>}
         </tbody>
       </table>
 

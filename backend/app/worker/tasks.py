@@ -176,6 +176,10 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     scan.findings_count = created
                     await session.commit()
 
+            if await _cancelled():
+                await _finish_cancelled()
+                return {"cancelled": True}
+
             # Resumo amigavel do que foi encontrado (estilo "4 subdominios").
             parts = []
             subs = sum(1 for f in facts if f.service == "subdomain")
@@ -209,6 +213,14 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 
 async def _startup(ctx: dict) -> None:
     await init_db()
+    # Scans que ficaram "running" sao orfaos de um worker anterior: encerra.
+    async with SessionLocal() as session:
+        orphans = await session.scalars(
+            select(ScanJob).where(ScanJob.status == ScanStatus.running))
+        for s in orphans:
+            s.status = ScanStatus.cancelled
+            s.phase = "interrompido (worker reiniciado)"
+        await session.commit()
 
 
 class WorkerSettings:
