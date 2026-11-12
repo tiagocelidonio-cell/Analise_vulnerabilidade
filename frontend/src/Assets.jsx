@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
+import { FLAT_TOOLS } from "./tools.js";
+import ToolForm from "./ToolForm.jsx";
 
 const SEV_COLOR = {
   critical: "#7f1d1d", high: "#b91c1c", medium: "#c2410c",
@@ -11,6 +13,8 @@ export default function Assets({ engagement, onUpdated }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [novo, setNovo] = useState("");
+  const [scanTarget, setScanTarget] = useState(null); // ativo a escanear
+  const [pickedTool, setPickedTool] = useState(null);  // ferramenta escolhida
 
   const load = useCallback(async () => {
     try { setData(await api.assets(engagement.id)); } catch (e) { setErr(e.message); }
@@ -32,9 +36,18 @@ export default function Assets({ engagement, onUpdated }) {
   async function importTxt(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    await addAssets(text.split(/[\s,;\n]+/));
+    await addAssets((await file.text()).split(/[\s,;\n]+/));
     e.target.value = "";
+  }
+
+  async function removeAsset(target) {
+    if (!window.confirm(`Excluir o ativo "${target}" do escopo?`)) return;
+    const scope = (engagement.scope || []).filter((s) => s.toLowerCase() !== target.toLowerCase());
+    try {
+      const upd = await api.updateEngagement(engagement.id, { scope });
+      onUpdated && onUpdated(upd);
+      await load();
+    } catch (e) { setErr(e.message); }
   }
 
   if (err) return <div className="err">{err}</div>;
@@ -62,13 +75,10 @@ export default function Assets({ engagement, onUpdated }) {
             <input type="file" accept=".txt" style={{ display: "none" }} onChange={importTxt} />
           </label>
         </div>
-        <p className="muted" style={{ fontSize: 11 }}>
-          O ativo entra no escopo autorizado do cliente e fica disponível nas varreduras.
-        </p>
       </div>
 
       <table className="t">
-        <thead><tr><th>Alvo</th><th>Tipo</th><th>Risco</th><th>Achados</th><th>Scans</th></tr></thead>
+        <thead><tr><th>Alvo</th><th>Tipo</th><th>Risco</th><th>Achados</th><th>Scans</th><th></th></tr></thead>
         <tbody>
           {data.assets.map((a) => (
             <tr key={a.target}>
@@ -77,12 +87,47 @@ export default function Assets({ engagement, onUpdated }) {
               <td><span className="pill" style={{ background: SEV_COLOR[a.risk] }}>{a.risk.toUpperCase()}</span></td>
               <td>{a.findings}</td>
               <td>{a.scans}</td>
+              <td className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
+                <button className="btn" onClick={() => { setScanTarget(a.target); setPickedTool(null); }}>Escanear</button>
+                <button className="btn danger" onClick={() => removeAsset(a.target)}>Excluir</button>
+              </td>
             </tr>
           ))}
-          {data.assets.length === 0 && <tr><td colSpan={5} className="muted">
-            Nenhum ativo. Defina o escopo e rode uma varredura.</td></tr>}
+          {data.assets.length === 0 && <tr><td colSpan={6} className="muted">
+            Nenhum ativo. Adicione acima ou rode uma varredura.</td></tr>}
         </tbody>
       </table>
+
+      {/* Seletor de ferramenta ao escanear um ativo */}
+      {scanTarget && !pickedTool && (
+        <div className="modalOverlay" onClick={() => setScanTarget(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHead">
+              <h2 style={{ margin: 0 }}>Escanear {scanTarget}</h2>
+              <button className="btn" onClick={() => setScanTarget(null)}>✕</button>
+            </div>
+            <p className="muted">Escolha a ferramenta:</p>
+            <div className="toolGrid">
+              {FLAT_TOOLS.filter((t) => !(t.needsIntrusive && !engagement.allow_intrusive)).map((t) => (
+                <button key={t.name} className="toolCard" onClick={() => setPickedTool(t)}>
+                  <div className="toolIcon">{t.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div className="toolName">{t.name}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>{t.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scanTarget && pickedTool && (
+        <ToolForm engagement={engagement} tool={pickedTool} initialTarget={scanTarget}
+          onClose={() => { setScanTarget(null); setPickedTool(null); }}
+          onUpdated={onUpdated}
+          onRan={() => { setScanTarget(null); setPickedTool(null); load(); }} />
+      )}
     </div>
   );
 }

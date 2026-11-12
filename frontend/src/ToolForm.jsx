@@ -5,11 +5,11 @@ import { api } from "./api.js";
 const LIGHT_PORTS = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389,
   5432, 8080, 8443, 502, 102, 1883];
 
-export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated }) {
+export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, initialTarget }) {
   const isExploit = tool.exploit !== undefined;
   const isPortTool = (tool.collectors || []).includes("port_scan");
 
-  const [target, setTarget] = useState((engagement.scope || []).join(" "));
+  const [target, setTarget] = useState(initialTarget || (engagement.scope || []).join(" "));
   const [scanType, setScanType] = useState("light");
   const [customPorts, setCustomPorts] = useState("");
   const [busy, setBusy] = useState(false);
