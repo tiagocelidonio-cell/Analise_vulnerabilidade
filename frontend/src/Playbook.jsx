@@ -36,6 +36,7 @@ export default function Playbook({ engagement }) {
   const [findings, setFindings] = useState([]);
   const [post, setPost] = useState(null);
   const [retest, setRetest] = useState(null);
+  const [exploitLog, setExploitLog] = useState(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
 
@@ -79,6 +80,7 @@ export default function Playbook({ engagement }) {
     setMsg(""); setBusy("exploit");
     try {
       const r = await api.validate(engagement.id, intrusive);
+      setExploitLog(r.log || []);
       setMsg(`Exploração: ${r.confirmed} confirmada(s) em ${r.tested_targets} alvo(s).`);
       await refresh();
     } catch (e) { setMsg(e.message); }
@@ -157,6 +159,21 @@ export default function Playbook({ engagement }) {
               onClick={() => runValidate(true)}>Validar (INTRUSIVE)</button>
           )}
         </div>
+        {exploitLog && (
+          <div style={{ marginTop: 10 }}>
+            <h3 style={{ fontSize: 13 }}>Evidências (o que foi executado)</h3>
+            {exploitLog.length === 0 && <p className="muted">Nenhuma falha confirmada nesta execução.</p>}
+            {exploitLog.map((e, i) => (
+              <div key={i} className="probe">
+                <div><span className="pill" style={{ background: e.tier === "intrusive" ? "#c2410c" : "#15803d" }}>
+                  {e.tier.toUpperCase()}</span> <b style={{ marginLeft: 6 }}>{e.probe}</b> — {e.target}</div>
+                <p style={{ margin: "6px 0" }}>{e.note}</p>
+                {e.command && <pre className="cmd">$ {e.command}</pre>}
+                {e.proof && <pre className="evi">{e.proof}</pre>}
+              </div>
+            ))}
+          </div>
+        )}
       </Phase>
 
       <Phase n="4" title="Pós-Exploração (guiada)" status={post ? "concluido" : "pendente"}

@@ -3,7 +3,6 @@ import { api, getToken } from "./api.js";
 import { branding } from "./branding.js";
 import Dashboard from "./Dashboard.jsx";
 import Playbook from "./Playbook.jsx";
-import Validation from "./Validation.jsx";
 import Overview from "./Overview.jsx";
 import Admin from "./Admin.jsx";
 import Login from "./Login.jsx";
@@ -223,6 +222,8 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
   const [scans, setScans] = useState([]);
   const [findings, setFindings] = useState([]);
   const [editingScope, setEditingScope] = useState(false);
+  const [showAdvScan, setShowAdvScan] = useState(false);
+  const [sevFilter, setSevFilter] = useState("");
 
   async function removeEngagement() {
     if (!window.confirm(
@@ -252,10 +253,6 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     return () => clearInterval(t);
   }, [scans, refresh]);
 
-  const counts = SEV_ORDER.map((s) => ({
-    sev: s, n: findings.filter((f) => f.severity === s).length,
-  }));
-
   const [tab, setTab] = useState("playbook");
 
   return (
@@ -266,14 +263,11 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         <button className={`tab ${tab === "dashboard" ? "active" : ""}`}
           onClick={() => setTab("dashboard")}>Dashboard</button>
         <button className={`tab ${tab === "ops" ? "active" : ""}`}
-          onClick={() => setTab("ops")}>Operação</button>
-        <button className={`tab ${tab === "validation" ? "active" : ""}`}
-          onClick={() => setTab("validation")}>Validação</button>
+          onClick={() => setTab("ops")}>Resultados</button>
       </div>
 
       {tab === "playbook" && <Playbook engagement={engagement} />}
       {tab === "dashboard" && <Dashboard engagement={engagement} />}
-      {tab === "validation" && <Validation engagement={engagement} />}
       {tab === "ops" && (
       <>
       <div className="head">
@@ -283,8 +277,6 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         </div>
         <div className="row">
           <button className="btn" onClick={() => setEditingScope(!editingScope)}>Editar escopo</button>
-          <a className="btn" href={api.reportHtmlUrl(engagement.id)} target="_blank" rel="noreferrer">Preview</a>
-          <a className="btn primary" href={api.reportPdfUrl(engagement.id)}>Baixar PDF</a>
           <button className="btn danger" onClick={removeEngagement}>Excluir cliente</button>
         </div>
       </div>
@@ -295,16 +287,10 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           onCancel={() => setEditingScope(false)} />
       )}
 
-      <div className="kpis">
-        {counts.map((c) => (
-          <div key={c.sev} className="kpi">
-            <div className="n" style={{ color: SEV_COLOR[c.sev] }}>{c.n}</div>
-            <div className="l">{c.sev.toUpperCase()}</div>
-          </div>
-        ))}
-      </div>
-
-      <NewScan engagement={engagement} onStarted={refresh} />
+      <p className="muted" style={{ fontSize: 13 }}>
+        Os scans são disparados pelo <b>Playbook</b>. Aqui você acompanha o
+        progresso e vê todos os achados.
+      </p>
 
       <h3>Scans</h3>
       <table className="t">
@@ -335,14 +321,40 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         </tbody>
       </table>
 
-      <h3>Achados ({findings.length})</h3>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+        <h3 style={{ margin: 0 }}>Achados ({findings.length})</h3>
+        <div className="row" style={{ gap: 4 }}>
+          {["", "critical", "high", "medium", "low", "info"].map((s) => (
+            <button key={s || "all"}
+              className={`chip ${sevFilter === s ? "active" : ""}`}
+              onClick={() => setSevFilter(s)}>{s ? s.toUpperCase() : "TODOS"}</button>
+          ))}
+        </div>
+      </div>
       <table className="t">
         <thead><tr><th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th></tr></thead>
         <tbody>
-          {findings.map((f) => <FindingRow key={f.id} f={f} />)}
-          {findings.length === 0 && <tr><td colSpan={7} className="muted">Sem achados. Dispare um scan.</td></tr>}
+          {findings.filter((f) => !sevFilter || f.severity === sevFilter)
+            .map((f) => <FindingRow key={f.id} f={f} />)}
+          {findings.length === 0 && <tr><td colSpan={7} className="muted">
+            Sem achados ainda. Vá ao <b>Playbook</b> e rode o reconhecimento e a varredura.</td></tr>}
         </tbody>
       </table>
+
+      <div style={{ marginTop: 16 }}>
+        <button className="btn" onClick={() => setShowAdvScan(!showAdvScan)}>
+          {showAdvScan ? "▾ " : "▸ "} Scan manual (avançado)
+        </button>
+        {showAdvScan && (
+          <>
+            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              Para casos específicos: escolha portas e coletores manualmente.
+              No uso normal, prefira o Playbook.
+            </p>
+            <NewScan engagement={engagement} onStarted={refresh} />
+          </>
+        )}
+      </div>
       </>
       )}
     </div>

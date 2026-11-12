@@ -27,6 +27,10 @@ h1, h2, h3, h4 { font-family: var(--heading-font, inherit); font-weight: 600;
 .chipx { background: transparent; border: none; color: var(--muted); cursor: pointer;
   font-size: 15px; line-height: 1; padding: 0 2px; }
 .chipx:hover { color: #fca5a5; }
+button.chip { cursor: pointer; color: var(--muted); font: inherit; font-size: 11px; }
+button.chip:hover { color: var(--text); }
+button.chip.active { background: var(--accent); border-color: var(--accent); color: #04120a;
+  font-weight: 700; }
 .main { flex: 1; padding: 24px 32px; overflow: auto; }
 .empty { color: var(--muted); margin-top: 20vh; text-align: center; }
 
