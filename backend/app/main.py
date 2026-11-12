@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth as auth_api
 from app.api import (
+    assets,
     engagements,
     exploit,
     findings,
@@ -59,6 +60,7 @@ app.include_router(risk.router, dependencies=_auth)
 app.include_router(exploit.router, dependencies=_auth)
 app.include_router(overview.router, dependencies=_auth)
 app.include_router(postexploit.router, dependencies=_auth)
+app.include_router(assets.router, dependencies=_auth)
 
 
 @app.get("/health", tags=["meta"])

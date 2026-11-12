@@ -80,6 +80,7 @@ class ScanOut(BaseModel):
     progress: int
     phase: str
     findings_count: int
+    summary: str
     error: str | None
     created_at: datetime
     finished_at: datetime | None

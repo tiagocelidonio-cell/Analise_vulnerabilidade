@@ -51,6 +51,21 @@ select { background: var(--bg); border: 1px solid var(--line); color: var(--text
   font-family: 'DejaVu Sans Mono', monospace; font-size: 11px; white-space: pre-wrap;
   word-break: break-all; }
 
+/* Catálogo de ferramentas (Nova varredura) */
+.toolGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px; margin-top: 8px; }
+.toolCard { display: flex; align-items: center; gap: 12px; text-align: left;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; cursor: pointer; color: var(--text); font: inherit; }
+.toolCard:hover { border-color: var(--accent); }
+.toolCard:disabled { opacity: .5; cursor: default; }
+.toolIcon { font-size: 24px; width: 40px; height: 40px; border-radius: 8px;
+  background: var(--bg); display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; }
+.toolName { font-weight: 700; font-family: var(--heading-font, inherit); }
+.typeTag { font-size: 10px; font-weight: 700; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+
 /* Playbook — faixa de execução */
 .running { display: flex; align-items: center; gap: 10px; background: #1a1206;
   border: 1px solid #a16207; color: #fde68a; padding: 10px 14px; border-radius: 8px;

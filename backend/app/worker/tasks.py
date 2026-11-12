@@ -126,6 +126,22 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     scan.findings_count = created
                     await session.commit()
 
+            # Resumo amigavel do que foi encontrado (estilo "4 subdominios").
+            parts = []
+            subs = sum(1 for f in facts if f.service == "subdomain")
+            ports = sum(1 for f in facts if "aberta" in (f.title or "").lower())
+            web = sum(1 for f in facts if f.service in ("http", "https"))
+            ot = sum(1 for f in facts if (f.data or {}).get("ot"))
+            if subs:
+                parts.append(f"{subs} subdomínios")
+            if ports:
+                parts.append(f"{ports} portas abertas")
+            if web:
+                parts.append(f"{web} serviços web")
+            if ot:
+                parts.append(f"{ot} OT/IoT")
+            scan.summary = ", ".join(parts) or f"{created} achados"
+
             scan.status = ScanStatus.completed
             scan.phase = "concluido"
             scan.progress = 100

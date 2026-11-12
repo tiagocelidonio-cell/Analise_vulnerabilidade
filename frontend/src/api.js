@@ -61,6 +61,7 @@ export const api = {
   getScan: (sid) => req(`/scans/${sid}`),
   listFindings: (id) => req(`/engagements/${id}/findings`),
   risk: (id) => req(`/engagements/${id}/risk`),
+  assets: (id) => req(`/engagements/${id}/assets`),
   validate: (id, intrusive = false) =>
     req(`/engagements/${id}/validate?intrusive=${intrusive}`, { method: "POST" }),
   retest: (id) => req(`/engagements/${id}/retest`, { method: "POST" }),

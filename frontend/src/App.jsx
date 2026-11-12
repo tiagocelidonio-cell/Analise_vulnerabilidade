@@ -3,6 +3,8 @@ import { api, getToken } from "./api.js";
 import { branding } from "./branding.js";
 import Dashboard from "./Dashboard.jsx";
 import Playbook from "./Playbook.jsx";
+import ToolCatalog from "./ToolCatalog.jsx";
+import Assets from "./Assets.jsx";
 import Overview from "./Overview.jsx";
 import Admin from "./Admin.jsx";
 import Login from "./Login.jsx";
@@ -260,13 +262,19 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
       <div className="tabs">
         <button className={`tab ${tab === "playbook" ? "active" : ""}`}
           onClick={() => setTab("playbook")}>Playbook</button>
+        <button className={`tab ${tab === "tools" ? "active" : ""}`}
+          onClick={() => setTab("tools")}>Nova varredura</button>
+        <button className={`tab ${tab === "assets" ? "active" : ""}`}
+          onClick={() => setTab("assets")}>Ativos</button>
+        <button className={`tab ${tab === "ops" ? "active" : ""}`}
+          onClick={() => setTab("ops")}>Achados</button>
         <button className={`tab ${tab === "dashboard" ? "active" : ""}`}
           onClick={() => setTab("dashboard")}>Dashboard</button>
-        <button className={`tab ${tab === "ops" ? "active" : ""}`}
-          onClick={() => setTab("ops")}>Resultados</button>
       </div>
 
       {tab === "playbook" && <Playbook engagement={engagement} />}
+      {tab === "tools" && <ToolCatalog engagement={engagement} onRan={() => setTab("ops")} />}
+      {tab === "assets" && <Assets engagement={engagement} />}
       {tab === "dashboard" && <Dashboard engagement={engagement} />}
       {tab === "ops" && (
       <>
@@ -294,7 +302,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
 
       <h3>Scans</h3>
       <table className="t">
-        <thead><tr><th>Status</th><th>Progresso</th><th>Alvos</th><th>Coletores</th><th>Achados</th></tr></thead>
+        <thead><tr><th>Status</th><th>Progresso</th><th>Alvos</th><th>Resumo</th></tr></thead>
         <tbody>
           {scans.map((s) => (
             <tr key={s.id}>
@@ -313,11 +321,10 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                 )}
               </td>
               <td>{s.targets.join(", ")}</td>
-              <td>{(s.collectors.length ? s.collectors : ["todos"]).join(", ")}</td>
-              <td>{s.findings_count || 0}</td>
+              <td>{s.summary || `${s.findings_count || 0} achados`}</td>
             </tr>
           ))}
-          {scans.length === 0 && <tr><td colSpan={5} className="muted">Nenhum scan ainda.</td></tr>}
+          {scans.length === 0 && <tr><td colSpan={4} className="muted">Nenhum scan ainda.</td></tr>}
         </tbody>
       </table>
 
@@ -341,20 +348,6 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         </tbody>
       </table>
 
-      <div style={{ marginTop: 16 }}>
-        <button className="btn" onClick={() => setShowAdvScan(!showAdvScan)}>
-          {showAdvScan ? "▾ " : "▸ "} Scan manual (avançado)
-        </button>
-        {showAdvScan && (
-          <>
-            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-              Para casos específicos: escolha portas e coletores manualmente.
-              No uso normal, prefira o Playbook.
-            </p>
-            <NewScan engagement={engagement} onStarted={refresh} />
-          </>
-        )}
-      </div>
       </>
       )}
     </div>
