@@ -273,8 +273,9 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
       </div>
 
       {tab === "playbook" && <Playbook engagement={engagement} />}
-      {tab === "tools" && <ToolCatalog engagement={engagement} onRan={() => setTab("ops")} />}
-      {tab === "assets" && <Assets engagement={engagement} />}
+      {tab === "tools" && <ToolCatalog engagement={engagement}
+        onUpdated={onUpdated} onRan={() => setTab("ops")} />}
+      {tab === "assets" && <Assets engagement={engagement} onUpdated={onUpdated} />}
       {tab === "dashboard" && <Dashboard engagement={engagement} />}
       {tab === "ops" && (
       <>

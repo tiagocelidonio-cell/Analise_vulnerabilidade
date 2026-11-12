@@ -51,6 +51,16 @@ select { background: var(--bg); border: 1px solid var(--line); color: var(--text
   font-family: 'DejaVu Sans Mono', monospace; font-size: 11px; white-space: pre-wrap;
   word-break: break-all; }
 
+/* Modal (formulário de ferramenta) */
+.modalOverlay { position: fixed; inset: 0; background: #000a; display: flex;
+  align-items: flex-start; justify-content: center; padding: 6vh 16px; z-index: 50;
+  overflow: auto; }
+.modal { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 20px; width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 6px; }
+.modalHead { display: flex; align-items: center; justify-content: space-between; }
+.modalFoot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;
+  border-top: 1px solid var(--line); padding-top: 14px; }
+
 /* Catálogo de ferramentas (Nova varredura) */
 .toolGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 10px; margin-top: 8px; }
