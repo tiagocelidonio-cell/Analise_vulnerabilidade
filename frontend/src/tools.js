@@ -8,7 +8,7 @@ export const CATEGORIES = [
     cat: "Recon", items: [
       { name: "Subdomain Finder", icon: "🌐", kind: "domain", desc: "subfinder + amass: subdomínios e hosts vivos de um domínio.", collectors: ["subdomain_enum"] },
       { name: "Website Recon", icon: "🔎", kind: "url", desc: "Fingerprint do site: servidor, TLS, security headers.", collectors: ["http_probe"] },
-      { name: "Google Dorks", icon: "🧭", kind: "domain", desc: "Gera dorks prontos para exposições (arquivos, logins…).", collectors: ["google_dorks"] },
+      { name: "Google Dorks", icon: "🧭", kind: "domain", desc: "Busca exposições via Google (API oficial, se configurada); senão gera o checklist.", collectors: ["google_dorks"] },
       { name: "Wayback", icon: "🕰️", kind: "domain", desc: "Arquivos sensíveis históricos (.env, .sql, backups…).", collectors: ["wayback"] },
     ],
   },

@@ -25,6 +25,26 @@ class Settings(BaseSettings):
     scan_max_concurrency: int = 200
     scan_connect_timeout: float = 2.0
 
+    # Google Programmable Search (dorks reais). Sem chave -> so checklist.
+    # Crie em https://programmablesearchengine.google.com (CX) e
+    # https://developers.google.com/custom-search/v1/overview (API key).
+    google_cse_key: str = ""
+    google_cse_cx: str = ""
+    google_cse_max_per_dork: int = 10
+
+    # Base local de CVE: bundle oficial (CVE List JSON 5.0) para import local.
+    # Default = release diario "all CVEs" do projeto oficial no GitHub.
+    cve_feed_url: str = (
+        "https://github.com/CVEProject/cvelistV5/releases/latest/download/"
+        "CVE-all.zip"
+    )
+    # Atualizacao automatica da base (horas). 0 = desligada (so manual).
+    cve_update_interval_hours: int = 0
+
+    @property
+    def google_cse_enabled(self) -> bool:
+        return bool(self.google_cse_key and self.google_cse_cx)
+
     # Autenticacao
     jwt_secret: str = "change-me-in-production"
     jwt_expire_minutes: int = 720

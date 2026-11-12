@@ -59,6 +59,14 @@ fallback para os coletores Python:
   no mesmo pipeline (`fact.data["cve_ids"]`). Perfil basico nao roda scripts.
 - **nuclei** -> `web_vuln` (vulns/CVEs; JSONL; precisa de templates/internet).
 - nuclei ja traz CVE: o worker usa `fact.data["cve_ids"]` direto quando presente.
+- **Google Dorks** (`google_dorks`): com `GOOGLE_CSE_KEY`+`GOOGLE_CSE_CX` EXECUTA
+  os dorks pela Programmable Search API (oficial) e traz os achados; sem chave,
+  gera o checklist. Nunca raspar o Google (ToS/CAPTCHA).
+- **Base local de CVE / remediacao**: tabela `cve_remediation` (cache). Enriquecida
+  sob demanda (NVD por CVE, cacheado) e atualizavel: `POST /cve/update` (full=false
+  re-busca os CVEs vistos; full=true baixa o bundle oficial CVE List JSON 5.0 de
+  `CVE_FEED_URL` e importa tudo). Agenda: `CVE_UPDATE_INTERVAL_HOURS` + cron do ARQ
+  (`scheduled_cve_update`). CVE offline tambem via nmap `vulscan` (base CSV local).
 - Premissas: internet no build (baixa binarios+templates) e nos scans
   (subfinder/nuclei). nmap nao precisa de root.
 

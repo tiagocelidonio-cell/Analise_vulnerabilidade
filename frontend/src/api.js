@@ -47,6 +47,8 @@ export const api = {
   updateUser: (id, body) => req(`/auth/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteUser: (id) => req(`/auth/users/${id}`, { method: "DELETE" }),
   overview: () => req("/overview"),
+  cveStatus: () => req("/cve/status"),
+  cveUpdate: (full = false) => req(`/cve/update?full=${full}`, { method: "POST" }),
   overviewReportHtmlUrl: () => `${BASE}/overview/report.html?token=${getToken() || ""}`,
   overviewReportPdfUrl: () => `${BASE}/overview/report.pdf?token=${getToken() || ""}`,
   // engagements

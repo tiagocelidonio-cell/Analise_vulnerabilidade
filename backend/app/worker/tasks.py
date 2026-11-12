@@ -266,6 +266,34 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             return {"error": str(exc)}
 
 
+async def update_cve_base(ctx: dict, full: bool = False) -> dict:
+    """Atualiza a base local de CVE. full=True importa o bundle oficial."""
+    from app.enrichment.cve_import import import_from_bundle, refresh_seen
+    async with SessionLocal() as session:
+        if full:
+            return await import_from_bundle(session)
+        return await refresh_seen(session)
+
+
+async def scheduled_cve_update(ctx: dict) -> None:
+    """Cron: roda a atualizacao leve respeitando o intervalo configurado."""
+    from datetime import datetime, timezone
+
+    from app.enrichment.cve_import import base_status, refresh_seen
+    hours = settings.cve_update_interval_hours
+    if hours <= 0:
+        return
+    async with SessionLocal() as session:
+        st = await base_status(session)
+        last = st.get("last_updated")
+        if last:
+            age_h = (datetime.now(timezone.utc)
+                     - datetime.fromisoformat(last)).total_seconds() / 3600
+            if age_h < hours:
+                return
+        await refresh_seen(session)
+
+
 async def _startup(ctx: dict) -> None:
     await init_db()
     # Scans que ficaram "running" sao orfaos de um worker anterior: encerra.
@@ -278,8 +306,18 @@ async def _startup(ctx: dict) -> None:
         await session.commit()
 
 
+def _cron_jobs():
+    # Agenda a atualizacao da base de CVE de hora em hora; a task so trabalha
+    # quando passou o intervalo configurado (cve_update_interval_hours).
+    if settings.cve_update_interval_hours <= 0:
+        return []
+    from arq import cron
+    return [cron(scheduled_cve_update, minute=7, run_at_startup=False)]
+
+
 class WorkerSettings:
-    functions = [run_scan]
+    functions = [run_scan, update_cve_base]
+    cron_jobs = _cron_jobs()
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     on_startup = _startup
     max_jobs = 10

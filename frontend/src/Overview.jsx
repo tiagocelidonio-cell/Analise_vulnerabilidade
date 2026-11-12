@@ -13,11 +13,25 @@ const SEV_COLOR = Object.fromEntries(SEV.map((s) => [s.key, s.color]));
 export default function Overview() {
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
+  const [cveSt, setCveSt] = useState(null);
+  const [cveMsg, setCveMsg] = useState("");
 
   const load = useCallback(async () => {
     try { setD(await api.overview()); } catch (e) { setErr(e.message); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const loadCve = useCallback(async () => {
+    try { setCveSt(await api.cveStatus()); } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { load(); loadCve(); }, [load, loadCve]);
+
+  async function updateCve(full) {
+    setCveMsg(full ? "Importando base completa (pode demorar)…" : "Atualizando CVEs vistos…");
+    try {
+      const r = await api.cveUpdate(full);
+      setCveMsg(r.mensagem || "Atualização iniciada.");
+      setTimeout(loadCve, 4000);
+    } catch (e) { setCveMsg(`Falha: ${e.message}`); }
+  }
 
   if (err) return <div className="err">{err}</div>;
   if (!d) return <div className="muted">Carregando visão geral…</div>;
@@ -126,6 +140,20 @@ export default function Overview() {
           Fontes: {cve.sources}. Atualizada a cada varredura; prevalência = % de
           clientes afetados (anônimo, para benchmarking).
         </p>
+        <div className="row" style={{ gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+          <span className="muted" style={{ fontSize: 12 }}>
+            Base local: <b>{cveSt?.count ?? "—"}</b> CVEs
+            {cveSt?.last_updated && ` · atualizada ${new Date(cveSt.last_updated).toLocaleString("pt-BR")}`}
+          </span>
+          <button className="btn" style={{ padding: "3px 10px" }} onClick={() => updateCve(false)}>
+            ↻ Atualizar vistos
+          </button>
+          <button className="btn" style={{ padding: "3px 10px" }} onClick={() => updateCve(true)}
+            title="Baixa o bundle oficial (CVE List JSON 5.0). Pesado. Só admin.">
+            ⬇ Importar base completa
+          </button>
+          {cveMsg && <span className="muted" style={{ fontSize: 12 }}>{cveMsg}</span>}
+        </div>
         <table className="t">
           <thead><tr><th>CVE</th><th>Clientes</th><th>Prevalência</th><th>CVSS</th><th>EPSS</th><th>KEV</th></tr></thead>
           <tbody>
