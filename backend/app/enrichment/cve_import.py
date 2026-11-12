@@ -25,7 +25,21 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import CveRemediation, Finding
+from app.models import CveRemediation, CveScheduleConfig, Finding
+
+
+async def get_schedule(session: AsyncSession) -> CveScheduleConfig:
+    """Le a config de agenda (cria na 1a vez, semeando do env)."""
+    cfg = await session.get(CveScheduleConfig, "cve")
+    if cfg is None:
+        hours = settings.cve_update_interval_hours
+        cfg = CveScheduleConfig(
+            id="cve", enabled=hours > 0,
+            interval_hours=hours if hours > 0 else 24, full=False)
+        session.add(cfg)
+        await session.commit()
+        await session.refresh(cfg)
+    return cfg
 
 _SOLUTION_BASE = (
     "Aplicar as correcoes/patches do fabricante e atualizar o componente "

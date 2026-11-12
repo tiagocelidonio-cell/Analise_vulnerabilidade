@@ -191,3 +191,22 @@ class CveRemediation(Base):
     cvss: Mapped[float | None] = mapped_column(Float, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class CveScheduleConfig(Base):
+    """Configuracao (editavel no painel) da atualizacao automatica da base CVE.
+
+    Linha unica (id='cve'). O worker le daqui a cada ciclo do cron, entao
+    ligar/desligar e mudar o intervalo tem efeito SEM reiniciar o container.
+    """
+
+    __tablename__ = "cve_schedule_config"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default="cve")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    interval_hours: Mapped[int] = mapped_column(Integer, default=24)
+    full: Mapped[bool] = mapped_column(Boolean, default=False)  # True = bundle oficial
+    last_run: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    last_result: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

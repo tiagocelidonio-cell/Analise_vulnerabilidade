@@ -276,22 +276,37 @@ async def update_cve_base(ctx: dict, full: bool = False) -> dict:
 
 
 async def scheduled_cve_update(ctx: dict) -> None:
-    """Cron: roda a atualizacao leve respeitando o intervalo configurado."""
+    """Cron: le a config (DB) e roda a atualizacao quando vencer o intervalo.
+
+    Como le do banco a cada ciclo, ligar/desligar e mudar o intervalo pelo
+    painel tem efeito SEM reiniciar o worker.
+    """
     from datetime import datetime, timezone
 
-    from app.enrichment.cve_import import base_status, refresh_seen
-    hours = settings.cve_update_interval_hours
-    if hours <= 0:
-        return
+    from app.enrichment.cve_import import (
+        get_schedule, import_from_bundle, refresh_seen,
+    )
     async with SessionLocal() as session:
-        st = await base_status(session)
-        last = st.get("last_updated")
-        if last:
-            age_h = (datetime.now(timezone.utc)
-                     - datetime.fromisoformat(last)).total_seconds() / 3600
-            if age_h < hours:
+        cfg = await get_schedule(session)
+        if not cfg.enabled:
+            return
+        now = datetime.now(timezone.utc)
+        if cfg.last_run is not None:
+            age_h = (now - cfg.last_run).total_seconds() / 3600
+            if age_h < max(1, cfg.interval_hours):
                 return
-        await refresh_seen(session)
+        # Venceu: roda conforme o modo escolhido.
+        try:
+            if cfg.full:
+                res = await import_from_bundle(session)
+                cfg.last_result = f"completa: {res.get('imported', 0)} CVEs"
+            else:
+                res = await refresh_seen(session)
+                cfg.last_result = f"vistos: {res.get('updated', 0)} atualizados"
+        except Exception as exc:  # noqa: BLE001
+            cfg.last_result = f"erro: {exc}"
+        cfg.last_run = datetime.now(timezone.utc)
+        await session.commit()
 
 
 async def _startup(ctx: dict) -> None:
@@ -307,12 +322,10 @@ async def _startup(ctx: dict) -> None:
 
 
 def _cron_jobs():
-    # Agenda a atualizacao da base de CVE de hora em hora; a task so trabalha
-    # quando passou o intervalo configurado (cve_update_interval_hours).
-    if settings.cve_update_interval_hours <= 0:
-        return []
+    # Roda a cada 15 min; a propria task le a config no banco e decide se e hora
+    # de atualizar. Fica SEMPRE registrado para a agenda do painel funcionar.
     from arq import cron
-    return [cron(scheduled_cve_update, minute=7, run_at_startup=False)]
+    return [cron(scheduled_cve_update, minute={0, 15, 30, 45}, run_at_startup=False)]
 
 
 class WorkerSettings:

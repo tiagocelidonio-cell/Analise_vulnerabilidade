@@ -190,6 +190,10 @@ textarea { resize: vertical; }
 .pickbox { max-height: 180px; overflow-y: auto; border: 1px solid var(--line);
   border-radius: 7px; padding: 8px 10px; display: flex; flex-direction: column;
   gap: 4px; background: var(--bg); }
+.cvectl { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  margin-bottom: 10px; background: var(--bg); }
+.cveopt { padding: 8px 0; border-top: 1px dashed var(--line); }
+.cveopt:first-of-type { border-top: none; }
 
 /* Abas */
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
