@@ -32,7 +32,11 @@ export default function Overview() {
           <h2>Visão geral — todos os clientes</h2>
           <p className="muted">Consolidação de risco e benchmarking da base</p>
         </div>
-        <button className="btn" onClick={load}>Atualizar</button>
+        <div className="row">
+          <button className="btn" onClick={load}>Atualizar</button>
+          <a className="btn" href={api.overviewReportHtmlUrl()} target="_blank" rel="noreferrer">Preview</a>
+          <a className="btn primary" href={api.overviewReportPdfUrl()}>Relatório PDF</a>
+        </div>
       </div>
 
       {d.insights.length > 0 && (

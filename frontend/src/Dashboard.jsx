@@ -76,6 +76,8 @@ export default function Dashboard({ engagement }) {
         </div>
         <div className="row">
           <button className="btn" onClick={load}>Atualizar</button>
+          <a className="btn" href={api.reportHtmlUrl(engagement.id)} target="_blank" rel="noreferrer">Preview relatório</a>
+          <a className="btn primary" href={api.reportPdfUrl(engagement.id)}>Baixar PDF</a>
         </div>
       </div>
       {msg && <div className="err">{msg}</div>}
