@@ -65,9 +65,9 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             # Coletores de host recebem os IPs expandidos do range; os de
             # recon (dominio) recebem os alvos originais.
             host_targets = expand_targets(scan.targets)
-            # nmap (port_scan) lida com ranges nativamente -> recebe alvos crus.
-            # Os coletores Python de host precisam dos IPs expandidos.
-            host_collectors = {"http_probe", "web_content", "web_vuln"}
+            # Todos os coletores de host rodam em LOTES de IPs: permite cancelar
+            # no meio (inclusive o nmap) e mostrar progresso real.
+            host_collectors = {"port_scan", "http_probe", "web_content", "web_vuln"}
             facts = []
             for i, name in enumerate(selected):
                 if await _cancelled():

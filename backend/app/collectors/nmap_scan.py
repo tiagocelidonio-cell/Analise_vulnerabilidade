@@ -71,13 +71,14 @@ class NmapCollector:
             return await PortScanCollector().run(expand_targets(targets), ports=ports)
 
         # -sV com limites para nao travar em hosts que nao respondem direito.
+        # --host-timeout curto mantem o lote agil e o "Parar" responsivo.
         args = ["nmap", "-Pn", "-sT", "-sV", "--version-intensity", "2",
-                "--open", "-T4", "--max-retries", "2", "--host-timeout", "120s",
+                "--open", "-T4", "--max-retries", "1", "--host-timeout", "45s",
                 "-oX", "-"]
         if ports:
             args += ["-p", ",".join(str(p) for p in ports)]
         else:
-            args += ["--top-ports", "1000"]
+            args += ["--top-ports", "200"]
         args += list(targets)  # nmap expande CIDR/range nativamente
 
         try:

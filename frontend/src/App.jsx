@@ -4,6 +4,8 @@ import { branding } from "./branding.js";
 import Dashboard from "./Dashboard.jsx";
 import ToolCatalog from "./ToolCatalog.jsx";
 import Assets from "./Assets.jsx";
+import ToolForm from "./ToolForm.jsx";
+import { FLAT_TOOLS } from "./tools.js";
 import Overview from "./Overview.jsx";
 import Admin from "./Admin.jsx";
 import Login from "./Login.jsx";
@@ -142,12 +144,15 @@ function NewScan({ engagement, onStarted }) {
   );
 }
 
-function FindingRow({ f }) {
+function FindingRow({ f, selected, onToggle }) {
   const [open, setOpen] = useState(false);
   const a = f.ai_assessment || {};
   return (
     <>
       <tr className="click" onClick={() => setOpen(!open)}>
+        <td onClick={(e) => e.stopPropagation()}>
+          <input type="checkbox" checked={selected} onChange={() => onToggle(f)} />
+        </td>
         <td><Pill sev={f.severity} /></td>
         <td>{f.target}{f.port ? `:${f.port}` : ""}</td>
         <td>{f.title}
@@ -161,7 +166,7 @@ function FindingRow({ f }) {
       </tr>
       {open && (
         <tr className="detail">
-          <td colSpan={7}>
+          <td colSpan={8}>
             <p className="muted">
               Visto {f.times_seen || 1}x
               {f.last_seen && ` · última vez ${new Date(f.last_seen).toLocaleString()}`}
@@ -237,6 +242,17 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
   const [editingScope, setEditingScope] = useState(false);
   const [showAdvScan, setShowAdvScan] = useState(false);
   const [sevFilter, setSevFilter] = useState("");
+  const [sel, setSel] = useState(() => new Set());
+  const [pickedTool, setPickedTool] = useState(null);
+  const [pickOpen, setPickOpen] = useState(false);
+
+  function toggleSel(f) {
+    setSel((prev) => {
+      const n = new Set(prev);
+      n.has(f.id) ? n.delete(f.id) : n.add(f.id);
+      return n;
+    });
+  }
 
   async function removeEngagement() {
     if (!window.confirm(
@@ -359,15 +375,70 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           ))}
         </div>
       </div>
-      <table className="t">
-        <thead><tr><th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th></tr></thead>
-        <tbody>
-          {findings.filter((f) => !sevFilter || f.severity === sevFilter)
-            .map((f) => <FindingRow key={f.id} f={f} />)}
-          {findings.length === 0 && <tr><td colSpan={7} className="muted">
-            Sem achados ainda. Vá ao <b>Playbook</b> e rode o reconhecimento e a varredura.</td></tr>}
-        </tbody>
-      </table>
+
+      {sel.size > 0 && (
+        <div className="selbar">
+          <span>{sel.size} selecionado(s)</span>
+          <div className="row">
+            <button className="btn" onClick={() => setSel(new Set())}>Limpar</button>
+            <button className="btn primary" onClick={() => { setPickedTool(null); setPickOpen(true); }}>
+              Escanear selecionados
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(() => {
+        const filtered = findings.filter((f) => !sevFilter || f.severity === sevFilter);
+        const allSel = filtered.length > 0 && filtered.every((f) => sel.has(f.id));
+        const toggleAll = () => setSel(allSel ? new Set() : new Set(filtered.map((f) => f.id)));
+        return (
+        <table className="t">
+          <thead><tr>
+            <th><input type="checkbox" checked={allSel} onChange={toggleAll} /></th>
+            <th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th>
+          </tr></thead>
+          <tbody>
+            {filtered.map((f) => <FindingRow key={f.id} f={f}
+              selected={sel.has(f.id)} onToggle={toggleSel} />)}
+            {findings.length === 0 && <tr><td colSpan={8} className="muted">
+              Sem achados ainda. Vá em <b>Nova varredura</b> e rode uma ferramenta.</td></tr>}
+          </tbody>
+        </table>
+        );
+      })()}
+
+      {/* Escanear os alvos dos achados selecionados */}
+      {pickOpen && !pickedTool && (
+        <div className="modalOverlay" onClick={() => setPickOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHead">
+              <h2 style={{ margin: 0 }}>Escanear selecionados</h2>
+              <button className="btn" onClick={() => setPickOpen(false)}>✕</button>
+            </div>
+            <p className="muted">Escolha a ferramenta:</p>
+            <div className="toolGrid">
+              {FLAT_TOOLS.filter((t) => !(t.needsIntrusive && !engagement.allow_intrusive)).map((t) => (
+                <button key={t.name} className="toolCard" onClick={() => setPickedTool(t)}>
+                  <div className="toolIcon">{t.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div className="toolName">{t.name}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>{t.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {pickOpen && pickedTool && (
+        <ToolForm engagement={engagement} tool={pickedTool}
+          initialTarget={[...new Set(findings.filter((f) => sel.has(f.id))
+            .map((f) => (f.target || "").split(":")[0]).filter(Boolean))].join(" ")}
+          onClose={() => { setPickOpen(false); setPickedTool(null); }}
+          onUpdated={onUpdated}
+          onRan={() => { setPickOpen(false); setPickedTool(null); setSel(new Set()); refresh(); }} />
+      )}
 
       </>
       )}

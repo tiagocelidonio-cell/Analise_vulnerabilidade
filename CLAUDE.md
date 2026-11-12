@@ -47,9 +47,10 @@ Seguir SEMPRE antes de pedir ao usuário para atualizar na VM dele.
 
 O scan usa ferramentas consagradas, instaladas no backend/Dockerfile, com
 fallback para os coletores Python:
-- **nmap** -> `port_scan` (TCP connect `-sT -Pn -sV`, acha host sem ping, lida
-  com ranges nativamente; NAO expandir CIDR no worker para o nmap). `-sV`
-  limitado (`--version-intensity 2 --host-timeout 120s`) p/ nao travar.
+- **nmap** -> `port_scan` (TCP connect `-sT -Pn -sV`, acha host sem ping).
+  Roda em LOTES de IPs (port_scan esta em host_collectors, recebe IPs
+  expandidos) para que "Parar" e o progresso funcionem no meio de um range.
+  `-sV` limitado (`--version-intensity 2 --host-timeout 45s --top-ports 200`).
 - **subfinder** -> `subdomain_enum` (subdominios abrangentes).
 - **nuclei** -> `web_vuln` (vulns/CVEs; JSONL; precisa de templates/internet).
 - nuclei ja traz CVE: o worker usa `fact.data["cve_ids"]` direto quando presente.
