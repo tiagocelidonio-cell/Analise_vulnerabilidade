@@ -37,6 +37,7 @@ export default function Playbook({ engagement }) {
   const [post, setPost] = useState(null);
   const [retest, setRetest] = useState(null);
   const [exploitLog, setExploitLog] = useState(null);
+  const [exploitResult, setExploitResult] = useState(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
 
@@ -81,7 +82,7 @@ export default function Playbook({ engagement }) {
     try {
       const r = await api.validate(engagement.id, intrusive);
       setExploitLog(r.log || []);
-      setMsg(`Exploração: ${r.confirmed} confirmada(s) em ${r.tested_targets} alvo(s).`);
+      setExploitResult(r);
       await refresh();
     } catch (e) { setMsg(e.message); }
     finally { setBusy(""); }
@@ -99,7 +100,6 @@ export default function Playbook({ engagement }) {
     try {
       const r = await api.retest(engagement.id);
       setRetest(r);
-      setMsg(`Reteste: ${r.corrigido} corrigida(s), ${r.aberto} ainda aberta(s) de ${r.tested}.`);
       await refresh();
     } catch (e) { setMsg(e.message); }
     finally { setBusy(""); }
@@ -111,58 +111,80 @@ export default function Playbook({ engagement }) {
   const retestDone = findings.some((f) => (f.ai_assessment || {}).retest);
   const findingsN = findings.length;
 
+  const BUSY_LABEL = {
+    recon: "Reconhecimento", scan: "Varredura", exploit: "Exploração",
+    post: "Pós-exploração", retest: "Reteste",
+  };
+  const runningScan = scans.find((s) => ["queued", "running"].includes(s.status));
+  const activity = BUSY_LABEL[busy]
+    || (runningScan ? `Varredura (${runningScan.progress || 0}% · ${runningScan.phase || "na fila"})` : null);
+  const donePhases = [reconStatus === "concluido", scanStatus === "concluido",
+    exploitDone, !!post, findingsN > 0, retestDone].filter(Boolean).length;
+
   return (
     <div>
       <div className="head">
         <div>
-          <h2>Playbook — pentest guiado</h2>
-          <p className="muted">Siga as 6 fases em ordem. Cada fase gera achados e evidências.</p>
+          <h2>Playbook</h2>
+          <p className="muted">{donePhases} de 6 fases concluídas · {findingsN} achados</p>
         </div>
       </div>
 
       <div className="card">
-        <label className="muted" style={{ fontSize: 12 }}>Alvos (domínios/IPs/hosts — do escopo)</label>
+        <label className="muted" style={{ fontSize: 12 }}>Alvos (domínios/IPs/hosts)</label>
         <input value={targets} onChange={(e) => setTargets(e.target.value)}
           placeholder="ex: cliente.com.br 10.0.0.0/24" />
         {!engagement.authorized && <div className="err">Engagement não autorizado — scans serão bloqueados.</div>}
-        {msg && <div className="info">{msg}</div>}
+        {msg && <div className="err">{msg}</div>}
       </div>
 
+      {activity && (
+        <div className="running"><span className="spin" /> Executando: {activity}…</div>
+      )}
+
       <Phase n="1" title="Reconhecimento" status={reconStatus}
-        desc="OSINT (Wayback, dorks, Certificate Transparency) + DNS/subdomínios.">
+        desc="OSINT e subdomínios">
         <button className="btn primary" disabled={busy === "recon"}
           onClick={() => runScan(RECON, "recon")}>
-          {busy === "recon" ? "Iniciando…" : "Rodar reconhecimento"}
+          {busy === "recon" ? "Iniciando…" : "Executar"}
         </button>
       </Phase>
 
       <Phase n="2" title="Varredura e Enumeração" status={scanStatus}
-        desc="Portas, serviços, versões, headers, conteúdo web, automação/OT (IoT) e correlação CVE.">
+        desc="Portas, serviços, web e automação/OT (IoT)">
         <button className="btn primary" disabled={busy === "scan"}
           onClick={() => runScan(SCAN, "scan")}>
-          {busy === "scan" ? "Iniciando…" : "Rodar varredura"}
+          {busy === "scan" ? "Iniciando…" : "Executar"}
         </button>
-        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          Achados até agora: <b>{findingsN}</b>
-        </p>
       </Phase>
 
-      <Phase n="3" title="Exploração (validação)" status={exploitDone ? "concluido" : "pendente"}
-        desc="Prova não-destrutiva das falhas (acesso inicial). Sem DoS.">
+      <Phase n="3" title="Exploração" status={exploitDone ? "concluido" : "pendente"}
+        desc="Prova as falhas, sem DoS">
         <div className="row">
           <button className="btn primary" disabled={busy === "exploit"}
             onClick={() => runValidate(false)}>
-            {busy === "exploit" ? "Executando…" : "Validar (SAFE)"}
+            {busy === "exploit" ? "Executando…" : "Exploração"}
           </button>
           {engagement.allow_intrusive && (
             <button className="btn danger" disabled={busy === "exploit"}
-              onClick={() => runValidate(true)}>Validar (INTRUSIVE)</button>
+              onClick={() => runValidate(true)}>Exploração avançada</button>
           )}
         </div>
-        {exploitLog && (
+        {exploitResult && exploitResult.tested_targets === 0 && (
+          <div className="info" style={{ marginTop: 8 }}>
+            Nenhum alvo web para validar. Rode a <b>Varredura</b> (fase 2) primeiro —
+            a exploração atua sobre os serviços web encontrados lá.
+          </div>
+        )}
+        {exploitResult && exploitResult.tested_targets > 0 && (
+          <p style={{ marginTop: 8 }}>
+            <b>{exploitResult.confirmed}</b> falha(s) confirmada(s) em{" "}
+            {exploitResult.tested_targets} alvo(s).
+          </p>
+        )}
+        {exploitLog && exploitLog.length > 0 && (
           <div style={{ marginTop: 10 }}>
             <h3 style={{ fontSize: 13 }}>Evidências (o que foi executado)</h3>
-            {exploitLog.length === 0 && <p className="muted">Nenhuma falha confirmada nesta execução.</p>}
             {exploitLog.map((e, i) => (
               <div key={i} className="probe">
                 <div><span className="pill" style={{ background: e.tier === "intrusive" ? "#c2410c" : "#15803d" }}>
@@ -176,9 +198,9 @@ export default function Playbook({ engagement }) {
         )}
       </Phase>
 
-      <Phase n="4" title="Pós-Exploração (guiada)" status={post ? "concluido" : "pendente"}
-        desc="Mapa de impacto, segredos, alvos de alto valor e movimentação lateral — orientação manual.">
-        <button className="btn" disabled={busy === "post"} onClick={runPost}>
+      <Phase n="4" title="Pós-Exploração" status={post ? "concluido" : "pendente"}
+        desc="Mapa de impacto e movimentação lateral (guiado)">
+        <button className="btn primary" disabled={busy === "post"} onClick={runPost}>
           {busy === "post" ? "Analisando…" : "Gerar mapa de impacto"}
         </button>
         {post && (
@@ -199,17 +221,17 @@ export default function Playbook({ engagement }) {
       </Phase>
 
       <Phase n="5" title="Relatório e Mitigação" status={findingsN ? "concluido" : "pendente"}
-        desc="PDF executivo + técnico com matriz de risco e recomendações.">
+        desc="PDF executivo e técnico">
         <div className="row">
           <a className="btn" href={api.reportHtmlUrl(engagement.id)} target="_blank" rel="noreferrer">Preview</a>
           <a className="btn primary" href={api.reportPdfUrl(engagement.id)}>Baixar PDF</a>
         </div>
       </Phase>
 
-      <Phase n="6" title="Verificação Pós-Correção (reteste)" status={retestDone ? "concluido" : "pendente"}
-        desc="Re-executa as validações e marca cada falha como corrigida ou ainda aberta.">
+      <Phase n="6" title="Reteste" status={retestDone ? "concluido" : "pendente"}
+        desc="Confirma o que foi corrigido">
         <button className="btn primary" disabled={busy === "retest"} onClick={runRetest}>
-          {busy === "retest" ? "Retestando…" : "Rodar reteste"}
+          {busy === "retest" ? "Retestando…" : "Executar"}
         </button>
         {retest && (
           <p style={{ marginTop: 8 }}>

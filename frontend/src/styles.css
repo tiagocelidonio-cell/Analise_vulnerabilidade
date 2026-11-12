@@ -51,6 +51,14 @@ select { background: var(--bg); border: 1px solid var(--line); color: var(--text
   font-family: 'DejaVu Sans Mono', monospace; font-size: 11px; white-space: pre-wrap;
   word-break: break-all; }
 
+/* Playbook — faixa de execução */
+.running { display: flex; align-items: center; gap: 10px; background: #1a1206;
+  border: 1px solid #a16207; color: #fde68a; padding: 10px 14px; border-radius: 8px;
+  margin: 8px 0; font-weight: 600; position: sticky; top: 0; z-index: 5; }
+.spin { width: 14px; height: 14px; border: 2px solid #fde68a55; border-top-color: #fde68a;
+  border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Playbook — fases */
 .phase { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
   margin: 10px 0; overflow: hidden; }
