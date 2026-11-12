@@ -1,12 +1,17 @@
 """Aplicacao FastAPI — ponto de entrada da API."""
 from __future__ import annotations
 
+import logging
+import traceback
 from contextlib import asynccontextmanager
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+logger = logging.getLogger("vulnscope")
 
 from app.api import auth as auth_api
 from app.api import (
@@ -63,6 +68,17 @@ app.include_router(overview.router, dependencies=_auth)
 app.include_router(postexploit.router, dependencies=_auth)
 app.include_router(assets.router, dependencies=_auth)
 app.include_router(cve.router, dependencies=_auth)
+
+
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+    """Loga o traceback completo (visivel em `docker compose logs api`) e
+    devolve a classe+mensagem do erro no detail -> some o '500' opaco."""
+    logger.error(
+        "Erro nao tratado em %s %s:\n%s", request.method, request.url.path,
+        "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+    )
+    return JSONResponse(status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"})
 
 
 @app.get("/health", tags=["meta"])

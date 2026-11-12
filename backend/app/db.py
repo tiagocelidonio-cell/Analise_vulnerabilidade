@@ -10,7 +10,18 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
 
-engine = create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)
+# Desliga o cache de prepared statements do asyncpg: rodamos ALTER TYPE/ALTER
+# TABLE no boot (migracoes leves), e o cache fica INVALIDO apos mudanca de
+# schema -> "cached statement plan is invalid" / erros de enum (500). Sem cache,
+# cada query e replanejada e sempre valida. (So aplica ao driver asyncpg.)
+_connect_args = {}
+if settings.database_url.startswith("postgresql+asyncpg"):
+    _connect_args = {"statement_cache_size": 0}
+
+engine = create_async_engine(
+    settings.database_url, echo=False, pool_pre_ping=True,
+    connect_args=_connect_args,
+)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
