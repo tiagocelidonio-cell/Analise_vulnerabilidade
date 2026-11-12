@@ -46,6 +46,7 @@ async def create_scan(
         targets=body.targets,
         ports=body.ports,
         collectors=body.collectors,
+        profile=body.profile if body.profile in ("basic", "full") else "full",
         status=ScanStatus.queued,
     )
     session.add(scan)

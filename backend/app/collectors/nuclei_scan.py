@@ -79,22 +79,24 @@ class NucleiCollector:
             f.write("\n".join(urls))
             list_path = f.name
 
+        # Perfil: basico foca no que importa (alto/critico, mais rapido);
+        # completo cobre todas as severidades.
+        profile = kwargs.get("profile") or "full"
+        severity = "high,critical" if profile == "basic" else "low,medium,high,critical"
         args = [
             "nuclei", "-l", list_path, "-silent", "-jsonl",
-            "-severity", "low,medium,high,critical",
+            "-severity", severity,
             "-rate-limit", "150", "-timeout", "8", "-retries", "1",
             "-disable-update-check",
         ]
+        from app.collectors.proc import run_killable
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            out, _ = await proc.communicate()
-        except OSError:
-            return []
+            out = await run_killable(args, cancel_check=kwargs.get("cancel_check"))
         finally:
             with contextlib.suppress(OSError):
                 os.unlink(list_path)
+        if not out:  # None (nao iniciou) ou b"" (abortado)
+            return []
 
         facts = []
         for line in out.decode("utf-8", "replace").splitlines():

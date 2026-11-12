@@ -81,11 +81,8 @@ class NmapCollector:
             args += ["--top-ports", "200"]
         args += list(targets)  # nmap expande CIDR/range nativamente
 
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            out, _ = await proc.communicate()
-        except OSError:
+        from app.collectors.proc import run_killable
+        out = await run_killable(args, cancel_check=kwargs.get("cancel_check"))
+        if not out:  # None (nao iniciou) ou b"" (abortado) -> sem resultados
             return []
         return _parse_nmap_xml(out)

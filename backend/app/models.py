@@ -97,6 +97,7 @@ class ScanJob(Base):
     targets: Mapped[list] = mapped_column(JSON, default=list)
     ports: Mapped[list] = mapped_column(JSON, default=list)
     collectors: Mapped[list] = mapped_column(JSON, default=list)
+    profile: Mapped[str] = mapped_column(String, default="full")  # basic | full
     status: Mapped[ScanStatus] = mapped_column(
         Enum(ScanStatus), default=ScanStatus.queued
     )

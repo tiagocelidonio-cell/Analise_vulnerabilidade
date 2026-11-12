@@ -273,17 +273,27 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     onDeleted();
   }
 
+  const [busyScan, setBusyScan] = useState(() => new Set());
+  const markBusy = (id, on) => setBusyScan((p) => {
+    const n = new Set(p); on ? n.add(id) : n.delete(id); return n;
+  });
   async function cancelScan(id) {
-    try { await api.cancelScan(id); } catch { /* ignore */ }
-    await refresh();
+    markBusy(id, true);
+    try { await api.cancelScan(id); }
+    catch (e) { window.alert(`Falha ao parar: ${e.message}`); }
+    finally { markBusy(id, false); await refresh(); }
   }
   async function pauseScan(id) {
-    try { await api.pauseScan(id); } catch { /* ignore */ }
-    await refresh();
+    markBusy(id, true);
+    try { await api.pauseScan(id); }
+    catch (e) { window.alert(`Falha ao pausar: ${e.message}`); }
+    finally { markBusy(id, false); await refresh(); }
   }
   async function resumeScan(id) {
-    try { await api.resumeScan(id); } catch { /* ignore */ }
-    await refresh();
+    markBusy(id, true);
+    try { await api.resumeScan(id); }
+    catch (e) { window.alert(`Falha ao retomar: ${e.message}`); }
+    finally { markBusy(id, false); await refresh(); }
   }
 
   const refresh = useCallback(async () => {
@@ -356,7 +366,10 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           return (
             <tr key={s.id}>
               <td><span className={`status ${s.status}`}>{STATUS_PT[s.status] || s.status}</span></td>
-              <td className="muted" style={{ fontSize: 12 }}>{scanTypeLabel(s.collectors)}</td>
+              <td className="muted" style={{ fontSize: 12 }}>
+                {scanTypeLabel(s.collectors)}
+                <div style={{ fontSize: 10, opacity: 0.8 }}>{s.profile === "basic" ? "básico" : "completo"}</div>
+              </td>
               <td>
                 {running || paused ? (
                   <div className="progwrap">
@@ -374,13 +387,16 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
               <td style={{ textAlign: "right" }}>
                 <div className="row" style={{ gap: 4, justifyContent: "flex-end", flexWrap: "nowrap" }}>
                   {running && <button className="btn" style={{ padding: "3px 10px" }}
+                    disabled={busyScan.has(s.id)}
                     title="Pausa e preserva os achados; dá para retomar depois"
                     onClick={() => pauseScan(s.id)}>⏸ Pausar</button>}
                   {paused && <button className="btn primary" style={{ padding: "3px 10px" }}
+                    disabled={busyScan.has(s.id)}
                     title="Continua as fases pendentes (sem duplicar achados)"
                     onClick={() => resumeScan(s.id)}>▶ Retomar</button>}
                   {(running || paused) && <button className="btn danger" style={{ padding: "3px 10px" }}
-                    onClick={() => cancelScan(s.id)}>⏹ Parar</button>}
+                    disabled={busyScan.has(s.id)}
+                    onClick={() => cancelScan(s.id)}>{busyScan.has(s.id) ? "Parando…" : "⏹ Parar"}</button>}
                 </div>
               </td>
             </tr>

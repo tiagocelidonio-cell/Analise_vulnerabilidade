@@ -87,6 +87,12 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 return True
             return False
 
+        async def _abort_check() -> bool:
+            # Passado aos coletores (nmap/nuclei) p/ MATAR o processo no meio.
+            return (await _control()) is not None
+
+        prof = scan.profile or "full"
+
         try:
             selected = scan.collectors or DEFAULT_COLLECTORS
             # Coletores de host recebem os IPs expandidos do range; os de
@@ -112,13 +118,17 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                         if await _halted():
                             return {"halted": True}
                         batch = tlist[j:j + 16]
-                        facts.extend(await collector.run(batch, ports=scan.ports or None))
+                        facts.extend(await collector.run(
+                            batch, ports=scan.ports or None,
+                            profile=prof, cancel_check=_abort_check))
                         frac = (j + len(batch)) / len(tlist)
                         scan.phase = f"coletando: {name} ({int(frac * 100)}%)"
                         scan.progress = 5 + int(40 * (i + frac) / max(len(selected), 1))
                         await session.commit()
                 else:
-                    facts.extend(await collector.run(tlist, ports=scan.ports or None))
+                    facts.extend(await collector.run(
+                        tlist, ports=scan.ports or None,
+                        profile=prof, cancel_check=_abort_check))
                 # coleta ocupa ate 45% do progresso
                 scan.progress = 5 + int(40 * (i + 1) / max(len(selected), 1))
                 await session.commit()

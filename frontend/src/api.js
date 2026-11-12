@@ -67,8 +67,14 @@ export const api = {
   listFindings: (id) => req(`/engagements/${id}/findings`),
   risk: (id) => req(`/engagements/${id}/risk`),
   assets: (id) => req(`/engagements/${id}/assets`),
-  validate: (id, intrusive = false) =>
-    req(`/engagements/${id}/validate?intrusive=${intrusive}`, { method: "POST" }),
+  validate: (id, opts = {}) =>
+    req(`/engagements/${id}/validate`, {
+      method: "POST",
+      body: JSON.stringify({
+        intrusive: !!opts.intrusive,
+        targets: opts.targets || [],
+      }),
+    }),
   retest: (id) => req(`/engagements/${id}/retest`, { method: "POST" }),
   postexploit: (id) => req(`/engagements/${id}/postexploit`),
   // relatorios: token no query para abrir em nova aba

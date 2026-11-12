@@ -187,6 +187,9 @@ textarea { resize: vertical; }
 .warn { background: #3b2f0a; color: #fde68a; border: 1px solid #a16207;
   padding: 8px 10px; border-radius: 7px; font-size: 13px; margin: 8px 0; }
 .checklist .ck { color: var(--accent); font-weight: 800; margin-right: 4px; }
+.pickbox { max-height: 180px; overflow-y: auto; border: 1px solid var(--line);
+  border-radius: 7px; padding: 8px 10px; display: flex; flex-direction: column;
+  gap: 4px; background: var(--bg); }
 
 /* Abas */
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }

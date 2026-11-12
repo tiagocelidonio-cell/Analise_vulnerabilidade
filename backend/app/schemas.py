@@ -67,6 +67,7 @@ class ScanCreate(BaseModel):
     targets: list[str]
     ports: list[int] = Field(default_factory=list)
     collectors: list[str] = Field(default_factory=list)  # vazio = todos os padrao
+    profile: str = "full"  # basic | full
 
 
 class ScanOut(BaseModel):
@@ -76,6 +77,7 @@ class ScanOut(BaseModel):
     targets: list[str]
     ports: list[int]
     collectors: list[str]
+    profile: str = "full"
     status: str
     progress: int
     phase: str
