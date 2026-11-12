@@ -6,6 +6,7 @@ import ToolCatalog from "./ToolCatalog.jsx";
 import Assets from "./Assets.jsx";
 import ToolForm from "./ToolForm.jsx";
 import { FLAT_TOOLS } from "./tools.js";
+import { downloadCsv } from "./csv.js";
 import Overview from "./Overview.jsx";
 import Admin from "./Admin.jsx";
 import Login from "./Login.jsx";
@@ -172,10 +173,12 @@ function FindingRow({ f, selected, onToggle }) {
         <td>{f.epss?.toFixed(2) ?? "-"}</td>
         <td>{f.in_kev ? "SIM" : "-"}</td>
         <td>{Math.round(f.confidence * 100)}%</td>
+        <td className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+          {f.created_at ? new Date(f.created_at).toLocaleDateString("pt-BR") : "-"}</td>
       </tr>
       {open && (
         <tr className="detail">
-          <td colSpan={8}>
+          <td colSpan={9}>
             <p className="muted">
               Visto {f.times_seen || 1}x
               {f.last_seen && ` · última vez ${new Date(f.last_seen).toLocaleString()}`}
@@ -264,6 +267,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
   const [pickedTool, setPickedTool] = useState(null);
   const [pickOpen, setPickOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [sortBy, setSortBy] = useState("sev");
 
   function toggleSel(f) {
     setSel((prev) => {
@@ -303,6 +307,30 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     try { await api.resumeScan(id); }
     catch (e) { window.alert(`Falha ao retomar: ${e.message}`); }
     finally { markBusy(id, false); await refresh(); }
+  }
+  async function deleteScan(id) {
+    if (!window.confirm("Excluir este scan do histórico? Os achados são preservados.")) return;
+    markBusy(id, true);
+    try { await api.deleteScan(id); }
+    catch (e) { window.alert(`Falha ao excluir: ${e.message}`); }
+    finally { markBusy(id, false); await refresh(); }
+  }
+  function exportFindings() {
+    const rows = findings.filter((f) => !sevFilter || f.severity === sevFilter);
+    downloadCsv(`achados_${engagement.client_name || "cliente"}.csv`, rows, [
+      { label: "Severidade", key: "severity" },
+      { label: "Alvo", get: (f) => f.target + (f.port ? `:${f.port}` : "") },
+      { label: "Serviço", key: "service" },
+      { label: "Achado", key: "title" },
+      { label: "CVSS", key: "cvss" },
+      { label: "EPSS", key: "epss" },
+      { label: "KEV", get: (f) => (f.in_kev ? "SIM" : "") },
+      { label: "CVEs", get: (f) => (f.cve_ids || []).join(" ") },
+      { label: "Confiança", get: (f) => Math.round((f.confidence || 0) * 100) + "%" },
+      { label: "Vezes visto", key: "times_seen" },
+      { label: "Recomendação", get: (f) => (f.ai_assessment || {}).recommendation || "" },
+      { label: "Data", get: (f) => (f.created_at ? new Date(f.created_at).toLocaleString("pt-BR") : "") },
+    ]);
   }
 
   const refresh = useCallback(async () => {
@@ -392,6 +420,9 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                   : <span className="muted">concluído</span>}
               </td>
               <td>{s.targets.join(", ")}</td>
+              <td className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                {s.created_at ? new Date(s.created_at).toLocaleString("pt-BR") : "-"}
+              </td>
               <td>{s.summary || `${s.findings_count || 0} achados`}</td>
               <td style={{ textAlign: "right" }}>
                 <div className="row" style={{ gap: 4, justifyContent: "flex-end", flexWrap: "nowrap" }}>
@@ -403,6 +434,9 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                     disabled={busyScan.has(s.id)}
                     title="Continua as fases pendentes (sem duplicar achados)"
                     onClick={() => resumeScan(s.id)}>▶ Retomar</button>}
+                  {!running && !paused && <button className="btn" style={{ padding: "3px 10px" }}
+                    disabled={busyScan.has(s.id)} title="Excluir scan do histórico (mantém achados)"
+                    onClick={() => deleteScan(s.id)}>🗑</button>}
                   {(running || paused) && <button className="btn danger" style={{ padding: "3px 10px" }}
                     disabled={busyScan.has(s.id)}
                     onClick={() => cancelScan(s.id)}>{busyScan.has(s.id) ? "Parando…" : "⏹ Parar"}</button>}
@@ -415,10 +449,10 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         <>
           <h3>Scans em andamento</h3>
           <table className="t">
-            <thead><tr><th>Status</th><th>Tipo</th><th style={{ width: "28%" }}>Progresso</th><th>Alvos</th><th>Resumo</th><th></th></tr></thead>
+            <thead><tr><th>Status</th><th>Tipo</th><th style={{ width: "24%" }}>Progresso</th><th>Alvos</th><th>Data/hora</th><th>Resumo</th><th></th></tr></thead>
             <tbody>
               {active.map(Row)}
-              {active.length === 0 && <tr><td colSpan={6} className="muted">Nenhum scan em andamento.</td></tr>}
+              {active.length === 0 && <tr><td colSpan={7} className="muted">Nenhum scan em andamento.</td></tr>}
             </tbody>
           </table>
 
@@ -429,7 +463,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
               </button>
               {showHistory && (
                 <table className="t">
-                  <thead><tr><th>Status</th><th>Tipo</th><th style={{ width: "28%" }}>Progresso</th><th>Alvos</th><th>Resumo</th><th></th></tr></thead>
+                  <thead><tr><th>Status</th><th>Tipo</th><th style={{ width: "24%" }}>Progresso</th><th>Alvos</th><th>Data/hora</th><th>Resumo</th><th></th></tr></thead>
                   <tbody>{history.map(Row)}</tbody>
                 </table>
               )}
@@ -439,14 +473,23 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         );
       })()}
 
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
         <h3 style={{ margin: 0 }}>Achados ({findings.length})</h3>
-        <div className="row" style={{ gap: 4 }}>
+        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
           {["", "critical", "high", "medium", "low", "info"].map((s) => (
             <button key={s || "all"}
               className={`chip ${sevFilter === s ? "active" : ""}`}
               onClick={() => setSevFilter(s)}>{s ? s.toUpperCase() : "TODOS"}</button>
           ))}
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+            style={{ width: "auto", padding: "4px 8px", fontSize: 13 }} title="Ordenar por">
+            <option value="sev">Ordenar: criticidade</option>
+            <option value="date">Ordenar: data (recente)</option>
+            <option value="cvss">Ordenar: CVSS</option>
+            <option value="target">Ordenar: alvo (A-Z)</option>
+          </select>
+          <button className="btn" style={{ padding: "4px 10px" }} title="Exportar achados (CSV)"
+            onClick={() => exportFindings()}>⬇ CSV</button>
         </div>
       </div>
 
@@ -463,19 +506,26 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
       )}
 
       {(() => {
+        const rank = (s) => { const i = SEV_ORDER.indexOf(s); return i < 0 ? 99 : i; };
         const filtered = findings.filter((f) => !sevFilter || f.severity === sevFilter);
-        const allSel = filtered.length > 0 && filtered.every((f) => sel.has(f.id));
-        const toggleAll = () => setSel(allSel ? new Set() : new Set(filtered.map((f) => f.id)));
+        const sorted = [...filtered].sort((a, b) => {
+          if (sortBy === "date") return new Date(b.created_at) - new Date(a.created_at);
+          if (sortBy === "cvss") return (b.cvss || 0) - (a.cvss || 0);
+          if (sortBy === "target") return (a.target || "").localeCompare(b.target || "");
+          return rank(a.severity) - rank(b.severity) || (b.cvss || 0) - (a.cvss || 0);
+        });
+        const allSel = sorted.length > 0 && sorted.every((f) => sel.has(f.id));
+        const toggleAll = () => setSel(allSel ? new Set() : new Set(sorted.map((f) => f.id)));
         return (
         <table className="t">
           <thead><tr>
             <th><input type="checkbox" checked={allSel} onChange={toggleAll} /></th>
-            <th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th>
+            <th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th><th>Data</th>
           </tr></thead>
           <tbody>
-            {filtered.map((f) => <FindingRow key={f.id} f={f}
+            {sorted.map((f) => <FindingRow key={f.id} f={f}
               selected={sel.has(f.id)} onToggle={toggleSel} />)}
-            {findings.length === 0 && <tr><td colSpan={8} className="muted">
+            {findings.length === 0 && <tr><td colSpan={9} className="muted">
               Sem achados ainda. Vá em <b>Nova varredura</b> e rode uma ferramenta.</td></tr>}
           </tbody>
         </table>

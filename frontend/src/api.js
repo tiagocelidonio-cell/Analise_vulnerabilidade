@@ -68,6 +68,7 @@ export const api = {
   cancelScan: (sid) => req(`/scans/${sid}/cancel`, { method: "POST" }),
   pauseScan: (sid) => req(`/scans/${sid}/pause`, { method: "POST" }),
   resumeScan: (sid) => req(`/scans/${sid}/resume`, { method: "POST" }),
+  deleteScan: (sid) => req(`/scans/${sid}`, { method: "DELETE" }),
   listFindings: (id) => req(`/engagements/${id}/findings`),
   risk: (id) => req(`/engagements/${id}/risk`),
   assets: (id) => req(`/engagements/${id}/assets`),

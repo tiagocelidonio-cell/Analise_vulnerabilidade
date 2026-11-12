@@ -1,18 +1,21 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
 import { FLAT_TOOLS } from "./tools.js";
+import { downloadCsv } from "./csv.js";
 import ToolForm from "./ToolForm.jsx";
 
 const SEV_COLOR = {
   critical: "#7f1d1d", high: "#b91c1c", medium: "#c2410c",
   low: "#a16207", info: "#334155",
 };
+const SEV_RANK = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
 const TYPE_LABEL = { hostname: "HOSTNAME", ip: "IP", range: "RANGE" };
 
 export default function Assets({ engagement, onUpdated }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [novo, setNovo] = useState("");
+  const [sortBy, setSortBy] = useState("risk");
   const [scanTarget, setScanTarget] = useState(null); // ativo a escanear
   const [pickedTool, setPickedTool] = useState(null);  // ferramenta escolhida
 
@@ -53,6 +56,24 @@ export default function Assets({ engagement, onUpdated }) {
   if (err) return <div className="err">{err}</div>;
   if (!data) return <div className="muted">Carregando ativos…</div>;
 
+  const sorted = [...data.assets].sort((a, b) => {
+    if (sortBy === "findings") return b.findings - a.findings;
+    if (sortBy === "target") return (a.target || "").localeCompare(b.target || "");
+    if (sortBy === "date") return (a.first_seen || "").localeCompare(b.first_seen || "");
+    return (SEV_RANK[b.risk] || 1) - (SEV_RANK[a.risk] || 1) || b.findings - a.findings;
+  });
+
+  function exportAssets() {
+    downloadCsv(`ativos_${engagement.client_name || "cliente"}.csv`, sorted, [
+      { label: "Ativo", key: "target" },
+      { label: "Tipo", get: (a) => TYPE_LABEL[a.type] || a.type },
+      { label: "Risco", get: (a) => (a.risk || "").toUpperCase() },
+      { label: "Achados", key: "findings" },
+      { label: "Scans", key: "scans" },
+      { label: "Identificado em", get: (a) => (a.first_seen ? new Date(a.first_seen).toLocaleString("pt-BR") : "") },
+    ]);
+  }
+
   return (
     <div>
       <div className="head">
@@ -60,7 +81,17 @@ export default function Assets({ engagement, onUpdated }) {
           <h2>Ativos ({data.total})</h2>
           <p className="muted">Hosts, domínios, IPs e ranges do escopo e descobertos.</p>
         </div>
-        <button className="btn" onClick={load}>Atualizar</button>
+        <div className="row" style={{ gap: 6 }}>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+            style={{ width: "auto", padding: "4px 8px", fontSize: 13 }}>
+            <option value="risk">Ordenar: risco</option>
+            <option value="findings">Ordenar: nº achados</option>
+            <option value="date">Ordenar: data (antigo)</option>
+            <option value="target">Ordenar: alvo (A-Z)</option>
+          </select>
+          <button className="btn" onClick={exportAssets} title="Exportar ativos (CSV)">⬇ CSV</button>
+          <button className="btn" onClick={load}>Atualizar</button>
+        </div>
       </div>
 
       <div className="card">
@@ -78,22 +109,24 @@ export default function Assets({ engagement, onUpdated }) {
       </div>
 
       <table className="t">
-        <thead><tr><th>Alvo</th><th>Tipo</th><th>Risco</th><th>Achados</th><th>Scans</th><th></th></tr></thead>
+        <thead><tr><th>Alvo</th><th>Tipo</th><th>Risco</th><th>Achados</th><th>Scans</th><th>Identificado em</th><th></th></tr></thead>
         <tbody>
-          {data.assets.map((a) => (
+          {sorted.map((a) => (
             <tr key={a.target}>
               <td>{a.target}</td>
               <td><span className="typeTag">{TYPE_LABEL[a.type] || a.type}</span></td>
               <td><span className="pill" style={{ background: SEV_COLOR[a.risk] }}>{a.risk.toUpperCase()}</span></td>
               <td>{a.findings}</td>
               <td>{a.scans}</td>
+              <td className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                {a.first_seen ? new Date(a.first_seen).toLocaleString("pt-BR") : "-"}</td>
               <td className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
                 <button className="btn" onClick={() => { setScanTarget(a.target); setPickedTool(null); }}>Escanear</button>
                 <button className="btn danger" onClick={() => removeAsset(a.target)}>Excluir</button>
               </td>
             </tr>
           ))}
-          {data.assets.length === 0 && <tr><td colSpan={6} className="muted">
+          {data.assets.length === 0 && <tr><td colSpan={7} className="muted">
             Nenhum ativo. Adicione acima ou rode uma varredura.</td></tr>}
         </tbody>
       </table>

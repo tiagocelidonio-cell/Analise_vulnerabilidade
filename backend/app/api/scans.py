@@ -4,7 +4,7 @@ from __future__ import annotations
 from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import can_access, get_current_user, require_engagement_access
@@ -151,6 +151,34 @@ async def resume_scan(
             pool = await create_pool(RedisSettings.from_dsn(request.app.state.redis_url))
         await pool.enqueue_job("run_scan", scan.id)
     return scan
+
+
+@router.delete("/scans/{scan_id}")
+async def delete_scan(
+    scan_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Exclui um scan do historico. Os ACHADOS sao preservados (apenas perdem
+    o vinculo com este scan), pois sao deduplicados entre varreduras."""
+    scan = await session.get(ScanJob, scan_id)
+    if scan is None:
+        raise HTTPException(404, "Scan nao encontrado")
+    eng = await session.get(Engagement, scan.engagement_id)
+    if eng is None or not can_access(user, eng):
+        raise HTTPException(403, "Sem acesso a este scan")
+    if scan.status in (ScanStatus.queued, ScanStatus.running):
+        # Para primeiro (evita worker escrevendo num scan excluido).
+        scan.cancel_requested = True
+        scan.status = ScanStatus.cancelled
+        await session.commit()
+    # Desvincula os achados (nao os apaga) e remove o scan via core (sem cascade).
+    from app.models import Finding
+    await session.execute(
+        update(Finding).where(Finding.scan_id == scan_id).values(scan_id=None))
+    await session.execute(delete(ScanJob).where(ScanJob.id == scan_id))
+    await session.commit()
+    return {"deleted": scan_id}
 
 
 @router.get("/engagements/{engagement_id}/scans", response_model=list[ScanOut])

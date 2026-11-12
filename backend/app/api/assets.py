@@ -46,8 +46,15 @@ async def list_assets(
             return None
         a = assets.setdefault(name, {
             "target": name, "type": _asset_type(name),
-            "risk": "info", "findings": 0, "scans": 0})
+            "risk": "info", "findings": 0, "scans": 0, "first_seen": None})
         return a
+
+    def _seen(a: dict, dt) -> None:
+        if dt is None:
+            return
+        iso = dt.isoformat()
+        if a["first_seen"] is None or iso < a["first_seen"]:
+            a["first_seen"] = iso
 
     # Escopo + alvos de scans entram como ativos mesmo sem achados.
     for s in eng.scope or []:
@@ -57,6 +64,7 @@ async def list_assets(
             a = ensure(t)
             if a:
                 a["scans"] += 1
+                _seen(a, sc.created_at)
 
     # Achados elevam o risco e a contagem do ativo.
     for f in findings:
@@ -64,6 +72,7 @@ async def list_assets(
         if a is None:
             continue
         a["findings"] += 1
+        _seen(a, f.created_at)
         sev = f.severity.value
         if _SEV_RANK.get(sev, 1) > _SEV_RANK.get(a["risk"], 1):
             a["risk"] = sev
