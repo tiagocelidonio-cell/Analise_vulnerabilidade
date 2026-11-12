@@ -137,6 +137,8 @@ curl -s localhost:8000/engagements/<ID>/findings
 - [x] Detecção segura de automação/OT/IoT (Modbus, S7, MQTT, BACnet, DNP3, câmeras)
 - [x] Pós-exploração guiada (mapa de impacto + checklist, sem ataque automático)
 - [x] Reteste real: re-executa validações e marca corrigido/ainda aberto
+- [x] Motor real: nmap (portas/hosts/serviços), subfinder (subdomínios),
+      nuclei (vulnerabilidades/CVEs) — com fallback para os coletores Python
 - [ ] HTTPS/reverse-proxy e deploy de produção numa VM com domínio
 - [ ] Captura de screenshot como evidência (precisa de headless browser)
 - [ ] Alembic para migrações (hoje há auto-migração leve no boot)

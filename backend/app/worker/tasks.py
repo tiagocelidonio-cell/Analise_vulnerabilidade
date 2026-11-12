@@ -65,7 +65,9 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             # Coletores de host recebem os IPs expandidos do range; os de
             # recon (dominio) recebem os alvos originais.
             host_targets = expand_targets(scan.targets)
-            host_collectors = {"port_scan", "http_probe", "web_content"}
+            # nmap (port_scan) lida com ranges nativamente -> recebe alvos crus.
+            # Os coletores Python de host precisam dos IPs expandidos.
+            host_collectors = {"http_probe", "web_content", "web_vuln"}
             facts = []
             for i, name in enumerate(selected):
                 if await _cancelled():
@@ -111,9 +113,14 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 # Assinatura para deduplicar o mesmo achado entre scans.
                 signature = f"{fact.target}|{fact.port}|{fact.title}".lower()
 
-                # 1) Correlaciona o banner com CVEs reais (NVD).
-                correlation = await correlate(fact.data.get("banner", "") or fact.raw)
-                cve_ids = correlation["cve_ids"]
+                # 1) CVEs: nuclei ja traz os CVEs; senao, correlaciona o banner (NVD).
+                if fact.data.get("cve_ids"):
+                    cve_ids = fact.data["cve_ids"]
+                    correlation = {"cve_ids": cve_ids,
+                                   "max_cvss": fact.data.get("cvss")}
+                else:
+                    correlation = await correlate(fact.data.get("banner", "") or fact.raw)
+                    cve_ids = correlation["cve_ids"]
                 fact_dict["correlation"] = correlation
 
                 # 2) Enriquece esses CVEs com EPSS (probabilidade) e KEV (exploracao ativa).

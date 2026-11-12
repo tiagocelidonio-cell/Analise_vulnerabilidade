@@ -31,6 +31,34 @@ VM com **Ubuntu 24.04 LTS**. É o caminho mais simples e estável. Pode ser:
 
 ---
 
+## Premissas (o que o servidor precisa)
+
+O sistema usa ferramentas consagradas por baixo: **nmap** (portas/hosts/serviços),
+**nuclei** (vulnerabilidades/CVEs) e **subfinder** (subdomínios). Elas são
+instaladas **dentro do Docker** automaticamente — você não instala na mão. Mas o
+servidor precisa de:
+
+1. **Internet durante o `build`** — para baixar o nmap, os binários do
+   nuclei/subfinder e os **templates do nuclei**. (Se o build estiver offline,
+   o nuclei baixa os templates na 1ª execução — mas aí precisa de internet nesse
+   momento.)
+2. **Internet durante os scans** — o subfinder e o nuclei consultam fontes/CVEs
+   externos. O nmap não precisa (funciona só na rede local).
+3. **Recursos**: recomendado **≥ 2 vCPU e ≥ 4 GB de RAM** (nmap e nuclei são mais
+   pesados que o scanner antigo). A primeira construção (`--build`) é mais lenta
+   porque baixa as ferramentas e os templates.
+4. **Privilégios de rede**: nenhum especial. O nmap roda em modo TCP connect
+   (`-sT -Pn`), que **não exige root nem capabilities** — por isso acha hosts com
+   porta aberta **mesmo que não respondam a ping**, sem configuração extra.
+5. **Autorização**: continua obrigatória (escopo autorizado por cliente).
+
+> Se uma ferramenta não estiver disponível, o sistema **não quebra**: o nmap e o
+> subfinder caem no scanner Python próprio (mais simples), e o nuclei
+> simplesmente não roda. Mas, para funcionar "muito bem", mantenha as premissas
+> acima.
+
+---
+
 ## Etapa 1 — Baixar o projeto
 
 > ⚠️ **Este repositório é PRIVADO.** Para baixá-lo é preciso estar autenticado

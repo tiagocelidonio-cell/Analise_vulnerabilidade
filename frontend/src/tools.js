@@ -10,9 +10,14 @@ export const CATEGORIES = [
   },
   {
     cat: "Varredura", items: [
-      { name: "Port Scanner", icon: "📡", desc: "Portas abertas e serviços (TCP connect, sem ping).", collectors: ["port_scan"] },
-      { name: "Network Scanner", icon: "🖧", desc: "Varredura de rede/range + correlação CVE.", collectors: ["port_scan", "http_probe"] },
-      { name: "Website Scanner", icon: "🕷️", desc: "Conteúdo web e arquivos expostos (/admin, /.git…).", collectors: ["http_probe", "web_content"] },
+      { name: "Port Scanner", icon: "📡", desc: "nmap: portas, serviços e versões (acha host sem ping).", collectors: ["port_scan"] },
+      { name: "Network Scanner", icon: "🖧", desc: "nmap no range + serviços web. Acha todos os hosts ativos.", collectors: ["port_scan", "http_probe"] },
+      { name: "Website Scanner", icon: "🕷️", desc: "Conteúdo exposto + nuclei (vulnerabilidades/CVEs).", collectors: ["http_probe", "web_content", "web_vuln"] },
+    ],
+  },
+  {
+    cat: "Vulnerabilidades", items: [
+      { name: "Vulnerability Scanner", icon: "🎯", desc: "nuclei: milhares de templates (CVEs, misconfig, exposições).", collectors: ["web_vuln"] },
     ],
   },
   {

@@ -43,6 +43,19 @@ Seguir SEMPRE antes de pedir ao usuário para atualizar na VM dele.
   Diagnóstico correto: (1) API viva? (2) proxy /api ok? (3) o que `api.js`
   servido mostra em `VITE_API_URL`? `curl -s localhost:5173/src/api.js | grep VITE_API_URL`.
 
+## Ferramentas externas (motor real)
+
+O scan usa ferramentas consagradas, instaladas no backend/Dockerfile, com
+fallback para os coletores Python:
+- **nmap** -> `port_scan` (TCP connect `-sT -Pn -sV`, acha host sem ping, lida
+  com ranges nativamente; NAO expandir CIDR no worker para o nmap). `-sV`
+  limitado (`--version-intensity 2 --host-timeout 120s`) p/ nao travar.
+- **subfinder** -> `subdomain_enum` (subdominios abrangentes).
+- **nuclei** -> `web_vuln` (vulns/CVEs; JSONL; precisa de templates/internet).
+- nuclei ja traz CVE: o worker usa `fact.data["cve_ids"]` direto quando presente.
+- Premissas: internet no build (baixa binarios+templates) e nos scans
+  (subfinder/nuclei). nmap nao precisa de root.
+
 ## Contexto do ambiente do usuário
 
 - Roda numa VM (IP ex. 192.168.1.44), acessada de outra máquina pelo navegador.
