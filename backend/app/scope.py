@@ -15,15 +15,25 @@ def _matches_entry(target: str, entry: str) -> bool:
     if not entry:
         return False
 
-    # Tenta casar como rede/IP (CIDR ou IP exato).
+    # Entry como rede/IP (CIDR ou IP exato).
     try:
-        net = ipaddress.ip_network(entry, strict=False)
-        try:
-            return ipaddress.ip_address(target) in net
-        except ValueError:
-            return False  # target e hostname, entry e rede -> nao casa
+        entry_net = ipaddress.ip_network(entry, strict=False)
     except ValueError:
-        pass
+        entry_net = None
+
+    if entry_net is not None:
+        # O alvo pode ser um IP ou um range (CIDR). Dentro do escopo se for
+        # sub-rede (ou igual) da rede autorizada. Ex: 10.0.0.0/24 cobre
+        # 10.0.0.5 e 10.0.0.0/25.
+        try:
+            target_net = ipaddress.ip_network(target, strict=False)
+        except ValueError:
+            return False  # alvo e hostname, entry e rede -> nao casa
+        try:
+            return (target_net.version == entry_net.version
+                    and target_net.subnet_of(entry_net))
+        except (TypeError, ValueError):
+            return False
 
     # Casamento de dominio: "example.com" cobre "example.com" e subdominios.
     if target == entry:

@@ -18,6 +18,7 @@ from app.enrichment.cve_match import correlate
 from app.enrichment.sources import enrich_cves
 from app.models import Evidence, Finding, ScanJob, ScanStatus, Severity
 from app.scope import validate_targets
+from app.targets import expand_targets
 
 
 async def run_scan(ctx: dict, scan_id: str) -> dict:
@@ -50,6 +51,10 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 
         try:
             selected = scan.collectors or DEFAULT_COLLECTORS
+            # Coletores de host recebem os IPs expandidos do range; os de
+            # recon (dominio) recebem os alvos originais.
+            host_targets = expand_targets(scan.targets)
+            host_collectors = {"port_scan", "http_probe", "web_content"}
             facts = []
             for i, name in enumerate(selected):
                 collector = COLLECTORS.get(name)
@@ -57,8 +62,9 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     continue
                 scan.phase = f"coletando: {name}"
                 await session.commit()
+                tlist = host_targets if name in host_collectors else scan.targets
                 facts.extend(
-                    await collector.run(scan.targets, ports=scan.ports or None)
+                    await collector.run(tlist, ports=scan.ports or None)
                 )
                 # coleta ocupa ate 45% do progresso
                 scan.progress = 5 + int(40 * (i + 1) / max(len(selected), 1))

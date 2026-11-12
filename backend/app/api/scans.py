@@ -12,6 +12,7 @@ from app.db import get_session
 from app.models import Engagement, ScanJob, ScanStatus, User
 from app.schemas import ScanCreate, ScanOut
 from app.scope import validate_targets
+from app.targets import host_count
 
 router = APIRouter(tags=["scans"])
 
@@ -33,6 +34,12 @@ async def create_scan(
     out_of_scope = validate_targets(body.targets, eng.scope)
     if out_of_scope:
         raise HTTPException(422, f"Alvos fora do escopo autorizado: {out_of_scope}")
+
+    # GATE 3: ranges nao podem ser gigantes (teto de seguranca).
+    try:
+        host_count(body.targets)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
 
     scan = ScanJob(
         engagement_id=eng.id,

@@ -121,6 +121,16 @@ export default function Playbook({ engagement }) {
   const donePhases = [reconStatus === "concluido", scanStatus === "concluido",
     exploitDone, !!post, findingsN > 0, retestDone].filter(Boolean).length;
 
+  // Alvos descobertos no reconhecimento (subdomínios vivos) -> viram lista.
+  const discovered = [...new Set(
+    findings.filter((f) => f.service === "subdomain").map((f) => f.target)
+  )];
+  function addDiscovered() {
+    const cur = new Set(targetList());
+    discovered.forEach((d) => cur.add(d));
+    setTargets([...cur].join(" "));
+  }
+
   return (
     <div>
       <div className="head">
@@ -143,11 +153,17 @@ export default function Playbook({ engagement }) {
       )}
 
       <Phase n="1" title="Reconhecimento" status={reconStatus}
-        desc="OSINT e subdomínios">
+        desc="OSINT, subdomínios e IPs associados">
         <button className="btn primary" disabled={busy === "recon"}
           onClick={() => runScan(RECON, "recon")}>
           {busy === "recon" ? "Iniciando…" : "Executar"}
         </button>
+        {discovered.length > 0 && (
+          <p style={{ marginTop: 8 }}>
+            <b>{discovered.length}</b> subdomínio(s)/host(s) vivo(s) descoberto(s).{" "}
+            <button className="btn" onClick={addDiscovered}>Adicionar aos alvos</button>
+          </p>
+        )}
       </Phase>
 
       <Phase n="2" title="Varredura e Enumeração" status={scanStatus}
