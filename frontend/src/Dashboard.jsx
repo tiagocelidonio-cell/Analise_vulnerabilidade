@@ -52,9 +52,53 @@ function RiskMatrix({ matrix }) {
   );
 }
 
+const SEV_OPTS = [
+  { v: "info", l: "Tudo (inclui informativos)" },
+  { v: "low", l: "Baixo ou acima" },
+  { v: "medium", l: "Médio ou acima" },
+  { v: "high", l: "Alto ou acima" },
+  { v: "critical", l: "Só crítico" },
+];
+
+function ReportConfig({ engagement, onClose }) {
+  const [opt, setOpt] = useState({
+    min_sev: "info", methodology: true, matrix: true, targets: true, evidence: true,
+  });
+  const set = (k, v) => setOpt((o) => ({ ...o, [k]: v }));
+  const chk = (k, label) => (
+    <label className="check"><input type="checkbox" checked={opt[k]}
+      onChange={(e) => set(k, e.target.checked)} /> {label}</label>
+  );
+  return (
+    <div className="modalOverlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modalHead">
+          <h2 style={{ margin: 0 }}>Configurar relatório</h2>
+          <button className="btn" onClick={onClose}>✕</button>
+        </div>
+        <label className="muted" style={{ fontSize: 12 }}>Severidade mínima a incluir</label>
+        <select value={opt.min_sev} onChange={(e) => set("min_sev", e.target.value)}>
+          {SEV_OPTS.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
+        </select>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+          {chk("methodology", "Incluir introdução / metodologia / aviso legal")}
+          {chk("matrix", "Incluir matriz de risco")}
+          {chk("targets", "Incluir seção de alvos identificados")}
+          {chk("evidence", "Incluir evidências (saída bruta)")}
+        </div>
+        <div className="modalFoot">
+          <a className="btn" href={api.reportHtmlUrl(engagement.id, opt)} target="_blank" rel="noreferrer">Preview</a>
+          <a className="btn primary" href={api.reportPdfUrl(engagement.id, opt)}>Baixar PDF</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard({ engagement }) {
   const [data, setData] = useState(null);
   const [msg, setMsg] = useState("");
+  const [cfgOpen, setCfgOpen] = useState(false);
 
   const load = useCallback(async () => {
     try { setData(await api.risk(engagement.id)); }
@@ -76,11 +120,11 @@ export default function Dashboard({ engagement }) {
         </div>
         <div className="row">
           <button className="btn" onClick={load}>Atualizar</button>
-          <a className="btn" href={api.reportHtmlUrl(engagement.id)} target="_blank" rel="noreferrer">Preview relatório</a>
-          <a className="btn primary" href={api.reportPdfUrl(engagement.id)}>Baixar PDF</a>
+          <button className="btn primary" onClick={() => setCfgOpen(true)}>📄 Gerar relatório</button>
         </div>
       </div>
       {msg && <div className="err">{msg}</div>}
+      {cfgOpen && <ReportConfig engagement={engagement} onClose={() => setCfgOpen(false)} />}
 
       {/* KPIs executivos */}
       <div className="kpis">

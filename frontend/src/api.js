@@ -6,6 +6,17 @@
 const BASE = import.meta.env.VITE_API_URL || "/api";
 const TOKEN_KEY = "vulnscope_token";
 
+// Monta a query string das opcoes do relatorio (?min_sev=...&evidence=false...).
+function _reportQs(opt) {
+  if (!opt) return "";
+  const p = [];
+  if (opt.min_sev) p.push(`min_sev=${opt.min_sev}`);
+  for (const k of ["methodology", "matrix", "targets", "evidence"]) {
+    if (opt[k] === false) p.push(`${k}=false`);
+  }
+  return p.length ? "&" + p.join("&") : "";
+}
+
 export function getToken() {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
 }
@@ -82,7 +93,7 @@ export const api = {
     }),
   retest: (id) => req(`/engagements/${id}/retest`, { method: "POST" }),
   postexploit: (id) => req(`/engagements/${id}/postexploit`),
-  // relatorios: token no query para abrir em nova aba
-  reportHtmlUrl: (id) => `${BASE}/engagements/${id}/report.html?token=${getToken() || ""}`,
-  reportPdfUrl: (id) => `${BASE}/engagements/${id}/report.pdf?token=${getToken() || ""}`,
+  // relatorios: token no query para abrir em nova aba + opcoes de conteudo
+  reportHtmlUrl: (id, opt) => `${BASE}/engagements/${id}/report.html?token=${getToken() || ""}${_reportQs(opt)}`,
+  reportPdfUrl: (id, opt) => `${BASE}/engagements/${id}/report.pdf?token=${getToken() || ""}${_reportQs(opt)}`,
 };
