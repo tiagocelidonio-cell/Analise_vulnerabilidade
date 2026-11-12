@@ -98,9 +98,10 @@ class ScanJob(Base):
     ports: Mapped[list] = mapped_column(JSON, default=list)
     collectors: Mapped[list] = mapped_column(JSON, default=list)
     profile: Mapped[str] = mapped_column(String, default="full")  # basic | full
-    status: Mapped[ScanStatus] = mapped_column(
-        Enum(ScanStatus), default=ScanStatus.queued
-    )
+    # Texto puro (NAO enum nativo do PG): enum nativo quebra ao adicionar valores
+    # ("invalid input value for enum"). Os valores vem de ScanStatus (str enum),
+    # entao atribuicoes e comparacoes com ScanStatus continuam funcionando.
+    status: Mapped[str] = mapped_column(String, default=ScanStatus.queued.value)
     # Progresso para acompanhamento em tempo real.
     progress: Mapped[int] = mapped_column(Integer, default=0)   # 0..100
     phase: Mapped[str] = mapped_column(String, default="")      # etapa atual

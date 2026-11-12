@@ -2,16 +2,41 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import can_access, get_current_user, require_engagement_access
 from app.db import get_session
-from app.models import Engagement, Finding, User
+from app.models import Engagement, Evidence, Finding, User
 from app.schemas import FindingOut
 
 router = APIRouter(tags=["findings"])
+
+
+class DeleteFindingsBody(BaseModel):
+    ids: list[str]
+
+
+@router.post("/engagements/{engagement_id}/findings/delete")
+async def delete_findings(
+    body: DeleteFindingsBody,
+    eng: Engagement = Depends(require_engagement_access),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Exclui os achados selecionados (e suas evidencias) deste cliente."""
+    if not body.ids:
+        return {"deleted": 0}
+    # So apaga achados que pertencem a este engagement (seguranca).
+    rows = list(await session.scalars(
+        select(Finding.id).where(
+            Finding.engagement_id == eng.id, Finding.id.in_(body.ids))))
+    if rows:
+        await session.execute(delete(Evidence).where(Evidence.finding_id.in_(rows)))
+        await session.execute(delete(Finding).where(Finding.id.in_(rows)))
+        await session.commit()
+    return {"deleted": len(rows)}
 
 
 @router.get("/engagements/{engagement_id}/findings", response_model=list[FindingOut])

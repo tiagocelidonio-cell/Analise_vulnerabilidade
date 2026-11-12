@@ -49,6 +49,11 @@ _MIGRATIONS = [
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS pause_requested BOOLEAN DEFAULT false",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS profile VARCHAR DEFAULT 'full'",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS heartbeat TIMESTAMPTZ",
+    # Converte status de enum nativo do PG -> VARCHAR (fim dos erros de enum).
+    # Idempotente: se ja for varchar, o USING ::text e inofensivo.
+    "ALTER TABLE scan_jobs ALTER COLUMN status DROP DEFAULT",
+    "ALTER TABLE scan_jobs ALTER COLUMN status TYPE VARCHAR USING status::text",
+    "ALTER TABLE scan_jobs ALTER COLUMN status SET DEFAULT 'queued'",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS signature VARCHAR DEFAULT ''",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS times_seen INTEGER DEFAULT 1",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ",
@@ -69,11 +74,15 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        for stmt in _MIGRATIONS:
-            try:
+
+    # Cada migracao em SUA transacao: uma falha nao aborta as demais (no PG,
+    # um erro poe a transacao inteira em estado abortado).
+    for stmt in _MIGRATIONS:
+        try:
+            async with engine.begin() as conn:
                 await conn.execute(text(stmt))
-            except Exception:  # noqa: BLE001  coluna ja existe / variacao de engine
-                pass
+        except Exception:  # noqa: BLE001  coluna ja existe / variacao de engine
+            pass
 
     # ALTER TYPE ... ADD VALUE nao roda dentro de transacao -> autocommit.
     for stmt in _ENUM_MIGRATIONS:

@@ -66,9 +66,31 @@ def _stub_assessment(fact: dict, enrichment: dict) -> AiAssessment:
     if hint in _order and _order.index(hint) > _order.index(sev):
         sev = hint
 
+    # Confianca derivada da FORCA da evidencia (nao mais fixa em 0.4):
+    data = fact.get("data") or {}
+    source = data.get("source")
+    has_cve = bool(data.get("cve_ids") or (fact.get("correlation") or {}).get("cve_ids"))
+    has_cvss = bool(data.get("cvss") or (fact.get("correlation") or {}).get("max_cvss"))
+    if any_kev:
+        conf = 0.95                       # exploracao ativa confirmada (KEV)
+    elif source == "nuclei":
+        conf = 0.90                       # template do nuclei casou diretamente
+    elif has_cve and has_cvss:
+        conf = 0.85                       # versao -> CVE (vulners/nmap)
+    elif has_cve:
+        conf = 0.70
+    elif max_epss >= 0.5:
+        conf = 0.75
+    elif hint in ("high", "critical"):
+        conf = 0.65                       # dica forte do coletor
+    elif service in {"telnet", "ftp", "smb", "rdp", "redis", "mongodb", "http", "https"}:
+        conf = 0.60                       # servico exposto, com banner
+    else:
+        conf = 0.50
+
     return AiAssessment(
         severity=sev,
-        confidence=0.4,
+        confidence=conf,
         exploitability=(
             "Explorado ativamente (KEV)." if any_kev
             else f"EPSS max={max_epss:.2f}." if max_epss

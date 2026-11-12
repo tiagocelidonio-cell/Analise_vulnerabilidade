@@ -105,8 +105,8 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
           setBusy(false);
           return;
         }
-        const r = await api.validate(engagement.id, { intrusive: tool.exploit, targets: chosen });
-        onRan && onRan(`${tool.name}: ${r.confirmed} confirmada(s) em ${r.tested_targets} alvo(s).`);
+        await api.validate(engagement.id, { intrusive: tool.exploit, targets: chosen });
+        onRan && onRan(`${tool.name} iniciada — acompanhe em Achados › Scans em andamento.`);
         onClose();
         return;
       }

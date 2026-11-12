@@ -156,11 +156,16 @@ async def resume_scan(
 @router.delete("/scans/{scan_id}")
 async def delete_scan(
     scan_id: str,
+    delete_findings: bool = False,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Exclui um scan do historico. Os ACHADOS sao preservados (apenas perdem
-    o vinculo com este scan), pois sao deduplicados entre varreduras."""
+    """Exclui um scan do historico.
+
+    - delete_findings=false (padrao): preserva os achados (so os desvincula),
+      pois sao deduplicados entre varreduras.
+    - delete_findings=true: apaga tambem os achados (e evidencias) deste scan.
+    """
     scan = await session.get(ScanJob, scan_id)
     if scan is None:
         raise HTTPException(404, "Scan nao encontrado")
@@ -172,13 +177,23 @@ async def delete_scan(
         scan.cancel_requested = True
         scan.status = ScanStatus.cancelled
         await session.commit()
-    # Desvincula os achados (nao os apaga) e remove o scan via core (sem cascade).
-    from app.models import Finding
-    await session.execute(
-        update(Finding).where(Finding.scan_id == scan_id).values(scan_id=None))
+
+    from app.models import Evidence, Finding
+    removed = 0
+    if delete_findings:
+        fids = list(await session.scalars(
+            select(Finding.id).where(Finding.scan_id == scan_id)))
+        if fids:
+            await session.execute(delete(Evidence).where(Evidence.finding_id.in_(fids)))
+            await session.execute(delete(Finding).where(Finding.id.in_(fids)))
+            removed = len(fids)
+    else:
+        # Desvincula (mantem os achados).
+        await session.execute(
+            update(Finding).where(Finding.scan_id == scan_id).values(scan_id=None))
     await session.execute(delete(ScanJob).where(ScanJob.id == scan_id))
     await session.commit()
-    return {"deleted": scan_id}
+    return {"deleted": scan_id, "findings_removed": removed}
 
 
 @router.get("/engagements/{engagement_id}/scans", response_model=list[ScanOut])

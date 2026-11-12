@@ -115,6 +115,43 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 
         try:
             selected = scan.collectors or DEFAULT_COLLECTORS
+
+            # --- Scan de VALIDACAO (SAFE / avancada) roda em background aqui ---
+            if selected and selected[0] in ("validate", "validate_intrusive"):
+                from app.exploitation.engine import run_validation
+                intrusive = selected[0] == "validate_intrusive"
+                scan.phase = "validando"
+                scan.progress = 10
+                scan.heartbeat = datetime.now(timezone.utc)
+                await session.commit()
+
+                async def _vprog(frac: float, phase: str) -> None:
+                    scan.progress = 10 + int(80 * frac)
+                    scan.phase = phase
+                    scan.heartbeat = datetime.now(timezone.utc)
+                    try:
+                        await session.commit()
+                    except Exception:  # noqa: BLE001
+                        pass
+
+                res = await run_validation(
+                    session, eng.id, intrusive=intrusive,
+                    targets=scan.targets or None,
+                    on_progress=_vprog, cancel=_abort_check,
+                )
+                if await _halted():
+                    return {"halted": True}
+                conf = res.get("confirmed", 0)
+                tgts = res.get("tested_targets", 0)
+                scan.summary = f"{conf} confirmada(s) em {tgts} alvo(s)"
+                scan.findings_count = conf
+                scan.status = ScanStatus.completed
+                scan.phase = "concluido"
+                scan.progress = 100
+                scan.heartbeat = datetime.now(timezone.utc)
+                scan.finished_at = datetime.now(timezone.utc)
+                await session.commit()
+                return res
             # Coletores de host recebem os IPs expandidos do range; os de
             # recon (dominio) recebem os alvos originais.
             host_targets = expand_targets(scan.targets)

@@ -19,7 +19,7 @@ const STATUS_PT = {
 const COLLECTOR_LABEL = {
   port_scan: "Portas (nmap)", http_probe: "Web recon", web_content: "Conteúdo web",
   web_vuln: "Vuln (nuclei)", subdomain_enum: "Subdomínios", wayback: "Wayback",
-  google_dorks: "Dorks",
+  google_dorks: "Dorks", validate: "Validação (SAFE)", validate_intrusive: "Validação avançada",
 };
 function agoText(ts) {
   if (!ts) return null;
@@ -320,11 +320,22 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     finally { markBusy(id, false); await refresh(); }
   }
   async function deleteScan(id) {
-    if (!window.confirm("Excluir este scan do histórico? Os achados são preservados.")) return;
+    if (!window.confirm("Excluir este scan do histórico?")) return;
+    // Segunda pergunta: apagar também os achados deste scan?
+    const delFindings = window.confirm(
+      "Excluir TAMBÉM os achados encontrados por este scan?\n\n"
+      + "OK = excluir os achados\nCancelar = manter os achados");
     markBusy(id, true);
-    try { await api.deleteScan(id); }
+    try { await api.deleteScan(id, delFindings); }
     catch (e) { window.alert(`Falha ao excluir: ${e.message}`); }
     finally { markBusy(id, false); await refresh(); }
+  }
+  async function deleteSelectedFindings() {
+    const ids = [...sel];
+    if (!ids.length) return;
+    if (!window.confirm(`Excluir ${ids.length} achado(s) selecionado(s)? Esta ação não pode ser desfeita.`)) return;
+    try { await api.deleteFindings(engagement.id, ids); setSel(new Set()); await refresh(); }
+    catch (e) { window.alert(`Falha ao excluir: ${e.message}`); }
   }
   function exportFindings() {
     const rows = findings.filter((f) => !sevFilter || f.severity === sevFilter);
@@ -520,6 +531,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           <span>{sel.size} selecionado(s)</span>
           <div className="row">
             <button className="btn" onClick={() => setSel(new Set())}>Limpar</button>
+            <button className="btn danger" onClick={deleteSelectedFindings}>Excluir selecionados</button>
             <button className="btn primary" onClick={() => { setPickedTool(null); setPickOpen(true); }}>
               Escanear selecionados
             </button>
