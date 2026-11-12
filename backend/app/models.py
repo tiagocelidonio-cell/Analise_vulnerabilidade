@@ -174,3 +174,20 @@ class Evidence(Base):
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     finding: Mapped[Finding] = relationship(back_populates="evidences")
+
+
+class CveRemediation(Base):
+    """Cache local de remediacao da NVD por CVE (herdado do tihacks).
+
+    Vira a BASE LOCAL: apos a 1a busca, as consultas seguintes nao dependem
+    mais de internet. Guarda texto de solucao, links de patch e CVSS.
+    """
+
+    __tablename__ = "cve_remediation"
+
+    cve_id: Mapped[str] = mapped_column(String, primary_key=True)
+    solution: Mapped[str | None] = mapped_column(Text, nullable=True)
+    references: Mapped[list] = mapped_column(JSON, default=list)
+    cvss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

@@ -185,6 +185,15 @@ function FindingRow({ f, selected, onToggle }) {
             <p><b>Risco:</b> {a.risk_summary || "-"}</p>
             <p><b>Explorabilidade:</b> {a.exploitability || "-"}</p>
             <p><b>Recomendacao:</b> {a.recommendation || "-"}</p>
+            {a.remediation && <p><b>Remediação (NVD):</b> {a.remediation}</p>}
+            {a.references?.length > 0 && (
+              <p><b>Referências / patch:</b><br />
+                {a.references.map((r) => (
+                  <a key={r} href={r} target="_blank" rel="noreferrer"
+                    style={{ color: "var(--accent)", display: "block", wordBreak: "break-all" }}>{r}</a>
+                ))}
+              </p>
+            )}
             <p className="muted">Avaliado por: {a.model || "stub"}</p>
             {f.evidences?.map((ev) => (
               <div key={ev.id}>

@@ -133,6 +133,17 @@ _TEMPLATE = Template(
     <p><strong>Risco:</strong> {{ f.ai_assessment.get('risk_summary','') }}</p>
     <p><strong>Explorabilidade:</strong> {{ f.ai_assessment.get('exploitability','') }}</p>
     <p><strong>Recomendacao:</strong> {{ f.ai_assessment.get('recommendation','') }}</p>
+    {% if f.ai_assessment.get('remediation') %}
+      <p><strong>Remediacao (NVD):</strong> {{ f.ai_assessment.get('remediation') }}</p>
+    {% endif %}
+    {% if f.ai_assessment.get('references') %}
+      <p><strong>Referencias / patch:</strong></p>
+      <ul>
+        {% for ref in f.ai_assessment.get('references') %}
+          <li><a href="{{ ref }}">{{ ref }}</a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
     <p class="meta">Avaliacao por: {{ f.ai_assessment.get('model','stub') }}</p>
   {% endif %}
   {% for ev in f.evidences %}

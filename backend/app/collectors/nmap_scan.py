@@ -131,8 +131,18 @@ class NmapCollector:
                 "--open", "-T4", "--max-retries", "1",
                 "--host-timeout", host_timeout, "-oX", "-"]
         if full:
-            # vulners: correlaciona versao->CVE localmente (precisa de -sV).
-            args += ["--script", "vulners", "--script-args", "mincvss=0.0"]
+            # vulners (online, vulners.com) + vulscan (OFFLINE, base CSV local).
+            # Usa os dois quando disponiveis: assim acha CVE com ou sem internet.
+            import os
+            scripts = ["vulners"]
+            sargs = ["mincvss=0.0"]
+            vulscan_dir = "/usr/share/nmap/scripts/vulscan"
+            if os.path.isdir(vulscan_dir):
+                scripts.append("vulscan")
+                # So a base cve.csv (derivada da NVD) p/ saida limpa e parseavel.
+                sargs.append("vulscandb=cve.csv")
+            args += ["--script", ",".join(scripts),
+                     "--script-args", ",".join(sargs)]
         if ports:
             args += ["-p", ",".join(str(p) for p in ports)]
         else:

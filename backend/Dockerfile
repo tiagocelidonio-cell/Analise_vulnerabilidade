@@ -8,10 +8,15 @@ ENV PYTHONUNBUFFERED=1 \
 # Dependencias de sistema: build, libs do WeasyPrint, nmap e utilitarios.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    nmap curl unzip ca-certificates \
+    nmap curl unzip git ca-certificates \
     libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
     libffi-dev libcairo2 shared-mime-info fonts-dejavu \
     && rm -rf /var/lib/apt/lists/*
+
+# Base LOCAL de CVE para o nmap (vulscan): bancos CSV de CVE embutidos ->
+# o nmap correlaciona versao->CVE OFFLINE (sem vulners.com/internet no scan).
+RUN git clone --depth 1 https://github.com/scipag/vulscan \
+    /usr/share/nmap/scripts/vulscan 2>/dev/null || true
 
 # Ferramentas: nuclei (vulns), subfinder + amass (subdominios).
 ARG NUCLEI_VERSION=3.3.5

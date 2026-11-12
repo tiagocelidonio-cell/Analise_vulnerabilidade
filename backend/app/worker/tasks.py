@@ -16,6 +16,7 @@ from app.collectors import COLLECTORS, DEFAULT_COLLECTORS
 from app.config import settings
 from app.db import SessionLocal, init_db
 from app.enrichment.cve_match import correlate
+from app.enrichment.remediation import get_remediation
 from app.enrichment.sources import enrich_cves
 from app.models import Evidence, Finding, ScanJob, ScanStatus, Severity
 from app.scope import validate_targets
@@ -165,6 +166,19 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 # 3) IA raciocina sobre os fatos ja provados.
                 assessment = await analyst.assess(fact_dict, enrichment)
 
+                # 3b) Remediacao (NVD, cacheada localmente) para o CVE principal.
+                assess_dict = assessment.to_dict()
+                if cve_ids:
+                    try:
+                        rem = await get_remediation(session, cve_ids[0])
+                    except Exception:  # noqa: BLE001  nunca derruba o scan
+                        rem = None
+                    if rem:
+                        assess_dict["remediation"] = rem.get("solution")
+                        assess_dict["references"] = rem.get("references") or []
+                        if rem.get("description"):
+                            assess_dict["cve_description"] = rem["description"]
+
                 # Dedup: ja existe esse achado neste cliente? Entao so atualiza
                 # (persiste apos rescan), sem duplicar.
                 existing = await session.scalar(
@@ -181,6 +195,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     existing.cvss = correlation.get("max_cvss")
                     existing.epss = enrichment.get("max_epss") or None
                     existing.in_kev = enrichment.get("any_kev", False)
+                    existing.ai_assessment = {**(existing.ai_assessment or {}), **assess_dict}
                 else:
                     finding = Finding(
                         engagement_id=eng.id,
@@ -195,7 +210,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                         epss=enrichment.get("max_epss") or None,
                         in_kev=enrichment.get("any_kev", False),
                         cve_ids=cve_ids,
-                        ai_assessment=assessment.to_dict(),
+                        ai_assessment=assess_dict,
                         confidence=assessment.confidence,
                         signature=signature,
                         times_seen=1,
