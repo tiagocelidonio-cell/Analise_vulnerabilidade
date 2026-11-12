@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from "react";
 import { api, getToken } from "./api.js";
 import { branding } from "./branding.js";
 import Dashboard from "./Dashboard.jsx";
-import Playbook from "./Playbook.jsx";
 import ToolCatalog from "./ToolCatalog.jsx";
 import Assets from "./Assets.jsx";
 import Overview from "./Overview.jsx";
@@ -268,28 +267,25 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     return () => clearInterval(t);
   }, [scans, refresh]);
 
-  const [tab, setTab] = useState("playbook");
+  const [tab, setTab] = useState("dashboard");
 
   return (
     <div>
       <div className="tabs">
-        <button className={`tab ${tab === "playbook" ? "active" : ""}`}
-          onClick={() => setTab("playbook")}>Playbook</button>
+        <button className={`tab ${tab === "dashboard" ? "active" : ""}`}
+          onClick={() => setTab("dashboard")}>Dashboard</button>
         <button className={`tab ${tab === "tools" ? "active" : ""}`}
           onClick={() => setTab("tools")}>Nova varredura</button>
         <button className={`tab ${tab === "assets" ? "active" : ""}`}
           onClick={() => setTab("assets")}>Ativos</button>
         <button className={`tab ${tab === "ops" ? "active" : ""}`}
           onClick={() => setTab("ops")}>Achados</button>
-        <button className={`tab ${tab === "dashboard" ? "active" : ""}`}
-          onClick={() => setTab("dashboard")}>Dashboard</button>
       </div>
 
-      {tab === "playbook" && <Playbook engagement={engagement} />}
+      {tab === "dashboard" && <Dashboard engagement={engagement} />}
       {tab === "tools" && <ToolCatalog engagement={engagement}
         onUpdated={onUpdated} onRan={() => setTab("ops")} />}
       {tab === "assets" && <Assets engagement={engagement} onUpdated={onUpdated} />}
-      {tab === "dashboard" && <Dashboard engagement={engagement} />}
       {tab === "ops" && (
       <>
       <div className="head">
