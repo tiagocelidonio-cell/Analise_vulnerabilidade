@@ -9,6 +9,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 
 from arq.connections import RedisSettings
+from sqlalchemy import select
 
 from app.ai.agent import analyst
 from app.collectors import COLLECTORS, DEFAULT_COLLECTORS
@@ -49,6 +50,16 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
         scan.progress = 2
         await session.commit()
 
+        async def _cancelled() -> bool:
+            return bool(await session.scalar(
+                select(ScanJob.cancel_requested).where(ScanJob.id == scan.id)))
+
+        async def _finish_cancelled():
+            scan.status = ScanStatus.cancelled
+            scan.phase = "cancelado"
+            scan.finished_at = datetime.now(timezone.utc)
+            await session.commit()
+
         try:
             selected = scan.collectors or DEFAULT_COLLECTORS
             # Coletores de host recebem os IPs expandidos do range; os de
@@ -57,6 +68,9 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             host_collectors = {"port_scan", "http_probe", "web_content"}
             facts = []
             for i, name in enumerate(selected):
+                if await _cancelled():
+                    await _finish_cancelled()
+                    return {"cancelled": True}
                 collector = COLLECTORS.get(name)
                 if collector is None:
                     continue
@@ -76,8 +90,14 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             await session.commit()
 
             created = 0
-            for fact in facts:
+            for n, fact in enumerate(facts):
+                if n % 20 == 0 and await _cancelled():
+                    await _finish_cancelled()
+                    return {"cancelled": True}
                 fact_dict = asdict(fact)
+                now = datetime.now(timezone.utc)
+                # Assinatura para deduplicar o mesmo achado entre scans.
+                signature = f"{fact.target}|{fact.port}|{fact.title}".lower()
 
                 # 1) Correlaciona o banner com CVEs reais (NVD).
                 correlation = await correlate(fact.data.get("banner", "") or fact.raw)
@@ -92,37 +112,55 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 # 3) IA raciocina sobre os fatos ja provados.
                 assessment = await analyst.assess(fact_dict, enrichment)
 
-                finding = Finding(
-                    engagement_id=eng.id,
-                    scan_id=scan.id,
-                    target=fact.target,
-                    port=fact.port,
-                    service=fact.service,
-                    title=fact.title,
-                    description=assessment.risk_summary,
-                    severity=Severity(assessment.severity),
-                    cvss=correlation.get("max_cvss"),
-                    epss=enrichment.get("max_epss") or None,
-                    in_kev=enrichment.get("any_kev", False),
-                    cve_ids=cve_ids,
-                    ai_assessment=assessment.to_dict(),
-                    confidence=assessment.confidence,
-                )
-                session.add(finding)
-                await session.flush()  # garante finding.id
-
-                # Evidencia bruta e imutavel (o banner cru provando o achado).
-                session.add(
-                    Evidence(
-                        finding_id=finding.id,
-                        kind="raw",
-                        content=fact.raw[:4000] if fact.raw else fact.title,
+                # Dedup: ja existe esse achado neste cliente? Entao so atualiza
+                # (persiste apos rescan), sem duplicar.
+                existing = await session.scalar(
+                    select(Finding).where(
+                        Finding.engagement_id == eng.id,
+                        Finding.signature == signature,
                     )
                 )
-                created += 1
+                if existing is not None:
+                    existing.times_seen += 1
+                    existing.last_seen = now
+                    existing.scan_id = scan.id
+                    existing.severity = Severity(assessment.severity)
+                    existing.cvss = correlation.get("max_cvss")
+                    existing.epss = enrichment.get("max_epss") or None
+                    existing.in_kev = enrichment.get("any_kev", False)
+                else:
+                    finding = Finding(
+                        engagement_id=eng.id,
+                        scan_id=scan.id,
+                        target=fact.target,
+                        port=fact.port,
+                        service=fact.service,
+                        title=fact.title,
+                        description=assessment.risk_summary,
+                        severity=Severity(assessment.severity),
+                        cvss=correlation.get("max_cvss"),
+                        epss=enrichment.get("max_epss") or None,
+                        in_kev=enrichment.get("any_kev", False),
+                        cve_ids=cve_ids,
+                        ai_assessment=assessment.to_dict(),
+                        confidence=assessment.confidence,
+                        signature=signature,
+                        times_seen=1,
+                        last_seen=now,
+                    )
+                    session.add(finding)
+                    await session.flush()  # garante finding.id
+                    session.add(
+                        Evidence(
+                            finding_id=finding.id,
+                            kind="raw",
+                            content=fact.raw[:4000] if fact.raw else fact.title,
+                        )
+                    )
+                    created += 1
                 # analise ocupa de 50% a 95%
-                if created % 5 == 0:
-                    scan.progress = 50 + int(45 * created / total)
+                if n % 5 == 0:
+                    scan.progress = 50 + int(45 * (n + 1) / total)
                     scan.findings_count = created
                     await session.commit()
 

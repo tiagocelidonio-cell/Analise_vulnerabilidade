@@ -147,7 +147,10 @@ function FindingRow({ f }) {
       <tr className="click" onClick={() => setOpen(!open)}>
         <td><Pill sev={f.severity} /></td>
         <td>{f.target}{f.port ? `:${f.port}` : ""}</td>
-        <td>{f.title}</td>
+        <td>{f.title}
+          {f.times_seen > 1 && <span className="persist" title="encontrado em múltiplos scans">
+            persiste ×{f.times_seen}</span>}
+        </td>
         <td>{f.cvss?.toFixed(1) ?? "-"}</td>
         <td>{f.epss?.toFixed(2) ?? "-"}</td>
         <td>{f.in_kev ? "SIM" : "-"}</td>
@@ -156,6 +159,11 @@ function FindingRow({ f }) {
       {open && (
         <tr className="detail">
           <td colSpan={7}>
+            <p className="muted">
+              Visto {f.times_seen || 1}x
+              {f.last_seen && ` · última vez ${new Date(f.last_seen).toLocaleString()}`}
+              {f.times_seen > 1 && " — a vulnerabilidade PERSISTE após rescan."}
+            </p>
             {f.cve_ids?.length > 0 && <p><b>CVEs:</b> {f.cve_ids.join(", ")}</p>}
             <p><b>Risco:</b> {a.risk_summary || "-"}</p>
             <p><b>Explorabilidade:</b> {a.exploitability || "-"}</p>
@@ -234,6 +242,11 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     )) return;
     await api.deleteEngagement(engagement.id);
     onDeleted();
+  }
+
+  async function cancelScan(id) {
+    try { await api.cancelScan(id); } catch { /* ignore */ }
+    await refresh();
   }
 
   const refresh = useCallback(async () => {
@@ -317,7 +330,11 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                   <>
                     <div className="bartrack"><div className="barfill"
                       style={{ width: `${s.progress || 0}%`, background: "var(--accent)" }} /></div>
-                    <span className="muted" style={{ fontSize: 11 }}>{s.progress || 0}% · {s.phase || "na fila"}</span>
+                    <div className="row" style={{ justifyContent: "space-between", marginTop: 2 }}>
+                      <span className="muted" style={{ fontSize: 11 }}>{s.progress || 0}% · {s.phase || "na fila"}</span>
+                      <button className="btn danger" style={{ padding: "1px 8px", fontSize: 11 }}
+                        onClick={() => cancelScan(s.id)}>Parar</button>
+                    </div>
                   </>
                 )}
               </td>

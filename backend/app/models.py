@@ -42,6 +42,7 @@ class ScanStatus(str, enum.Enum):
     running = "running"
     completed = "completed"
     failed = "failed"
+    cancelled = "cancelled"
 
 
 class User(Base):
@@ -103,6 +104,7 @@ class ScanJob(Base):
     phase: Mapped[str] = mapped_column(String, default="")      # etapa atual
     findings_count: Mapped[int] = mapped_column(Integer, default=0)
     summary: Mapped[str] = mapped_column(String, default="")    # resumo (ex: "4 subdominios")
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(
@@ -140,6 +142,11 @@ class Finding(Base):
     ai_assessment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Confianca 0..1 do achado, para o analista filtrar ruido.
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
+
+    # Deduplicacao/persistencia entre scans.
+    signature: Mapped[str] = mapped_column(String, index=True, default="")
+    times_seen: Mapped[int] = mapped_column(Integer, default=1)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

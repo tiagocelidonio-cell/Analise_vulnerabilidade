@@ -110,5 +110,7 @@ class FindingOut(BaseModel):
     cve_ids: list[str]
     ai_assessment: dict | None
     confidence: float
+    times_seen: int
+    last_seen: datetime | None
     created_at: datetime
     evidences: list[EvidenceOut] = Field(default_factory=list)

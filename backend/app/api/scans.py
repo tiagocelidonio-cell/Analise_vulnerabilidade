@@ -75,6 +75,29 @@ async def get_scan(
     return scan
 
 
+@router.post("/scans/{scan_id}/cancel", response_model=ScanOut)
+async def cancel_scan(
+    scan_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ScanJob:
+    scan = await session.get(ScanJob, scan_id)
+    if scan is None:
+        raise HTTPException(404, "Scan nao encontrado")
+    eng = await session.get(Engagement, scan.engagement_id)
+    if eng is None or not can_access(user, eng):
+        raise HTTPException(403, "Sem acesso a este scan")
+    if scan.status in (ScanStatus.queued, ScanStatus.running):
+        scan.cancel_requested = True
+        # Se ainda nem comecou, cancela de imediato.
+        if scan.status == ScanStatus.queued:
+            scan.status = ScanStatus.cancelled
+            scan.phase = "cancelado"
+        await session.commit()
+        await session.refresh(scan)
+    return scan
+
+
 @router.get("/engagements/{engagement_id}/scans", response_model=list[ScanOut])
 async def list_scans(
     eng: Engagement = Depends(require_engagement_access),

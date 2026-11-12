@@ -59,6 +59,7 @@ export const api = {
   createScan: (id, body) =>
     req(`/engagements/${id}/scans`, { method: "POST", body: JSON.stringify(body) }),
   getScan: (sid) => req(`/scans/${sid}`),
+  cancelScan: (sid) => req(`/scans/${sid}/cancel`, { method: "POST" }),
   listFindings: (id) => req(`/engagements/${id}/findings`),
   risk: (id) => req(`/engagements/${id}/risk`),
   assets: (id) => req(`/engagements/${id}/assets`),
