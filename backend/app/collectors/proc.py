@@ -15,11 +15,13 @@ async def run_killable(
     args: list[str],
     cancel_check=None,
     poll: float = 1.0,
+    on_tick=None,
 ) -> bytes | None:
     """Roda `args`, devolvendo o stdout em bytes.
 
     - Retorna None se nem conseguiu iniciar (ex.: binario ausente) -> fallback.
     - Retorna b"" se foi abortado por cancel_check (mata o processo).
+    - on_tick: coroutine opcional chamada a cada poll enquanto roda (heartbeat).
     """
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -35,6 +37,11 @@ async def run_killable(
         done, _ = await asyncio.wait({comm}, timeout=poll)
         if comm in done:
             break
+        if on_tick is not None:
+            try:
+                await on_tick()
+            except Exception:  # noqa: BLE001  batimento nunca derruba o scan
+                pass
         if cancel_check is not None:
             try:
                 stop = bool(await cancel_check())

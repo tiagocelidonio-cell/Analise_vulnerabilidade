@@ -150,7 +150,8 @@ class NmapCollector:
         args += list(targets)  # nmap expande CIDR/range nativamente
 
         from app.collectors.proc import run_killable
-        out = await run_killable(args, cancel_check=kwargs.get("cancel_check"))
+        out = await run_killable(args, cancel_check=kwargs.get("cancel_check"),
+                                 on_tick=kwargs.get("on_tick"))
         if not out:  # None (nao iniciou) ou b"" (abortado) -> sem resultados
             return []
         return _parse_nmap_xml(out)

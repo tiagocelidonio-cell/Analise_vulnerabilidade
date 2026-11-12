@@ -49,7 +49,26 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
         scan.status = ScanStatus.running
         scan.phase = "iniciando"
         scan.progress = 2
+        scan.heartbeat = datetime.now(timezone.utc)
         await session.commit()
+
+        import time as _time
+        _beat_state = {"t": 0.0}
+
+        async def _beat(phase: str | None = None) -> None:
+            """Batimento: marca que o scan esta VIVO (mesmo em processo longo).
+            Throttle de 4s para nao martelar o banco."""
+            nowm = _time.monotonic()
+            if phase is None and (nowm - _beat_state["t"]) < 4:
+                return
+            _beat_state["t"] = nowm
+            try:
+                scan.heartbeat = datetime.now(timezone.utc)
+                if phase:
+                    scan.phase = phase
+                await session.commit()
+            except Exception:  # noqa: BLE001  batimento nunca derruba o scan
+                pass
 
         async def _control() -> str | None:
             """Le as flags frescas do banco: 'cancel', 'pause' ou None."""
@@ -110,6 +129,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 if collector is None:
                     continue
                 scan.phase = f"coletando: {name}"
+                scan.heartbeat = datetime.now(timezone.utc)
                 await session.commit()
                 tlist = host_targets if name in host_collectors else scan.targets
                 # Coletores de host em lotes -> permite cancelar no meio e
@@ -121,17 +141,19 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                         batch = tlist[j:j + 16]
                         facts.extend(await collector.run(
                             batch, ports=scan.ports or None,
-                            profile=prof, cancel_check=_abort_check))
+                            profile=prof, cancel_check=_abort_check, on_tick=_beat))
                         frac = (j + len(batch)) / len(tlist)
                         scan.phase = f"coletando: {name} ({int(frac * 100)}%)"
                         scan.progress = 5 + int(40 * (i + frac) / max(len(selected), 1))
+                        scan.heartbeat = datetime.now(timezone.utc)
                         await session.commit()
                 else:
                     facts.extend(await collector.run(
                         tlist, ports=scan.ports or None,
-                        profile=prof, cancel_check=_abort_check))
+                        profile=prof, cancel_check=_abort_check, on_tick=_beat))
                 # coleta ocupa ate 45% do progresso
                 scan.progress = 5 + int(40 * (i + 1) / max(len(selected), 1))
+                scan.heartbeat = datetime.now(timezone.utc)
                 await session.commit()
 
             total = max(len(facts), 1)
@@ -230,6 +252,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 if n % 5 == 0:
                     scan.progress = 50 + int(45 * (n + 1) / total)
                     scan.findings_count = created
+                    scan.heartbeat = datetime.now(timezone.utc)
                     await session.commit()
 
             if await _halted():

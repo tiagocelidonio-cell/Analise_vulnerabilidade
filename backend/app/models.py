@@ -108,6 +108,10 @@ class ScanJob(Base):
     summary: Mapped[str] = mapped_column(String, default="")    # resumo (ex: "4 subdominios")
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     pause_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Batimento: atualizado enquanto o scan trabalha (inclusive durante um
+    # processo longo). O painel usa para dizer "atualizado ha Xs" e alertar.
+    heartbeat: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     finished_at: Mapped[datetime | None] = mapped_column(

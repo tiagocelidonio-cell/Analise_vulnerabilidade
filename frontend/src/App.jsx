@@ -21,6 +21,17 @@ const COLLECTOR_LABEL = {
   web_vuln: "Vuln (nuclei)", subdomain_enum: "Subdomínios", wayback: "Wayback",
   google_dorks: "Dorks",
 };
+function agoText(ts) {
+  if (!ts) return null;
+  const s = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 1000));
+  if (s < 60) return `há ${s}s`;
+  if (s < 3600) return `há ${Math.floor(s / 60)}min`;
+  return `há ${Math.floor(s / 3600)}h`;
+}
+function secsSince(ts) {
+  if (!ts) return null;
+  return (Date.now() - new Date(ts).getTime()) / 1000;
+}
 function scanTypeLabel(collectors) {
   if (!collectors || !collectors.length) return "padrão";
   return collectors.map((c) => COLLECTOR_LABEL[c] || c).join(" + ");
@@ -408,14 +419,25 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                 <div style={{ fontSize: 10, opacity: 0.8 }}>{s.profile === "basic" ? "básico" : "completo"}</div>
               </td>
               <td>
-                {running || paused ? (
-                  <div className="progwrap">
-                    <div className="bartrack" style={{ flex: 1 }}><div className="barfill"
-                      style={{ width: `${s.progress || 0}%`, background: paused ? "#a16207" : "var(--accent)" }} /></div>
-                    <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
-                      {s.progress || 0}% · {s.phase || (paused ? "pausado" : "na fila")}</span>
+                {running || paused ? (() => {
+                  const stale = running && secsSince(s.heartbeat) != null && secsSince(s.heartbeat) > 90;
+                  return (
+                  <div>
+                    <div className="progwrap">
+                      <div className="bartrack" style={{ flex: 1 }}><div className="barfill"
+                        style={{ width: `${s.progress || 0}%`, background: paused ? "#a16207" : "var(--accent)" }} /></div>
+                      <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                        {s.progress || 0}% · {s.phase || (paused ? "pausado" : "na fila")}</span>
+                    </div>
+                    {running && s.heartbeat && (
+                      <div style={{ fontSize: 10, marginTop: 2, color: stale ? "#f59e0b" : "var(--muted)" }}>
+                        {stale ? "⚠ sem atualização " : "● ativo · atualizado "}{agoText(s.heartbeat)}
+                        {stale && " (pode estar lento — ainda rodando)"}
+                      </div>
+                    )}
                   </div>
-                ) : s.status === "failed" ? <span className="muted" title={s.error || ""}>falhou</span>
+                  );
+                })() : s.status === "failed" ? <span className="muted" title={s.error || ""}>falhou</span>
                   : s.status === "cancelled" ? <span className="muted">cancelado</span>
                   : <span className="muted">concluído</span>}
               </td>

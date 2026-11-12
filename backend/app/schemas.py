@@ -85,6 +85,7 @@ class ScanOut(BaseModel):
     summary: str
     error: str | None
     created_at: datetime
+    heartbeat: datetime | None = None
     finished_at: datetime | None
 
 

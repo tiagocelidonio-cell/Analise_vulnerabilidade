@@ -91,7 +91,8 @@ class NucleiCollector:
         ]
         from app.collectors.proc import run_killable
         try:
-            out = await run_killable(args, cancel_check=kwargs.get("cancel_check"))
+            out = await run_killable(args, cancel_check=kwargs.get("cancel_check"),
+                                     on_tick=kwargs.get("on_tick"))
         finally:
             with contextlib.suppress(OSError):
                 os.unlink(list_path)
