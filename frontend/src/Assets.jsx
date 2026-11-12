@@ -16,8 +16,17 @@ export default function Assets({ engagement, onUpdated }) {
   const [err, setErr] = useState("");
   const [novo, setNovo] = useState("");
   const [sortBy, setSortBy] = useState("risk");
-  const [scanTarget, setScanTarget] = useState(null); // ativo a escanear
+  const [scanTarget, setScanTarget] = useState(null); // alvo(s) a escanear
   const [pickedTool, setPickedTool] = useState(null);  // ferramenta escolhida
+  const [sel, setSel] = useState(() => new Set());     // ativos selecionados
+
+  function toggleSel(target) {
+    setSel((prev) => {
+      const n = new Set(prev);
+      n.has(target) ? n.delete(target) : n.add(target);
+      return n;
+    });
+  }
 
   const load = useCallback(async () => {
     try { setData(await api.assets(engagement.id)); } catch (e) { setErr(e.message); }
@@ -108,11 +117,32 @@ export default function Assets({ engagement, onUpdated }) {
         </div>
       </div>
 
+      {sel.size > 0 && (
+        <div className="selbar">
+          <span>{sel.size} ativo(s) selecionado(s)</span>
+          <div className="row">
+            <button className="btn" onClick={() => setSel(new Set())}>Limpar</button>
+            <button className="btn primary" onClick={() => {
+              setScanTarget([...sel].join(" ")); setPickedTool(null);
+            }}>Escanear selecionados</button>
+          </div>
+        </div>
+      )}
+
+      {(() => {
+        const allSel = sorted.length > 0 && sorted.every((a) => sel.has(a.target));
+        const toggleAll = () => setSel(allSel ? new Set() : new Set(sorted.map((a) => a.target)));
+        return (
       <table className="t">
-        <thead><tr><th>Alvo</th><th>Tipo</th><th>Risco</th><th>Achados</th><th>Scans</th><th>Identificado em</th><th></th></tr></thead>
+        <thead><tr>
+          <th><input type="checkbox" checked={allSel} onChange={toggleAll} /></th>
+          <th>Alvo</th><th>Tipo</th><th>Risco</th><th>Achados</th><th>Scans</th><th>Identificado em</th><th></th></tr></thead>
         <tbody>
           {sorted.map((a) => (
             <tr key={a.target}>
+              <td onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" checked={sel.has(a.target)} onChange={() => toggleSel(a.target)} />
+              </td>
               <td>{a.target}</td>
               <td><span className="typeTag">{TYPE_LABEL[a.type] || a.type}</span></td>
               <td><span className="pill" style={{ background: SEV_COLOR[a.risk] }}>{a.risk.toUpperCase()}</span></td>
@@ -126,19 +156,26 @@ export default function Assets({ engagement, onUpdated }) {
               </td>
             </tr>
           ))}
-          {data.assets.length === 0 && <tr><td colSpan={7} className="muted">
+          {data.assets.length === 0 && <tr><td colSpan={8} className="muted">
             Nenhum ativo. Adicione acima ou rode uma varredura.</td></tr>}
         </tbody>
       </table>
+        );
+      })()}
 
       {/* Seletor de ferramenta ao escanear um ativo */}
       {scanTarget && !pickedTool && (
         <div className="modalOverlay" onClick={() => setScanTarget(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modalHead">
-              <h2 style={{ margin: 0 }}>Escanear {scanTarget}</h2>
+              <h2 style={{ margin: 0 }}>
+                Escanear {scanTarget.includes(" ") ? `${scanTarget.split(/\s+/).filter(Boolean).length} ativos` : scanTarget}
+              </h2>
               <button className="btn" onClick={() => setScanTarget(null)}>✕</button>
             </div>
+            {scanTarget.includes(" ") && (
+              <p className="muted" style={{ fontSize: 12 }}>{scanTarget.split(/\s+/).filter(Boolean).join(", ")}</p>
+            )}
             <p className="muted">Escolha a ferramenta:</p>
             <div className="toolGrid">
               {FLAT_TOOLS.filter((t) => !(t.needsIntrusive && !engagement.allow_intrusive)).map((t) => (
@@ -159,7 +196,7 @@ export default function Assets({ engagement, onUpdated }) {
         <ToolForm engagement={engagement} tool={pickedTool} initialTarget={scanTarget}
           onClose={() => { setScanTarget(null); setPickedTool(null); }}
           onUpdated={onUpdated}
-          onRan={() => { setScanTarget(null); setPickedTool(null); load(); }} />
+          onRan={() => { setScanTarget(null); setPickedTool(null); setSel(new Set()); load(); }} />
       )}
     </div>
   );
