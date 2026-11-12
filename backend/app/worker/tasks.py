@@ -77,9 +77,21 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 scan.phase = f"coletando: {name}"
                 await session.commit()
                 tlist = host_targets if name in host_collectors else scan.targets
-                facts.extend(
-                    await collector.run(tlist, ports=scan.ports or None)
-                )
+                # Coletores de host em lotes -> permite cancelar no meio e
+                # atualizar progresso enquanto varre muitos IPs.
+                if name in host_collectors and len(tlist) > 16:
+                    for j in range(0, len(tlist), 16):
+                        if await _cancelled():
+                            await _finish_cancelled()
+                            return {"cancelled": True}
+                        batch = tlist[j:j + 16]
+                        facts.extend(await collector.run(batch, ports=scan.ports or None))
+                        frac = (j + len(batch)) / len(tlist)
+                        scan.phase = f"coletando: {name} ({int(frac * 100)}%)"
+                        scan.progress = 5 + int(40 * (i + frac) / max(len(selected), 1))
+                        await session.commit()
+                else:
+                    facts.extend(await collector.run(tlist, ports=scan.ports or None))
                 # coleta ocupa ate 45% do progresso
                 scan.progress = 5 + int(40 * (i + 1) / max(len(selected), 1))
                 await session.commit()

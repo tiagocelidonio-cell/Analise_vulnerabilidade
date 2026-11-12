@@ -10,6 +10,9 @@ body { margin: 0; background: var(--bg); color: var(--text);
 /* Títulos na fonte da marca (IBM Plex Mono) */
 h1, h2, h3, h4 { font-family: var(--heading-font, inherit); font-weight: 600;
   letter-spacing: -.01em; }
+h1 { font-size: 22px; }
+h2 { font-size: 18px; margin: 0 0 2px; }
+h3 { font-size: 14px; margin: 4px 0; }
 
 .app { display: flex; min-height: 100vh; }
 .sidebar { width: 300px; background: var(--panel); border-right: 1px solid var(--line);
@@ -124,16 +127,17 @@ textarea { resize: vertical; }
 .btn.danger { background: #b91c1c; border-color: #b91c1c; color: #fff; }
 .btn.danger:hover { background: #991b1b; border-color: #991b1b; }
 .btn.block { width: 100%; }
-.row { display: flex; gap: 8px; align-items: center; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-.head { display: flex; justify-content: space-between; align-items: flex-start; }
+.head { display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .head h2 { margin: 0; }
 
-.kpis { display: flex; gap: 10px; margin: 16px 0; }
-.kpi { flex: 1; background: var(--card); border: 1px solid var(--line);
-  border-radius: 10px; padding: 12px; text-align: center; }
-.kpi .n { font-size: 26px; font-weight: 800; }
-.kpi .l { font-size: 11px; color: var(--muted); }
+.kpis { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.kpi { flex: 1; min-width: 110px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 9px; padding: 9px 10px; text-align: center; }
+.kpi .n { font-size: 20px; font-weight: 800; }
+.kpi .l { font-size: 10px; color: var(--muted); letter-spacing: .3px; }
 
 .t { width: 100%; border-collapse: collapse; margin: 8px 0 24px; }
 .t th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--muted);
@@ -144,7 +148,8 @@ textarea { resize: vertical; }
 .t tr.detail td { background: #0d1526; }
 
 .pill { color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
-.status { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.status { display: inline-block; min-width: 84px; text-align: center; padding: 2px 8px;
+  border-radius: 10px; font-size: 11px; font-weight: 600; }
 .status.completed { background: #14532d; color: #bbf7d0; }
 .status.running, .status.queued { background: #713f12; color: #fde68a; }
 .status.failed { background: #7f1d1d; color: #fecaca; }
