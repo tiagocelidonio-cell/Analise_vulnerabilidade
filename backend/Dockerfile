@@ -9,6 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     nmap curl unzip git ca-certificates \
+    chromium fonts-liberation \
     libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
     libffi-dev libcairo2 shared-mime-info fonts-dejavu \
     && rm -rf /var/lib/apt/lists/*

@@ -12,7 +12,7 @@ from arq.connections import RedisSettings
 from sqlalchemy import select
 
 from app.ai.agent import analyst
-from app.collectors import COLLECTORS, DEFAULT_COLLECTORS
+from app.collectors import COLLECTORS, DEFAULT_COLLECTORS, HOST_COLLECTORS
 from app.config import settings
 from app.db import SessionLocal, init_db
 from app.enrichment.cve_match import correlate
@@ -157,7 +157,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             host_targets = expand_targets(scan.targets)
             # Todos os coletores de host rodam em LOTES de IPs: permite cancelar
             # no meio (inclusive o nmap) e mostrar progresso real.
-            host_collectors = {"port_scan", "http_probe", "web_content", "web_vuln"}
+            host_collectors = HOST_COLLECTORS
             facts = []
             for i, name in enumerate(selected):
                 if await _halted():
@@ -284,6 +284,12 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                             content=fact.raw[:4000] if fact.raw else fact.title,
                         )
                     )
+                    # Screenshot (evidencia visual) -> data URI renderizavel.
+                    shot = fact.data.get("screenshot_b64")
+                    if shot:
+                        session.add(Evidence(
+                            finding_id=finding.id, kind="screenshot",
+                            content="data:image/png;base64," + shot))
                     created += 1
                 # analise ocupa de 50% a 95%
                 if n % 5 == 0:

@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     google_cse_cx: str = ""
     google_cse_max_per_dork: int = 10
 
+    # Have I Been Pwned (monitoramento de vazamentos). Sem chave, a ferramenta
+    # explica como habilitar. A API de conta do HIBP e paga.
+    hibp_api_key: str = ""
+
     # Base local de CVE: bundle oficial (CVE List JSON 5.0) para import local.
     # Default = arquivo oficial completo do projeto CVE (cve.org / CVEProject).
     # URL estavel do repositorio oficial (grande ~1GB; roda sob demanda).

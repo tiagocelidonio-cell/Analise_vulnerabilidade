@@ -7,9 +7,13 @@ export const CATEGORIES = [
   {
     cat: "Recon", items: [
       { name: "Subdomain Finder", icon: "🌐", kind: "domain", desc: "subfinder + amass: subdomínios e hosts vivos de um domínio.", collectors: ["subdomain_enum"] },
+      { name: "OSINT", icon: "🕵️", kind: "domain", desc: "Pegada pública: e-mails, domínios (crt.sh) e IPs da empresa.", collectors: ["osint"] },
       { name: "Website Recon", icon: "🔎", kind: "url", desc: "Fingerprint do site: servidor, TLS, security headers.", collectors: ["http_probe"] },
+      { name: "Tecnologias", icon: "🧩", kind: "url", desc: "SO, linguagem, framework/CMS, libs JS, servidor (superfície de ataque).", collectors: ["tech_detect"] },
       { name: "Google Dorks", icon: "🧭", kind: "domain", desc: "Busca exposições via Google (API oficial, se configurada); senão gera o checklist.", collectors: ["google_dorks"] },
       { name: "Wayback", icon: "🕰️", kind: "domain", desc: "Arquivos sensíveis históricos (.env, .sql, backups…).", collectors: ["wayback"] },
+      { name: "Screenshot", icon: "📸", kind: "url", desc: "Captura de tela das páginas como evidência visual.", collectors: ["screenshot"] },
+      { name: "Vazamentos", icon: "💧", kind: "domain", desc: "E-mails/domínios em vazamentos conhecidos (HIBP). Requer chave.", collectors: ["leaks"] },
     ],
   },
   {

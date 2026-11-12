@@ -20,6 +20,7 @@ const COLLECTOR_LABEL = {
   port_scan: "Portas (nmap)", http_probe: "Web recon", web_content: "Conteúdo web",
   web_vuln: "Vuln (nuclei)", subdomain_enum: "Subdomínios", wayback: "Wayback",
   google_dorks: "Dorks", validate: "Validação (SAFE)", validate_intrusive: "Validação avançada",
+  tech_detect: "Tecnologias", osint: "OSINT", screenshot: "Screenshot", leaks: "Vazamentos",
 };
 function agoText(ts) {
   if (!ts) return null;
@@ -211,8 +212,11 @@ function FindingRow({ f, selected, onToggle }) {
             <p className="muted">Avaliado por: {a.model || "stub"}</p>
             {f.evidences?.map((ev) => (
               <div key={ev.id}>
-                <p className="muted">Evidencia ({ev.kind}):</p>
-                <pre className="evi">{ev.content || ev.s3_key || "(sem conteudo)"}</pre>
+                <p className="muted">Evidência ({ev.kind}):</p>
+                {ev.kind === "screenshot" && ev.content?.startsWith("data:image")
+                  ? <img src={ev.content} alt="screenshot"
+                      style={{ maxWidth: "100%", border: "1px solid var(--line)", borderRadius: 6 }} />
+                  : <pre className="evi">{ev.content || ev.s3_key || "(sem conteudo)"}</pre>}
               </div>
             ))}
           </td>

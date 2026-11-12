@@ -67,8 +67,19 @@ fallback para os coletores Python:
   re-busca os CVEs vistos; full=true baixa o bundle oficial CVE List JSON 5.0 de
   `CVE_FEED_URL` e importa tudo). Agenda: `CVE_UPDATE_INTERVAL_HOURS` + cron do ARQ
   (`scheduled_cve_update`). CVE offline tambem via nmap `vulscan` (base CSV local).
-- Premissas: internet no build (baixa binarios+templates) e nos scans
-  (subfinder/nuclei). nmap nao precisa de root.
+- **tech_detect** -> tecnologias (SO/linguagem/framework/CMS/libs/servidor) por
+  headers+cookies+HTML. **osint** -> e-mails (site+CSE), dominios (crt.sh), IPs.
+  **screenshot** -> captura via Chromium headless (Dockerfile instala chromium);
+  a imagem vira Evidence kind="screenshot" (data URI) e renderiza no painel.
+  **leaks** -> vazamentos via HIBP (precisa HIBP_API_KEY; sem chave, so explica).
+  tech_detect/screenshot sao host_collectors (lote). Registro central do set em
+  app/collectors/__init__.py::HOST_COLLECTORS (worker importa de la).
+- **status de scan_jobs e VARCHAR** (nao enum nativo): enum nativo do PG quebra
+  ao adicionar valores. Valores vem de ScanStatus (str enum).
+- **Validacao** (SAFE/avancada) roda como SCAN em background: collectors
+  "validate"/"validate_intrusive"; o worker desvia para run_validation.
+- Premissas: internet no build (baixa binarios+templates, chromium) e nos scans
+  (subfinder/nuclei/osint/leaks). nmap nao precisa de root.
 
 ## Contexto do ambiente do usuário
 
