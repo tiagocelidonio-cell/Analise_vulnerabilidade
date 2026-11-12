@@ -1,16 +1,22 @@
-"""Enumeracao de subdominios com subfinder (ProjectDiscovery).
+"""Enumeracao de subdominios: subfinder + amass (passivo), combinados.
 
-subfinder consulta dezenas de fontes passivas -> acha MUITO mais subdominios
-que o metodo proprio (crt.sh + wordlist). Resolve cada um para marcar os vivos.
-Fallback: coletor Python (subdomain_enum) se subfinder nao estiver instalado.
+Herdado do sistema antigo (tihacks), que enumerava muito bem usando DUAS
+fontes e deduplicando: subfinder (dezenas de fontes passivas) UNIAO amass
+(passivo). Cada subdominio e resolvido (A) para marcar os vivos.
+
+amass roda em modo PASSIVO (sem probing ativo -> rapido e sem risco de DoS) e
+e opcional: se nao estiver instalado, segue so com o subfinder.
+Fallback total: coletor Python (subdomain_enum) se nem subfinder existir.
 """
 from __future__ import annotations
 
 import asyncio
 import ipaddress
 import shutil
+import time
 
 from app.collectors.base import CollectedFact
+from app.collectors.proc import run_killable
 from app.collectors.subdomain_enum import _resolve
 
 
@@ -26,7 +32,8 @@ class SubfinderCollector:
     name = "subdomain_enum"
 
     async def run(self, targets: list[str], **kwargs) -> list[CollectedFact]:
-        if not shutil.which("subfinder"):
+        cancel_check = kwargs.get("cancel_check")
+        if not shutil.which("subfinder") and not shutil.which("amass"):
             from app.collectors.subdomain_enum import SubdomainEnumCollector
             return await SubdomainEnumCollector().run(targets)
 
@@ -34,7 +41,10 @@ class SubfinderCollector:
         for domain in targets:
             if not _is_domain(domain):
                 continue
-            subs = await self._subfinder(domain)
+            # Une as duas fontes e deduplica.
+            found = set(await self._subfinder(domain, cancel_check))
+            found |= set(await self._amass(domain, cancel_check))
+            found.add(domain)
             sem = asyncio.Semaphore(50)
 
             async def resolve_one(host: str) -> None:
@@ -49,16 +59,41 @@ class SubfinderCollector:
                           "ips": ips or [], "alive": alive, "parent": domain},
                 ))
 
-            await asyncio.gather(*(resolve_one(h) for h in subs))
+            await asyncio.gather(*(resolve_one(h) for h in found))
         return facts
 
-    async def _subfinder(self, domain: str) -> list[str]:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "subfinder", "-d", domain, "-silent", "-all",
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            out, _ = await proc.communicate()
-        except OSError:
+    async def _subfinder(self, domain: str, cancel_check=None) -> list[str]:
+        if not shutil.which("subfinder"):
             return []
-        return [ln.strip() for ln in out.decode("utf-8", "replace").splitlines() if ln.strip()]
+        out = await run_killable(
+            ["subfinder", "-d", domain, "-silent", "-all"],
+            cancel_check=cancel_check)
+        if not out:
+            return []
+        return [ln.strip() for ln in out.decode("utf-8", "replace").splitlines()
+                if ln.strip()]
+
+    async def _amass(self, domain: str, cancel_check=None) -> list[str]:
+        """amass em modo passivo, com teto de ~3 min (interrompivel)."""
+        if not shutil.which("amass"):
+            return []
+        deadline = time.monotonic() + 200
+
+        async def stop() -> bool:
+            if time.monotonic() > deadline:
+                return True
+            return bool(await cancel_check()) if cancel_check else False
+
+        out = await run_killable(
+            ["amass", "enum", "-passive", "-d", domain, "-silent", "-timeout", "3"],
+            cancel_check=stop)
+        if not out:
+            return []
+        dot_domain = domain.lower().lstrip(".")
+        res = []
+        for ln in out.decode("utf-8", "replace").splitlines():
+            h = ln.strip().lower()
+            # amass -silent as vezes imprime so o nome; mantem o que pertence ao dominio
+            if h and (h == dot_domain or h.endswith("." + dot_domain)):
+                res.append(h)
+        return res

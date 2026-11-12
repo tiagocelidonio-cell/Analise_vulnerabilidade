@@ -51,7 +51,12 @@ fallback para os coletores Python:
   Roda em LOTES de IPs (port_scan esta em host_collectors, recebe IPs
   expandidos) para que "Parar" e o progresso funcionem no meio de um range.
   `-sV` limitado (`--version-intensity 2 --host-timeout 45s --top-ports 200`).
-- **subfinder** -> `subdomain_enum` (subdominios abrangentes).
+- **subfinder + amass** -> `subdomain_enum` (duas fontes, deduplicadas, resolve
+  A p/ marcar vivos). amass roda em modo PASSIVO (rapido, sem DoS) e e opcional
+  (se faltar, segue so com subfinder). Herdado do sistema antigo (tihacks).
+- **nmap --script vulners** (perfil COMPLETO) -> acha CVE localmente a partir da
+  versao do servico, sem depender de templates/internet do nuclei. Os CVEs caem
+  no mesmo pipeline (`fact.data["cve_ids"]`). Perfil basico nao roda scripts.
 - **nuclei** -> `web_vuln` (vulns/CVEs; JSONL; precisa de templates/internet).
 - nuclei ja traz CVE: o worker usa `fact.data["cve_ids"]` direto quando presente.
 - Premissas: internet no build (baixa binarios+templates) e nos scans

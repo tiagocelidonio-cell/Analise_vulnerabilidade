@@ -6,7 +6,7 @@
 export const CATEGORIES = [
   {
     cat: "Recon", items: [
-      { name: "Subdomain Finder", icon: "🌐", kind: "domain", desc: "Descobre subdomínios e hosts vivos de um domínio.", collectors: ["subdomain_enum"] },
+      { name: "Subdomain Finder", icon: "🌐", kind: "domain", desc: "subfinder + amass: subdomínios e hosts vivos de um domínio.", collectors: ["subdomain_enum"] },
       { name: "Website Recon", icon: "🔎", kind: "url", desc: "Fingerprint do site: servidor, TLS, security headers.", collectors: ["http_probe"] },
       { name: "Google Dorks", icon: "🧭", kind: "domain", desc: "Gera dorks prontos para exposições (arquivos, logins…).", collectors: ["google_dorks"] },
       { name: "Wayback", icon: "🕰️", kind: "domain", desc: "Arquivos sensíveis históricos (.env, .sql, backups…).", collectors: ["wayback"] },
@@ -14,7 +14,7 @@ export const CATEGORIES = [
   },
   {
     cat: "Varredura", items: [
-      { name: "Port Scanner", icon: "📡", kind: "host", desc: "nmap: portas, serviços e versões (acha host sem ping).", collectors: ["port_scan"] },
+      { name: "Port Scanner", icon: "📡", kind: "host", desc: "nmap: portas, serviços e versões. Completo = CVEs (script vulners).", collectors: ["port_scan"] },
       { name: "Network Scanner", icon: "🖧", kind: "host", desc: "nmap no range + serviços web. Acha todos os hosts ativos.", collectors: ["port_scan", "http_probe"] },
       { name: "Website Scanner", icon: "🕷️", kind: "url", desc: "Conteúdo exposto + nuclei (vulnerabilidades/CVEs).", collectors: ["http_probe", "web_content", "web_vuln"] },
     ],
