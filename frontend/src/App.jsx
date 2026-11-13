@@ -9,6 +9,7 @@ import { FLAT_TOOLS } from "./tools.js";
 import { downloadCsv } from "./csv.js";
 import Overview from "./Overview.jsx";
 import Admin from "./Admin.jsx";
+import Reports from "./Reports.jsx";
 import Profile from "./Profile.jsx";
 import Login from "./Login.jsx";
 
@@ -750,6 +751,8 @@ export default function App() {
         <nav className="nav">
           <button className={`navbtn ${view === "overview" ? "active" : ""}`}
             onClick={() => { setView("overview"); setSelected(null); }}>Visão geral</button>
+          <button className={`navbtn ${view === "reports" ? "active" : ""}`}
+            onClick={() => { setView("reports"); setSelected(null); }}>Relatório</button>
         </nav>
         <div className="clientshead">{user.role === "admin" ? "Clientes por consultor" : "Meus clientes"}</div>
         <div className="list">
@@ -761,6 +764,7 @@ export default function App() {
       </aside>
       <main className="main">
         {view === "overview" && <Overview />}
+        {view === "reports" && <Reports me={user} />}
         {view === "admin" && <Admin me={user} />}
         {view === "client" && selected && (
           <EngagementView key={selected.id} engagement={selected}

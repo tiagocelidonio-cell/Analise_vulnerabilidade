@@ -4,7 +4,9 @@ import { downloadCsv } from "./csv.js";
 import { fmtDateTime } from "./branding.js";
 
 // Tela de Relatórios: relatório consolidado (PDF/preview) + exportações CSV.
-export default function Reports() {
+export default function Reports({ me }) {
+  const isAdmin = me?.role === "admin";
+  const scopeLabel = isAdmin ? "todos os clientes" : "meus clientes";
   const [d, setD] = useState(null);
   const [engs, setEngs] = useState([]);
   const [err, setErr] = useState("");
@@ -82,12 +84,17 @@ export default function Reports() {
 
   return (
     <div>
-      <p className="muted" style={{ marginTop: 0 }}>
-        Dados consolidados de todos os clientes — visível apenas para o administrador.
-      </p>
+      <div className="head"><div>
+        <h2>Relatórios</h2>
+        <p className="muted">
+          Consolidação e exportação de dados — {isAdmin
+            ? "de todos os clientes da plataforma."
+            : "dos clientes que você cadastrou."}
+        </p>
+      </div></div>
 
       <div className="card" style={{ maxWidth: 680 }}>
-        <h3>Relatório consolidado (todos os clientes)</h3>
+        <h3>Relatório consolidado ({scopeLabel})</h3>
         <p className="muted" style={{ fontSize: 13 }}>
           Consolidação anônima de risco e benchmarking — sem expor nomes de clientes.
         </p>
@@ -102,7 +109,7 @@ export default function Reports() {
         <p className="muted" style={{ fontSize: 13 }}>Baixe os dados para planilha (abre no Excel).</p>
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           <button className="btn primary" onClick={exportAllFindings} disabled={!!busy}>
-            ⬇ Achados (todos os clientes)
+            ⬇ Achados ({scopeLabel})
           </button>
           <button className="btn" onClick={exportClients}>⬇ Clientes (resumo)</button>
           <button className="btn" onClick={exportBenchmark}>⬇ Benchmarking</button>
