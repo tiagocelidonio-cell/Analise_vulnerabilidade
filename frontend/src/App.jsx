@@ -79,16 +79,21 @@ function NewEngagement({ onCreated }) {
     return <button className="btn block" onClick={() => setOpen(true)}>+ Adicionar outro cliente</button>;
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form className="card" onSubmit={submit} autoComplete="off">
       <h3>Novo engagement</h3>
-      <input placeholder="Cliente" value={form.client_name}
+      {/* input isca invisivel: absorve o autofill do navegador */}
+      <input type="text" name="fakeusernameremembered" style={{ display: "none" }} />
+      <input placeholder="Cliente" value={form.client_name} name="eng_client"
+        autoComplete="off" autoCorrect="off" spellCheck="false"
         onChange={(e) => setForm({ ...form, client_name: e.target.value })} required />
-      <input placeholder="Nome do trabalho (ex: Externo Q4)" value={form.name}
+      <input placeholder="Nome do trabalho (ex: Externo Q4)" value={form.name} name="eng_name"
+        autoComplete="off"
         onChange={(e) => setForm({ ...form, name: e.target.value })} required />
       <textarea placeholder="Escopo (um por linha): 10.0.0.0/24, example.com, 1.2.3.4"
-        value={form.scope} rows={3}
+        value={form.scope} rows={3} autoComplete="off"
         onChange={(e) => setForm({ ...form, scope: e.target.value })} />
-      <input placeholder="Autorizado por (email/nome)" value={form.authorized_by}
+      <input placeholder="Autorizado por (email/nome)" value={form.authorized_by} name="eng_auth_by"
+        autoComplete="off"
         onChange={(e) => setForm({ ...form, authorized_by: e.target.value })} />
       <label className="check">
         <input type="checkbox" checked={form.authorized}
