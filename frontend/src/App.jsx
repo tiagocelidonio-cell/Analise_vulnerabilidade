@@ -664,7 +664,7 @@ export default function App() {
             onClick={() => { setView("overview"); setSelected(null); }}>Visão geral</button>
           {user.role === "admin" && (
             <button className={`navbtn ${view === "admin" ? "active" : ""}`}
-              onClick={() => { setView("admin"); setSelected(null); }}>Usuários</button>
+              onClick={() => { setView("admin"); setSelected(null); }}>⚙ Administração</button>
           )}
         </nav>
         <NewEngagement onCreated={(e) => { load(); setSelected(e); setView("client"); }} />
