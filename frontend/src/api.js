@@ -99,6 +99,25 @@ export const api = {
       }),
     }),
   retest: (id) => req(`/engagements/${id}/retest`, { method: "POST" }),
+  // documentos do engagement
+  listDocuments: (id) => req(`/engagements/${id}/documents`),
+  uploadDocument: async (id, file, kind) => {
+    const fd = new FormData();
+    fd.append("kind", kind);
+    fd.append("file", file);
+    const token = getToken();
+    const res = await fetch(`${BASE}/engagements/${id}/documents`, {
+      method: "POST", body: fd,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || `Erro ${res.status}`);
+    }
+    return res.json();
+  },
+  documentUrl: (docId) => `${BASE}/documents/${docId}?token=${getToken() || ""}`,
+  deleteDocument: (docId) => req(`/documents/${docId}`, { method: "DELETE" }),
   postexploit: (id) => req(`/engagements/${id}/postexploit`),
   // relatorios: token no query para abrir em nova aba + opcoes de conteudo
   reportHtmlUrl: (id, opt) => `${BASE}/engagements/${id}/report.html?token=${getToken() || ""}${_reportQs(opt)}`,

@@ -168,13 +168,13 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 ## Roadmap em ondas
 
 ### Onda 0 — Fundamentos de engagement e marca (curto prazo)
-- [ ] **Tipos de engagement** (checkbox que habilita capacidades):
+- [x] **Tipos de engagement** (checkbox que habilita capacidades):
   `Análise de Vulnerabilidades`, `Pentest Blackbox`, `Pentest Graybox`,
   `Pentest Whitebox`. O tipo controla o que a ferramenta libera (ex.: exploração
   só em Pentest + autorização).
-- [ ] **Upload de documentos do engagement**: NDA e Termo de Autorização (PDF).
+- [x] **Upload de documentos do engagement**: NDA e Termo de Autorização (PDF).
   Enquanto não houver autorização válida anexada, ações ofensivas ficam bloqueadas.
-- [ ] **Abstração de nomes de ferramentas**: UI passa a mostrar *capacidades*
+- [x] **Abstração de nomes de ferramentas**: UI passa a mostrar *capacidades*
   (ex.: "Enumeração de Ativos", "Descoberta de Portas", "Verificação de
   Vulnerabilidades"), nunca `nmap/amass/nuclei`. Mapa técnico só no código.
 - [ ] **Auditoria**: log imutável de cada ação (quem, o quê, alvo, quando).

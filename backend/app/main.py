@@ -18,6 +18,7 @@ from app.api import (
     assets,
     config as config_api,
     cve,
+    documents,
     engagements,
     exploit,
     findings,
@@ -76,6 +77,7 @@ app.include_router(postexploit.router, dependencies=_auth)
 app.include_router(assets.router, dependencies=_auth)
 app.include_router(cve.router, dependencies=_auth)
 app.include_router(integrations.router, dependencies=_auth)
+app.include_router(documents.router, dependencies=_auth)
 
 
 @app.exception_handler(Exception)

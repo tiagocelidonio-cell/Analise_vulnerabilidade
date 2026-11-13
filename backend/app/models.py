@@ -13,6 +13,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
 )
@@ -268,3 +269,20 @@ class ApiCredential(Base):
     key_name: Mapped[str] = mapped_column(String, primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class EngagementDocument(Base):
+    """Documento anexado a um engagement (NDA, autorizacao, carta, relatorio
+    anterior). Opcional, mas importante para auditoria e relatorio."""
+
+    __tablename__ = "engagement_documents"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    engagement_id: Mapped[str] = mapped_column(ForeignKey("engagements.id"), index=True)
+    kind: Mapped[str] = mapped_column(String, default="other")  # nda|authorization|goocj|prior_report|other
+    filename: Mapped[str] = mapped_column(String, default="arquivo")
+    content_type: Mapped[str] = mapped_column(String, default="application/octet-stream")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    uploaded_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

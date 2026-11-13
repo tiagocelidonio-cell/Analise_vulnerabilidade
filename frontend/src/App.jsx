@@ -4,6 +4,7 @@ import { branding, onBrandingChange, fmtDate, fmtDateTime } from "./branding.js"
 import Dashboard from "./Dashboard.jsx";
 import ToolCatalog from "./ToolCatalog.jsx";
 import Assets from "./Assets.jsx";
+import Documents from "./Documents.jsx";
 import ToolForm from "./ToolForm.jsx";
 import { FLAT_TOOLS } from "./tools.js";
 import { downloadCsv } from "./csv.js";
@@ -436,12 +437,15 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           onClick={() => setTab("assets")}>Ativos</button>
         <button className={`tab ${tab === "ops" ? "active" : ""}`}
           onClick={() => setTab("ops")}>Achados</button>
+        <button className={`tab ${tab === "docs" ? "active" : ""}`}
+          onClick={() => setTab("docs")}>Documentos</button>
       </div>
 
       {tab === "dashboard" && <Dashboard engagement={engagement} />}
       {tab === "tools" && <ToolCatalog engagement={engagement}
         onUpdated={onUpdated} onRan={() => { setTab("ops"); refresh(); }} />}
       {tab === "assets" && <Assets engagement={engagement} onUpdated={onUpdated} />}
+      {tab === "docs" && <Documents engagement={engagement} />}
       {tab === "ops" && (
       <>
       <div className="head">
