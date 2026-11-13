@@ -113,9 +113,9 @@ _TEMPLATE = Template(
    As atividades foram conduzidas sem ataques de disponibilidade (DoS) e sem alteração de dados.</p>
 <h3>Metodologia</h3>
 <p>A avaliação seguiu um fluxo de reconhecimento (enumeração de subdomínios e ativos),
-   varredura de portas e serviços (nmap), identificação de vulnerabilidades (nuclei e correlação
-   de CVEs por versão de serviço), e validação não-destrutiva dos achados. Cada achado é
-   acompanhado de evidência bruta coletada automaticamente.</p>
+   varredura de portas e serviços, identificação de vulnerabilidades (verificações
+   automatizadas e correlação de CVEs por versão de serviço) e validação não-destrutiva
+   dos achados. Cada achado é acompanhado de evidência bruta coletada automaticamente.</p>
 <h4>Classificação de severidade das vulnerabilidades</h4>
 <table><thead><tr><th>Severidade</th><th>Faixa CVSS</th><th>Interpretação</th></tr></thead><tbody>
   <tr><td><span class="pill" style="background:#7f1d1d">CRÍTICO</span></td><td>9.0 – 10.0</td><td>Exploração trivial/impacto severo. Ação imediata.</td></tr>

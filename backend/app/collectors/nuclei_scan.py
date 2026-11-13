@@ -48,7 +48,7 @@ def _parse_line(line: str) -> CollectedFact | None:
     tgt = host.replace("https://", "").replace("http://", "").split("/")[0] or matched
     return CollectedFact(
         target=tgt, service="vuln",
-        title=f"[nuclei] {name}",
+        title=f"[Vuln] {name}",
         raw=f"{d.get('template-id', '')}  ->  {matched}",
         data={"severity_hint": severity, "cve_ids": cves,
               "cvss": cvss, "template": d.get("template-id"),

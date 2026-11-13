@@ -19,10 +19,12 @@ const STATUS_PT = {
   failed: "falhou", cancelled: "cancelado", paused: "pausado",
 };
 const COLLECTOR_LABEL = {
-  port_scan: "Portas (nmap)", http_probe: "Web recon", web_content: "Conteúdo web",
-  web_vuln: "Vuln (nuclei)", subdomain_enum: "Subdomínios", wayback: "Wayback",
-  google_dorks: "Dorks", validate: "Validação (SAFE)", validate_intrusive: "Validação avançada",
-  tech_detect: "Tecnologias", osint: "OSINT", screenshot: "Screenshot", leaks: "Vazamentos",
+  port_scan: "Descoberta de Portas", http_probe: "Reconhecimento Web",
+  web_content: "Conteúdo Exposto", web_vuln: "Verificação de Vulnerabilidades",
+  subdomain_enum: "Enumeração de Ativos", wayback: "Arquivos Históricos",
+  google_dorks: "Busca por Exposições", validate: "Validação (SAFE)",
+  validate_intrusive: "Validação avançada", tech_detect: "Tecnologias",
+  osint: "OSINT", screenshot: "Captura de Tela", leaks: "Vazamentos",
 };
 function agoText(ts) {
   if (!ts) return null;

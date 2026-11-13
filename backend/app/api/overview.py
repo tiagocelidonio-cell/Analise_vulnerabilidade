@@ -32,7 +32,7 @@ async def compute_overview(session: AsyncSession, user: User) -> dict:
              "level_dist": {}, "top_clients": [], "benchmark": [], "insights": [],
              "matrix": [[0] * 5 for _ in range(5)], "avg_score": 0.0, "kev_count": 0,
              "cve_stats": {"distinct": 0, "kev": 0, "high_epss": 0, "top": [],
-                           "sources": "NVD + EPSS (FIRST) + CISA KEV + templates nuclei"}}
+                           "sources": "NVD + EPSS (FIRST) + CISA KEV"}}
     if not engagements:
         return empty
 
@@ -108,7 +108,7 @@ async def compute_overview(session: AsyncSession, user: User) -> dict:
         "kev": sum(1 for c in cve_agg.values() if c["in_kev"]),
         "high_epss": sum(1 for c in cve_agg.values() if (c["epss"] or 0) >= 0.5),
         "top": top_cves,
-        "sources": "NVD + EPSS (FIRST) + CISA KEV + templates nuclei",
+        "sources": "NVD + EPSS (FIRST) + CISA KEV",
     }
 
     insights = []

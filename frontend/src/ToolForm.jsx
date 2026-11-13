@@ -28,12 +28,12 @@ function modeText(tool, scanType) {
   if (scanType === "light") {
     const p = [];
     if (port) p.push("18 portas mais comuns");
-    if (vuln) p.push("templates de severidade alta/crítica");
+    if (vuln) p.push("verificações de severidade alta/crítica");
     return "Básico: " + (p.join(" + ") || "varredura rápida") + ". Mais rápido, ideal para triagem.";
   }
   const p = [];
-  if (port) p.push("top-200 portas com versão (nmap -sV)");
-  if (vuln) p.push("todas as severidades (nuclei)");
+  if (port) p.push("top-200 portas com detecção de versão");
+  if (vuln) p.push("todas as severidades");
   return "Completo: " + (p.join(" + ") || "varredura ampla") + ". Mais lento, mais cobertura.";
 }
 
