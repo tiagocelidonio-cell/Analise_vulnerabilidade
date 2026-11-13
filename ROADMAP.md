@@ -100,6 +100,55 @@ os itens conforme forem concluídos. Nada aqui quebra o que já existe.
 
 ---
 
+## Avaliação de ferramentas candidatas
+
+Critério de encaixe: **roda sem interface (CLI/daemon)**, **automatizável em 2º
+plano**, **respeita escopo/autorização**, **sem DoS**, e **cabe numa plataforma
+cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gated
+(exploração, só Pentest+autorização) · 🏠 interno (precisa VPN/agente) ·
+🖥️ ferramenta de operador (não automatiza; integramos por exportação/conceito) ·
+❌ não cabe no cloud.
+
+| Ferramenta | Encaixe | Como entra | Onda |
+|---|---|---|---|
+| **Nmap** | ✅ (já) | Descoberta de Portas/Serviços | — |
+| **theHarvester** | ✅ | OSINT (e-mails, subdomínios, hosts) | 1 |
+| **Recon-ng** | ✅ | módulos de OSINT/recon web | 1 |
+| **ffuf / Gobuster / Dirb** | ✅ | brute de diretórios/arquivos/subdomínios | 1 |
+| **Nikto** | ✅ | checagem de servidor web (misconfig) | 1 |
+| **OWASP ZAP** | ✅ | scanner web ativo via daemon/API (headless) | 1/4 |
+| **SearchSploit (Exploit-DB)** | ✅ | enriquece achado: "existe exploit?" | 1 |
+| **Metasploit Framework** | 🔒 | motor de exploração via RPC (operador dispara) | 4 |
+| **SQLmap** | 🔒 | exploração de SQLi, no escopo, modo contido | 4 |
+| **Hydra** | 🔒 | brute online — rate-limit forte, risco de lockout | 4 |
+| **John the Ripper** | 🔒 | quebra de hash offline (pós-exploração, CPU) | 4 |
+| **Hashcat** | 🔒 | quebra via GPU — **exige host com GPU** | 4 |
+| **Netcat** | 🔒 | reverse shell / transferência (pós-exploração) | 4 |
+| **Responder** | 🏠🔒 | AD interno: LLMNR/NBT-NS → captura NTLM | 3/4 |
+| **BloodHound (+SharpHound)** | 🏠🔒 | mapa de caminhos de privilégio no AD | 4 |
+| **Mimikatz** | 🏠🔒 | extrai credenciais da memória Windows (pós-ex) | 4 |
+| **tshark/Wireshark** | 🏠 | captura de tráfego (interno, via agente) | 3 |
+| **Burp Suite** | 🖥️ | ferramenta manual do operador; exportamos alvos | — |
+| **Maltego** | 🖥️ | replicamos o valor com nossa **topologia** (grafo) | 2 |
+| **BeEF** | 🔒 (nicho) | exploração de navegador; opcional/avançado | 4+ |
+| **SET (phishing)** | ⚠️ trilha à parte | engenharia social exige autorização própria por campanha | futuro |
+| **Aircrack-ng / Wifite / Kismet** | ❌ no cloud | wireless precisa de **rádio físico** → só via agente on-site com hardware | — |
+
+### Leitura rápida
+- **Ganho imediato (Onda 1):** theHarvester, Recon-ng, ffuf/Gobuster, Nikto,
+  OWASP ZAP (headless), SearchSploit — é o que tira a sensação de "engine fraca"
+  e deixa o recon + web realmente fortes.
+- **Exploração (Onda 4, 🔒):** Metasploit (RPC), SQLmap, Hydra, John, Hashcat,
+  Netcat — operador dispara, no escopo, com evidência. Nada autônomo.
+- **AD/interno (Onda 3–4, 🏠):** Responder, BloodHound, Mimikatz, tshark — exigem
+  estar na rede do cliente (VPN ou agente). É o coração do pentest interno.
+- **Não cabe no cloud:** wireless (rádio físico). Phishing/SET: trilha separada,
+  com autorização própria por campanha.
+- **Operador, não módulo:** Burp (manual) e Maltego (cujo valor — grafo de
+  relações — a gente entrega com a **topologia** própria).
+
+---
+
 ## Pilares
 
 1. **Engagements & Governança** — tipos de trabalho, NDA, autorização, VPN, auditoria.
