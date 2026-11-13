@@ -41,6 +41,65 @@ os itens conforme forem concluídos. Nada aqui quebra o que já existe.
 
 ---
 
+## Como as ferramentas funcionam (arquitetura de execução)
+
+### As 4 camadas
+```
+[Capacidade na UI]  ->  [Módulo]  ->  [Motor: ferramenta/script]  ->  [Normalização]  ->  [Achado]
+"Descoberta de Portas"   port_scan     nmap (ou fallback Python)      parser p/ CollectedFact   Finding + Evidência
+```
+- **Capacidade (UI):** nome funcional, neutro ("Descoberta de Portas"). O usuário
+  nunca vê o binário.
+- **Módulo:** código Python no worker que sabe montar o comando, rodar e ler a saída.
+- **Motor:** a ferramenta open-source consagrada **OU** um script Python próprio
+  (fallback). Tudo roda como **processo em segundo plano**, na fila (ARQ), dentro
+  do container do worker — com **Parar/Pausar**, heartbeat e validação de escopo.
+- **Normalização:** cada saída (XML/JSON/texto) é convertida para um formato único
+  (`CollectedFact`) e vira `Finding` com evidência bruta reproduzível.
+
+### "Agente" — 3 significados diferentes (para não confundir)
+1. **Agente de IA (Claude):** *analisa*, não ataca. Lê os fatos **já provados**,
+   avalia severidade, escreve risco/remediação. Nunca executa exploração. (já existe)
+2. **Agente de rede (futuro, Onda 3):** um coletor leve que o **cliente roda na
+   rede interna dele** e devolve resultados com segurança — alternativa à VPN.
+3. **Agente orquestrador (futuro, Onda 1/5):** o motor que encadeia a descoberta
+   (acha um IP → enfileira varredura dele → acha subdomínio → enfileira... ) e
+   roda muitos módulos em paralelo. É "automação orquestrada", não IA.
+
+### Scripts, sim — e quais ferramentas (mapa técnico interno)
+> Na UI tudo aparece como capacidade. Esta tabela é só para quem mantém o código.
+
+| Capacidade (UI) | Motor principal | Fallback / complemento |
+|---|---|---|
+| Enumeração de Ativos (subdomínios) | subfinder + amass (passivo) | crt.sh, DNS, wordlist própria |
+| Descoberta de Portas/Serviços | nmap (`-sT -sV`) | scanner TCP próprio (Python) |
+| Detecção de CVE por versão | nmap `vulners`/`vulscan` | correlação NVD por banner |
+| Verificação de Vulnerabilidades web | nuclei (templates) | sondas HTTP próprias |
+| Fingerprint / Tecnologias | análise de headers/cookies/HTML (Python) | — |
+| Conteúdo exposto | brute de caminhos (Python) | Wayback (archive.org) |
+| OSINT (e-mails/domínios/IPs) | site + Google CSE + crt.sh | — |
+| Captura de tela | Chromium headless | — |
+| Vazamentos | Have I Been Pwned | — |
+| Validação SAFE/avançada | sondas HTTP não-destrutivas (Python) | — |
+
+**Futuro (candidatos por onda, a confirmar):**
+- **Recon (Onda 1):** dnsx, httpx, asnmap, naabu, theHarvester, feeds de CT.
+- **Exploração (Onda 4):** nuclei (templates de exploração), sqlmap, nmap NSE,
+  e integração opcional com Metasploit (RPC) — **sempre** disparados pelo operador,
+  no escopo, com evidência. Sem automação de exploração em massa.
+- **Orquestração (Onda 5):** cada ferramenta vira um "módulo" com entrada/saída
+  padronizada; a plataforma agenda dezenas em paralelo, deduplica e correlaciona.
+
+### Princípios de execução
+- **Tudo em 2º plano, na fila**, isolado por engagement, com Parar/Pausar e heartbeat.
+- **Escopo validado** antes de cada toque; nada fora do autorizado.
+- **Killable:** qualquer processo externo é interrompível de verdade (não espera o fim).
+- **Resiliente:** se a ferramenta consagrada falta/instabiliza, cai no fallback ou
+  registra erro legível (sem derrubar o scan).
+- **Evidência bruta** sempre guardada (comando + saída), nunca gerada por IA.
+
+---
+
 ## Pilares
 
 1. **Engagements & Governança** — tipos de trabalho, NDA, autorização, VPN, auditoria.
