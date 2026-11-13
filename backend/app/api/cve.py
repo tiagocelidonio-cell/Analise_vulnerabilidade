@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.db import get_session
-from app.enrichment.cve_import import base_status, get_schedule
+from app.enrichment.cve_import import (
+    base_status,
+    get_import_status,
+    get_schedule,
+    import_status_dict,
+)
 from app.models import User
 
 router = APIRouter(tags=["cve"])
@@ -39,6 +44,7 @@ async def cve_status(
     st = await base_status(session)
     cfg = await get_schedule(session)
     st["schedule"] = _sched_dict(cfg)
+    st["import"] = import_status_dict(await get_import_status(session))
     return st
 
 
@@ -85,10 +91,43 @@ async def cve_update(
     if user.role != "admin":
         raise HTTPException(403, "Apenas admin pode atualizar a base de CVE.")
 
+    if full:
+        # Ja marca "conectando" para o painel refletir na hora (feedback imediato).
+        from datetime import datetime, timezone
+        st = await get_import_status(session)
+        if st.state in ("connecting", "downloading"):
+            raise HTTPException(409, "Já existe um download em andamento.")
+        st.state = "connecting"
+        st.phase = "na fila…"
+        st.error = None
+        st.cancel_requested = False
+        st.processed = 0
+        st.imported = 0
+        st.total = 0
+        st.started_at = datetime.now(timezone.utc)
+        st.updated_at = st.started_at
+        st.finished_at = None
+        await session.commit()
+
     pool = getattr(request.app.state, "redis_pool", None)
     if pool is None:
         pool = await create_pool(RedisSettings.from_dsn(request.app.state.redis_url))
     await pool.enqueue_job("update_cve_base", full)
     return {"queued": True, "full": full,
-            "mensagem": ("Importacao completa iniciada (pode demorar)." if full
+            "mensagem": ("Download da base completa iniciado (acompanhe o progresso)." if full
                          else "Atualizacao dos CVEs vistos iniciada.")}
+
+
+@router.post("/cve/import/cancel")
+async def cve_import_cancel(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Pede o cancelamento do download em andamento (o worker para na proxima pagina)."""
+    if user.role != "admin":
+        raise HTTPException(403, "Apenas admin pode cancelar.")
+    st = await get_import_status(session)
+    if st.state in ("connecting", "downloading"):
+        st.cancel_requested = True
+        await session.commit()
+    return {"cancel_requested": True}

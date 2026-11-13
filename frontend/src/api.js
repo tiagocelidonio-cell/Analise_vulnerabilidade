@@ -63,6 +63,7 @@ export const api = {
   overview: () => req("/overview"),
   cveStatus: () => req("/cve/status"),
   cveUpdate: (full = false) => req(`/cve/update?full=${full}`, { method: "POST" }),
+  cveImportCancel: () => req("/cve/import/cancel", { method: "POST" }),
   cveSchedule: () => req("/cve/schedule"),
   cveScheduleSet: (body) => req("/cve/schedule", { method: "PUT", body: JSON.stringify(body) }),
   overviewReportHtmlUrl: () => `${BASE}/overview/report.html?token=${getToken() || ""}`,

@@ -231,3 +231,24 @@ class PlatformConfig(Base):
     heading_font: Mapped[str | None] = mapped_column(String, nullable=True)
     timezone: Mapped[str] = mapped_column(String, default="America/Sao_Paulo")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class CveImportStatus(Base):
+    """Status monitoravel do download da base de CVE (linha unica id='main').
+    O worker escreve o progresso; a API/painel le para exibir a evolucao."""
+
+    __tablename__ = "cve_import_status"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default="main")
+    # idle | connecting | downloading | done | error | cancelled
+    state: Mapped[str] = mapped_column(String, default="idle")
+    phase: Mapped[str] = mapped_column(String, default="")
+    total: Mapped[int] = mapped_column(Integer, default=0)       # CVEs a baixar
+    processed: Mapped[int] = mapped_column(Integer, default=0)   # CVEs lidos
+    imported: Mapped[int] = mapped_column(Integer, default=0)    # gravados/atualizados
+    source: Mapped[str] = mapped_column(String, default="NVD 2.0 API")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

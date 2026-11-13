@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # explica como habilitar. A API de conta do HIBP e paga.
     hibp_api_key: str = ""
 
+    # NVD API (download da base de CVE). Sem chave funciona, porem com limite
+    # baixo (5 req/30s). Com chave gratuita, 50 req/30s (bem mais rapido):
+    #   https://nvd.nist.gov/developers/request-an-api-key
+    nvd_api_key: str = ""
+
     # Base local de CVE: bundle oficial (CVE List JSON 5.0) para import local.
     # Default = arquivo oficial completo do projeto CVE (cve.org / CVEProject).
     # URL estavel do repositorio oficial (grande ~1GB; roda sob demanda).

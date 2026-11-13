@@ -333,11 +333,12 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 
 
 async def update_cve_base(ctx: dict, full: bool = False) -> dict:
-    """Atualiza a base local de CVE. full=True importa o bundle oficial."""
-    from app.enrichment.cve_import import import_from_bundle, refresh_seen
+    """Atualiza a base local de CVE.
+    full=True: baixa a base completa pela NVD (paginada + monitorada)."""
+    from app.enrichment.cve_import import import_full_nvd, refresh_seen
     async with SessionLocal() as session:
         if full:
-            return await import_from_bundle(session)
+            return await import_full_nvd(session)
         return await refresh_seen(session)
 
 
@@ -350,7 +351,7 @@ async def scheduled_cve_update(ctx: dict) -> None:
     from datetime import datetime, timezone
 
     from app.enrichment.cve_import import (
-        get_schedule, import_from_bundle, refresh_seen,
+        get_schedule, import_full_nvd, refresh_seen,
     )
     async with SessionLocal() as session:
         cfg = await get_schedule(session)
@@ -364,7 +365,7 @@ async def scheduled_cve_update(ctx: dict) -> None:
         # Venceu: roda conforme o modo escolhido.
         try:
             if cfg.full:
-                res = await import_from_bundle(session)
+                res = await import_full_nvd(session)
                 cfg.last_result = f"completa: {res.get('imported', 0)} CVEs"
             else:
                 res = await refresh_seen(session)
