@@ -16,6 +16,7 @@ logger = logging.getLogger("vulnscope")
 from app.api import auth as auth_api
 from app.api import (
     assets,
+    config as config_api,
     cve,
     engagements,
     exploit,
@@ -53,8 +54,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rotas publicas (sem auth): login e health.
+# Rotas publicas (sem auth): login, health e config (para aplicar a marca
+# antes do login; o PUT de config valida admin internamente).
 app.include_router(auth_api.router)
+app.include_router(config_api.router)
 
 # Rotas de negocio: exigem usuario autenticado.
 _auth = [Depends(get_current_user)]

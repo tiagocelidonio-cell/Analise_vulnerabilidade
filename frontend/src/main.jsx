@@ -1,10 +1,10 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
-import { applyBranding } from "./branding.js";
+import { loadBranding } from "./branding.js";
 import "./styles.css";
 
-applyBranding();
+loadBranding();
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api, getToken } from "./api.js";
-import { branding } from "./branding.js";
+import { branding, onBrandingChange, fmtDate, fmtDateTime } from "./branding.js";
 import Dashboard from "./Dashboard.jsx";
 import ToolCatalog from "./ToolCatalog.jsx";
 import Assets from "./Assets.jsx";
@@ -186,7 +186,7 @@ function FindingRow({ f, selected, onToggle }) {
         <td>{f.in_kev ? "SIM" : "-"}</td>
         <td>{Math.round(f.confidence * 100)}%</td>
         <td className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
-          {f.created_at ? new Date(f.created_at).toLocaleDateString("pt-BR") : "-"}</td>
+          {fmtDate(f.created_at)}</td>
       </tr>
       {open && (
         <tr className="detail">
@@ -355,7 +355,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
       { label: "Confiança", get: (f) => Math.round((f.confidence || 0) * 100) + "%" },
       { label: "Vezes visto", key: "times_seen" },
       { label: "Recomendação", get: (f) => (f.ai_assessment || {}).recommendation || "" },
-      { label: "Data", get: (f) => (f.created_at ? new Date(f.created_at).toLocaleString("pt-BR") : "") },
+      { label: "Data", get: (f) => (f.created_at ? fmtDateTime(f.created_at) : "") },
     ]);
   }
 
@@ -458,7 +458,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
               </td>
               <td>{s.targets.join(", ")}</td>
               <td className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
-                {s.created_at ? new Date(s.created_at).toLocaleString("pt-BR") : "-"}
+                {fmtDateTime(s.created_at)}
               </td>
               <td>{s.summary || `${s.findings_count || 0} achados`}</td>
               <td style={{ textAlign: "right" }}>
@@ -615,6 +615,10 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [view, setView] = useState("overview"); // overview | client | admin
   const [error, setError] = useState("");
+  const [, setBrandV] = useState(0);
+
+  // Re-renderiza quando a marca (logo/nome/cores) muda.
+  useEffect(() => onBrandingChange(() => setBrandV((v) => v + 1)), []);
 
   // Verifica a sessao ao abrir.
   useEffect(() => {

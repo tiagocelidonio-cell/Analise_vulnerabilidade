@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
 import { FLAT_TOOLS } from "./tools.js";
 import { downloadCsv } from "./csv.js";
+import { fmtDateTime } from "./branding.js";
 import ToolForm from "./ToolForm.jsx";
 
 const SEV_COLOR = {
@@ -79,7 +80,7 @@ export default function Assets({ engagement, onUpdated }) {
       { label: "Risco", get: (a) => (a.risk || "").toUpperCase() },
       { label: "Achados", key: "findings" },
       { label: "Scans", key: "scans" },
-      { label: "Identificado em", get: (a) => (a.first_seen ? new Date(a.first_seen).toLocaleString("pt-BR") : "") },
+      { label: "Identificado em", get: (a) => (a.first_seen ? fmtDateTime(a.first_seen) : "") },
     ]);
   }
 
@@ -149,7 +150,7 @@ export default function Assets({ engagement, onUpdated }) {
               <td>{a.findings}</td>
               <td>{a.scans}</td>
               <td className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
-                {a.first_seen ? new Date(a.first_seen).toLocaleString("pt-BR") : "-"}</td>
+                {fmtDateTime(a.first_seen)}</td>
               <td className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
                 <button className="btn" onClick={() => { setScanTarget(a.target); setPickedTool(null); }}>Escanear</button>
                 <button className="btn danger" onClick={() => removeAsset(a.target)}>Excluir</button>

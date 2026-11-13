@@ -215,3 +215,19 @@ class CveScheduleConfig(Base):
         DateTime(timezone=True), nullable=True)
     last_result: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class PlatformConfig(Base):
+    """Configuracao global da plataforma (linha unica id='main'):
+    nome, logo, identidade visual (cores/fontes) e fuso horario."""
+
+    __tablename__ = "platform_config"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default="main")
+    platform_name: Mapped[str] = mapped_column(String, default="Lozinsky VulnScope")
+    logo: Mapped[str | None] = mapped_column(Text, nullable=True)  # data URI
+    colors: Mapped[dict] = mapped_column(JSON, default=dict)       # overrides
+    font: Mapped[str | None] = mapped_column(String, nullable=True)
+    heading_font: Mapped[str | None] = mapped_column(String, nullable=True)
+    timezone: Mapped[str] = mapped_column(String, default="America/Sao_Paulo")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

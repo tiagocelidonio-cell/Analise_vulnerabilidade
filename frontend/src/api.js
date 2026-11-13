@@ -52,6 +52,8 @@ export const api = {
     return r;
   },
   me: () => req("/auth/me"),
+  getConfig: () => req("/config"),
+  updateConfig: (body) => req("/config", { method: "PUT", body: JSON.stringify(body) }),
   logout: () => setToken(null),
   listUsers: () => req("/auth/users"),
   createUser: (body) => req("/auth/users", { method: "POST", body: JSON.stringify(body) }),
