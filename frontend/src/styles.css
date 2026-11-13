@@ -140,6 +140,8 @@ select { background: var(--bg); border: 1px solid var(--line); color: var(--text
 .eng:hover { background: var(--card); }
 .eng.active { background: var(--card); border-color: var(--accent); }
 .engrow { display: flex; align-items: stretch; gap: 2px; }
+.engrow.dragging { opacity: .45; }
+.engrow[draggable="true"] .eng { cursor: grab; }
 .engrow .eng { flex: 1; min-width: 0; }
 .engrow.active .eng { background: var(--card); border-color: var(--accent); }
 .engdel { background: transparent; border: 1px solid transparent; border-radius: 8px;
@@ -233,6 +235,23 @@ textarea { resize: vertical; }
 /* Dashboard */
 .dashGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 900px) { .dashGrid { grid-template-columns: 1fr; } }
+
+/* ---- Dashboard customizável (widgets arrastáveis) ---- */
+.wgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .wgrid { grid-template-columns: 1fr; } }
+.widget { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; min-width: 0; }
+.widget.wide { grid-column: 1 / -1; }
+.widget.editing { border-style: dashed; cursor: grab; }
+.widget.editing:active { cursor: grabbing; }
+.widget.dragging { opacity: .45; }
+.widgethead { display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 8px; }
+.draghandle { color: var(--muted); cursor: grab; }
+.whide { background: transparent; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--muted); cursor: pointer; width: 24px; height: 24px; }
+.whide:hover { color: #fca5a5; border-color: #7f1d1d; }
+.widget .kpis { flex-wrap: wrap; }
 
 .matrixWrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .axisY { align-self: flex-start; font-size: 11px; color: var(--muted); }

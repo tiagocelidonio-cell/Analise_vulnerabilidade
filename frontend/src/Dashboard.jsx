@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
+import CustomDashboard from "./CustomDashboard.jsx";
 
 // Cor da celula/nivel conforme o score (prob x impacto), 1..25.
 function scoreColor(score) {
@@ -111,86 +112,78 @@ export default function Dashboard({ engagement }) {
 
   const critAlto = (data.by_level.critico || 0) + (data.by_level.alto || 0);
 
-  return (
-    <div>
-      <div className="head">
-        <div>
-          <h2>Painel de risco — {data.engagement.client_name}</h2>
-          <p className="muted">{data.engagement.name}</p>
+  const widgets = [
+    {
+      id: "kpis", title: "Indicadores", wide: true, node: (
+        <div className="kpis" style={{ margin: 0 }}>
+          <div className="kpi"><div className="n">{data.total}</div><div className="l">ACHADOS</div></div>
+          <div className="kpi"><div className="n" style={{ color: "#b91c1c" }}>{critAlto}</div><div className="l">CRÍTICO + ALTO</div></div>
+          <div className="kpi"><div className="n" style={{ color: "#7f1d1d" }}>{data.kev_count}</div><div className="l">EXPLORADOS (KEV)</div></div>
+          <div className="kpi"><div className="n" style={{ color: scoreColor(data.avg_score) }}>{data.avg_score}</div><div className="l">SCORE MÉDIO</div></div>
         </div>
-        <div className="row">
-          <button className="btn" onClick={load}>Atualizar</button>
-          <button className="btn primary" onClick={() => setCfgOpen(true)}>📄 Gerar relatório</button>
-        </div>
-      </div>
-      {msg && <div className="err">{msg}</div>}
-      {cfgOpen && <ReportConfig engagement={engagement} onClose={() => setCfgOpen(false)} />}
-
-      {/* KPIs executivos */}
-      <div className="kpis">
-        <div className="kpi"><div className="n">{data.total}</div><div className="l">ACHADOS</div></div>
-        <div className="kpi"><div className="n" style={{ color: "#b91c1c" }}>{critAlto}</div><div className="l">CRÍTICO + ALTO</div></div>
-        <div className="kpi"><div className="n" style={{ color: "#7f1d1d" }}>{data.kev_count}</div><div className="l">EXPLORADOS (KEV)</div></div>
-        <div className="kpi"><div className="n" style={{ color: scoreColor(data.avg_score) }}>{data.avg_score}</div><div className="l">SCORE MÉDIO</div></div>
-      </div>
-
-      <div className="dashGrid">
-        {/* Matriz de risco */}
-        <div className="card">
-          <h3>Matriz de risco (probabilidade × impacto)</h3>
+      ),
+    },
+    {
+      id: "matrix", title: "Matriz de risco (probabilidade × impacto)", node: (
+        <>
           <RiskMatrix matrix={data.matrix} />
           <div className="legend">
-            {LEVELS.map((l) => (
-              <span key={l.key} className="lg">
-                <i style={{ background: l.color }} /> {l.label}
-              </span>
-            ))}
+            {LEVELS.map((l) => (<span key={l.key} className="lg"><i style={{ background: l.color }} /> {l.label}</span>))}
           </div>
-        </div>
-
-        {/* Distribuicao por nivel */}
-        <div className="card">
-          <h3>Distribuição por nível</h3>
-          {LEVELS.map((l) => {
-            const n = data.by_level[l.key] || 0;
-            const pct = data.total ? Math.round((n / data.total) * 100) : 0;
-            return (
-              <div key={l.key} className="bar">
-                <span className="barlabel">{l.label}</span>
-                <div className="bartrack">
-                  <div className="barfill" style={{ width: `${pct}%`, background: l.color }} />
-                </div>
-                <span className="barn">{n}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Top riscos */}
-      <div className="card">
-        <h3>Top 10 riscos priorizados</h3>
+        </>
+      ),
+    },
+    {
+      id: "dist", title: "Distribuição por nível", node: (
+        LEVELS.map((l) => {
+          const n = data.by_level[l.key] || 0;
+          const pct = data.total ? Math.round((n / data.total) * 100) : 0;
+          return (
+            <div key={l.key} className="bar">
+              <span className="barlabel">{l.label}</span>
+              <div className="bartrack"><div className="barfill" style={{ width: `${pct}%`, background: l.color }} /></div>
+              <span className="barn">{n}</span>
+            </div>
+          );
+        })
+      ),
+    },
+    {
+      id: "toprisks", title: "Top 10 riscos priorizados", wide: true, node: (
         <table className="t">
           <thead><tr><th>#</th><th>Risco</th><th>Alvo</th><th>CVEs</th><th>Prob.</th><th>Impacto</th><th>Score</th><th>Nível</th></tr></thead>
           <tbody>
             {data.top_risks.map((r, idx) => (
               <tr key={r.id || idx}>
-                <td>{idx + 1}</td>
-                <td>{r.title}</td>
-                <td>{r.target}</td>
+                <td>{idx + 1}</td><td>{r.title}</td><td>{r.target}</td>
                 <td>{r.cve_ids && r.cve_ids.length
                   ? r.cve_ids.slice(0, 3).join(", ") + (r.cve_ids.length > 3 ? ` +${r.cve_ids.length - 3}` : "")
                   : "—"}</td>
-                <td>{r.probability}</td>
-                <td>{r.impact}</td>
-                <td><b>{r.score}</b></td>
+                <td>{r.probability}</td><td>{r.impact}</td><td><b>{r.score}</b></td>
                 <td><span className="pill" style={{ background: scoreColor(r.score) }}>{r.level.toUpperCase()}</span></td>
               </tr>
             ))}
             {data.top_risks.length === 0 && <tr><td colSpan={8} className="muted">Sem achados ainda.</td></tr>}
           </tbody>
         </table>
-      </div>
-    </div>
+      ),
+    },
+  ];
+
+  const actions = (
+    <>
+      <button className="btn" onClick={load}>Atualizar</button>
+      <button className="btn primary" onClick={() => setCfgOpen(true)}>📄 Gerar relatório</button>
+    </>
+  );
+
+  return (
+    <>
+      {msg && <div className="err">{msg}</div>}
+      {cfgOpen && <ReportConfig engagement={engagement} onClose={() => setCfgOpen(false)} />}
+      <CustomDashboard storageKey={`dash_client_v1`} widgets={widgets} actions={actions}
+        title={`Painel de risco — ${data.engagement.client_name}`}
+        subtitle={data.engagement.name} />
+    </>
   );
 }

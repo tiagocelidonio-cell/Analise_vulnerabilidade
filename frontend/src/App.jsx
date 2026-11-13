@@ -625,6 +625,8 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [dragClient, setDragClient] = useState(null);
+  const [orderTick, setOrderTick] = useState(0);
 
   // Re-renderiza quando a marca (logo/nome/cores) muda.
   useEffect(() => onBrandingChange(() => setBrandV((v) => v + 1)), []);
@@ -656,8 +658,29 @@ export default function App() {
 
   const initials = ((user.name || user.email || "?").trim()[0] || "?").toUpperCase();
 
+  function orderedEngagements() {
+    let order = [];
+    try { order = JSON.parse(localStorage.getItem("client_order_v1") || "[]"); } catch { order = []; }
+    const pos = Object.fromEntries(order.map((id, i) => [id, i]));
+    return [...engagements].sort((a, b) => (pos[a.id] ?? 1e9) - (pos[b.id] ?? 1e9));
+  }
+  function reorderClient(fromId, toId) {
+    if (!fromId || fromId === toId) return;
+    const ids = orderedEngagements().map((e) => e.id);
+    ids.splice(ids.indexOf(fromId), 1);
+    ids.splice(ids.indexOf(toId), 0, fromId);
+    try { localStorage.setItem("client_order_v1", JSON.stringify(ids)); } catch { /* */ }
+    setOrderTick((t) => t + 1);
+  }
+
   const clientRow = (e) => (
-    <div key={e.id} className={`engrow ${selected?.id === e.id && view === "client" ? "active" : ""}`}>
+    <div key={e.id} className={`engrow ${selected?.id === e.id && view === "client" ? "active" : ""} ${dragClient === e.id ? "dragging" : ""}`}
+      draggable
+      onDragStart={() => setDragClient(e.id)}
+      onDragEnd={() => setDragClient(null)}
+      onDragOver={(ev) => ev.preventDefault()}
+      onDrop={(ev) => { ev.preventDefault(); reorderClient(dragClient, e.id); setDragClient(null); }}
+      title="Arraste para reordenar">
       <button className="eng" onClick={() => { setSelected(e); setView("client"); }}>
         <div className="ename">{e.name}</div>
         <div className="eclient muted">{e.client_name}{e.authorized ? "" : " · não autorizado"}</div>
@@ -677,9 +700,10 @@ export default function App() {
   // Admin: agrupa os clientes por consultor (nome do dono). Consultor: lista plana.
   function renderClients() {
     if (engagements.length === 0) return <p className="muted">Nenhum cliente.</p>;
-    if (user.role !== "admin") return engagements.map(clientRow);
+    const list = orderedEngagements();
+    if (user.role !== "admin") return list.map(clientRow);
     const groups = {};
-    for (const e of engagements) {
+    for (const e of list) {
       const k = e.owner_name || "Sem consultor";
       (groups[k] = groups[k] || []).push(e);
     }
