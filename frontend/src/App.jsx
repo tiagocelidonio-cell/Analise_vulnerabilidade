@@ -616,6 +616,8 @@ export default function App() {
   const [view, setView] = useState("overview"); // overview | client | admin
   const [error, setError] = useState("");
   const [, setBrandV] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Re-renderiza quando a marca (logo/nome/cores) muda.
   useEffect(() => onBrandingChange(() => setBrandV((v) => v + 1)), []);
@@ -645,25 +647,39 @@ export default function App() {
   if (!authChecked) return <div className="empty">Carregando…</div>;
   if (!user) return <Login onLogin={setUser} />;
 
+  const initials = ((user.name || user.email || "?").trim()[0] || "?").toUpperCase();
+
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
+    <div className="shell">
+      <header className="topbar">
+        <div className="topbrand">
           <img src={branding.logo} alt="logo" className="brandLogo" />
-          {branding.appName}
+          <span>{branding.appName}</span>
         </div>
-        <div className="userbox">
-          <div>
-            <div className="uname">{user.name || user.email}</div>
-            <div className="muted" style={{ fontSize: 11 }}>{user.role}</div>
-          </div>
-          <button className="btn" onClick={logout}>Sair</button>
-        </div>
-        <nav className="nav">
+        <div className="topright">
           {user.role === "admin" && (
-            <button className={`navbtn ${view === "admin" ? "active" : ""}`}
-              onClick={() => { setView("admin"); setSelected(null); }}>⚙ Administração</button>
+            <button className={`topbtn ${view === "admin" ? "active" : ""}`} title="Administração"
+              onClick={() => { setView("admin"); setSelected(null); setMenuOpen(false); }}>⚙</button>
           )}
+          <button className="topbtn" title="Ajuda" onClick={() => setHelpOpen(true)}>?</button>
+          <div className="avatarwrap">
+            <button className="avatar" title={user.email} onClick={() => setMenuOpen((o) => !o)}>{initials}</button>
+            {menuOpen && (
+              <>
+                <div className="menuback" onClick={() => setMenuOpen(false)} />
+                <div className="usermenu">
+                  <div className="uname">{user.name || user.email}</div>
+                  <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>{user.email} · {user.role}</div>
+                  <button className="btn block" onClick={logout}>Sair</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+      <div className="app">
+      <aside className="sidebar">
+        <nav className="nav">
           <button className={`navbtn ${view === "overview" ? "active" : ""}`}
             onClick={() => { setView("overview"); setSelected(null); }}>Visão geral</button>
         </nav>
@@ -702,6 +718,28 @@ export default function App() {
         )}
         {view === "client" && !selected && <div className="empty">Selecione um cliente.</div>}
       </main>
+      </div>
+
+      {helpOpen && (
+        <div className="modalOverlay" onClick={() => setHelpOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHead">
+              <h2 style={{ margin: 0 }}>Ajuda</h2>
+              <button className="btn" onClick={() => setHelpOpen(false)}>✕</button>
+            </div>
+            <p className="muted">{branding.appName} — plataforma de análise de vulnerabilidades.</p>
+            <ul style={{ fontSize: 13, lineHeight: 1.7, paddingLeft: 18 }}>
+              <li><b>Visão geral</b>: consolidação de risco e benchmarking de todos os clientes.</li>
+              <li><b>Clientes</b> (lista à esquerda): Dashboard, Nova varredura, Ativos e Achados.</li>
+              <li><b>⚙ Administração</b> (admin): usuários, base de CVEs, identidade visual e fuso horário.</li>
+              <li>Varreduras rodam em background — acompanhe o progresso e o batimento em <b>Achados</b>.</li>
+            </ul>
+            <div className="modalFoot">
+              <button className="btn primary" onClick={() => setHelpOpen(false)}>Entendi</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

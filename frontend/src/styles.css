@@ -14,9 +14,31 @@ h1 { font-size: 22px; }
 h2 { font-size: 18px; margin: 0 0 2px; }
 h3 { font-size: 14px; margin: 4px 0; }
 
-.app { display: flex; min-height: 100vh; }
+.shell { display: flex; flex-direction: column; min-height: 100vh; }
+.app { display: flex; flex: 1; min-height: 0; }
 .sidebar { width: 300px; background: var(--panel); border-right: 1px solid var(--line);
   padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ---- Barra superior ---- */
+.topbar { display: flex; align-items: center; justify-content: space-between;
+  height: 52px; padding: 0 16px; background: var(--panel);
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 30; }
+.topbrand { display: flex; align-items: center; gap: 9px; font-weight: 600;
+  font-family: var(--heading-font, inherit); letter-spacing: .3px; }
+.topright { display: flex; align-items: center; gap: 8px; }
+.topbtn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid transparent;
+  background: transparent; color: var(--muted); cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center; }
+.topbtn:hover { background: var(--card); color: var(--text); }
+.topbtn.active { background: var(--card); border-color: var(--accent); color: var(--text); }
+.avatarwrap { position: relative; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--card); color: var(--text); font-weight: 700; cursor: pointer; }
+.avatar:hover { border-color: var(--accent); }
+.menuback { position: fixed; inset: 0; z-index: 40; }
+.usermenu { position: absolute; right: 0; top: 42px; z-index: 50; width: 220px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
 .brand { font-family: var(--heading-font, inherit); font-size: 17px; font-weight: 600;
   letter-spacing: .3px; display: flex; align-items: center; gap: 9px; }
 .brandLogo { width: 26px; height: 26px; }
