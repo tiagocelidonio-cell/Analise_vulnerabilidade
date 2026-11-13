@@ -137,11 +137,7 @@ export default function Overview() {
   ];
 
   const actions = (
-    <>
-      <button className="btn" onClick={() => { load(); loadCve(); }}>Atualizar</button>
-      <a className="btn" href={api.overviewReportHtmlUrl()} target="_blank" rel="noreferrer">Preview</a>
-      <a className="btn primary" href={api.overviewReportPdfUrl()}>Relatório PDF</a>
-    </>
+    <button className="btn" onClick={() => { load(); loadCve(); }}>Atualizar</button>
   );
 
   return (
