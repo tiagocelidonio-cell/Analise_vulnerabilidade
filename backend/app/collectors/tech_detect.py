@@ -115,24 +115,29 @@ class TechDetectCollector:
 
     async def run(self, targets: list[str], ports: list[int] | None = None, **kwargs):
         on_tick = kwargs.get("on_tick")
-        plist = ports or [443, 80, 8080, 8443]
-        timeout = settings.scan_connect_timeout * 3
+        plist = ports or [443, 80]
+        # Timeout curto: num /24 a maioria dos IPs nao responde; nao da para
+        # esperar muito por host (senao o scan "trava").
+        timeout = min(settings.scan_connect_timeout * 2, 4.0)
         facts: list[CollectedFact] = []
+        # on_tick (heartbeat) NAO pode ser chamado de dentro das corrotinas
+        # paralelas: a sessao async do worker nao aceita commits concorrentes.
+        # O worker ja bate o heartbeat a cada lote; aqui so sinalizamos no inicio.
+        if on_tick:
+            try:
+                await on_tick()
+            except Exception:  # noqa: BLE001
+                pass
+        sem = asyncio.Semaphore(40)  # roda os hosts em PARALELO
         async with httpx.AsyncClient(verify=False, timeout=timeout,
                                      headers={"User-Agent": "Mozilla/5.0 VulnScope"}) as client:
-            for raw_host in targets:
+            async def one(raw_host: str) -> None:
                 host = raw_host.split("://")[-1].split("/")[0].split(":")[0]
-                if on_tick:
-                    try:
-                        await on_tick()
-                    except Exception:  # noqa: BLE001
-                        pass
-                seen_host = False
-                for p in plist:
-                    f = await _detect(client, host, p)
-                    if f is not None:
-                        facts.append(f)
-                        seen_host = True
-                        break  # um fingerprint por host basta
-                _ = seen_host
+                async with sem:
+                    for p in plist:
+                        f = await _detect(client, host, p)
+                        if f is not None:
+                            facts.append(f)
+                            break  # um fingerprint por host basta
+            await asyncio.gather(*(one(h) for h in targets))
         return facts

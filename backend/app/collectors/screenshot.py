@@ -6,6 +6,7 @@ Nao-intrusivo: apenas abre a pagina e fotografa.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import os
 import shutil
@@ -60,41 +61,58 @@ class ScreenshotCollector:
                 data={"severity_hint": "info", "source": "screenshot_setup"})]
 
         plist = ports or [443, 80]
+        hosts = [h.split("://")[-1].split("/")[0].split(":")[0] for h in targets]
+
+        # 1) Descobre em PARALELO quais hosts tem web (evita travar num /24).
+        sem = asyncio.Semaphore(50)
+
+        async def first_alive(host: str) -> str | None:
+            async with sem:
+                for p in plist:
+                    if await _responds(f"{_scheme(p)}://{host}:{p}"):
+                        return f"{_scheme(p)}://{host}:{p}"
+            return None
+
+        alive = [u for u in await asyncio.gather(*(first_alive(h) for h in hosts)) if u]
+
+        # 2) Captura (sequencial, chromium e pesado) ate o teto.
         facts: list[CollectedFact] = []
         count = 0
-        for raw_host in targets:
-            host = raw_host.split("://")[-1].split("/")[0].split(":")[0]
+        for url in alive:
             if count >= _MAX:
                 break
-            for p in plist:
-                if count >= _MAX:
-                    break
-                url = f"{_scheme(p)}://{host}:{p}"
-                if not await _responds(url):
-                    continue
-                tmp = tempfile.mktemp(suffix=".png")
-                args = [chrome, "--headless", "--no-sandbox", "--disable-gpu",
-                        "--hide-scrollbars", "--disable-dev-shm-usage",
-                        "--virtual-time-budget=8000", "--window-size=1280,800",
-                        f"--screenshot={tmp}", url]
+            host = url.split("://")[-1].split(":")[0]
+            p = int(url.rsplit(":", 1)[-1])
+            if cancel_check and await cancel_check():
+                break
+            if on_tick:
                 try:
-                    await run_killable(args, cancel_check=cancel_check, on_tick=on_tick)
-                    if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
-                        continue
+                    await on_tick(f"screenshot: {url}")
+                except Exception:  # noqa: BLE001
+                    pass
+            tmp = tempfile.mktemp(suffix=".png")
+            args = [chrome, "--headless", "--no-sandbox", "--disable-gpu",
+                    "--hide-scrollbars", "--disable-dev-shm-usage",
+                    "--virtual-time-budget=8000", "--window-size=1280,800",
+                    f"--screenshot={tmp}", url]
+            b64 = None
+            try:
+                await run_killable(args, cancel_check=cancel_check, on_tick=on_tick)
+                if os.path.exists(tmp) and os.path.getsize(tmp) > 0:
                     with open(tmp, "rb") as fh:
                         b64 = base64.b64encode(fh.read()).decode("ascii")
-                finally:
-                    with open(os.devnull, "w"):
-                        try:
-                            os.unlink(tmp)
-                        except OSError:
-                            pass
-                count += 1
-                facts.append(CollectedFact(
-                    target=host, port=p, service="screenshot",
-                    title=f"Captura de tela: {url}",
-                    raw=url,
-                    data={"severity_hint": "info", "source": "screenshot",
-                          "screenshot_b64": b64, "url": url}))
-                break  # uma captura por host
+            finally:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+            if not b64:
+                continue
+            count += 1
+            facts.append(CollectedFact(
+                target=host, port=p, service="screenshot",
+                title=f"Captura de tela: {url}",
+                raw=url,
+                data={"severity_hint": "info", "source": "screenshot",
+                      "screenshot_b64": b64, "url": url}))
         return facts
