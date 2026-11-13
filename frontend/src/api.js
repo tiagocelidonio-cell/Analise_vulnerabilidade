@@ -61,6 +61,8 @@ export const api = {
   updateUser: (id, body) => req(`/auth/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteUser: (id) => req(`/auth/users/${id}`, { method: "DELETE" }),
   overview: () => req("/overview"),
+  getIntegrations: () => req("/integrations"),
+  updateIntegrations: (updates) => req("/integrations", { method: "PUT", body: JSON.stringify({ updates }) }),
   cveStatus: () => req("/cve/status"),
   cveUpdate: (full = false) => req(`/cve/update?full=${full}`, { method: "POST" }),
   cveImportCancel: () => req("/cve/import/cancel", { method: "POST" }),

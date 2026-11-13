@@ -25,6 +25,9 @@ from app.targets import expand_targets
 
 async def run_scan(ctx: dict, scan_id: str) -> dict:
     async with SessionLocal() as session:
+        # Chaves de API do painel (Google CSE, HIBP, Claude) antes de coletar.
+        from app.api.integrations import apply_db_keys
+        await apply_db_keys(session)
         scan = await session.get(ScanJob, scan_id)
         if scan is None:
             return {"error": "scan nao encontrado"}
@@ -335,8 +338,10 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 async def update_cve_base(ctx: dict, full: bool = False) -> dict:
     """Atualiza a base local de CVE.
     full=True: baixa a base completa pela NVD (paginada + monitorada)."""
+    from app.api.integrations import apply_db_keys
     from app.enrichment.cve_import import import_full_nvd, refresh_seen
     async with SessionLocal() as session:
+        await apply_db_keys(session)  # pega NVD_API_KEY salva no painel
         if full:
             return await import_full_nvd(session)
         return await refresh_seen(session)

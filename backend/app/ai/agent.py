@@ -110,20 +110,31 @@ class AiAnalyst:
 
     def __init__(self) -> None:
         self._client = None
-        if settings.ai_enabled:
-            from anthropic import AsyncAnthropic
+        self._key = None
 
-            self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    def _get_client(self):
+        """Cria/recria o cliente conforme a chave ATUAL (pode vir do painel)."""
+        key = settings.anthropic_api_key or ""
+        if not key:
+            self._client = None
+            self._key = ""
+            return None
+        if self._client is None or self._key != key:
+            from anthropic import AsyncAnthropic
+            self._client = AsyncAnthropic(api_key=key)
+            self._key = key
+        return self._client
 
     async def assess(self, fact: dict, enrichment: dict) -> AiAssessment:
-        if self._client is None:
+        client = self._get_client()
+        if client is None:
             return _stub_assessment(fact, enrichment)
 
         payload = json.dumps(
             {"fact": fact, "enrichment": enrichment}, ensure_ascii=False
         )
         try:
-            msg = await self._client.messages.create(
+            msg = await client.messages.create(
                 model=settings.ai_model,
                 max_tokens=1024,
                 system=SYSTEM_PROMPT,

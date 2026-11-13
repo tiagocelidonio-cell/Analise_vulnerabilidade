@@ -21,6 +21,7 @@ from app.api import (
     engagements,
     exploit,
     findings,
+    integrations,
     overview,
     postexploit,
     reports,
@@ -37,6 +38,9 @@ async def lifespan(app: FastAPI):
     await init_db()
     async with SessionLocal() as session:
         await ensure_seed_admin(session)
+        # Chaves de API salvas no painel sobrepoem o .env.
+        from app.api.integrations import apply_db_keys
+        await apply_db_keys(session)
     app.state.redis_url = settings.redis_url
     app.state.redis_pool = await create_pool(
         RedisSettings.from_dsn(settings.redis_url)
@@ -71,6 +75,7 @@ app.include_router(overview.router, dependencies=_auth)
 app.include_router(postexploit.router, dependencies=_auth)
 app.include_router(assets.router, dependencies=_auth)
 app.include_router(cve.router, dependencies=_auth)
+app.include_router(integrations.router, dependencies=_auth)
 
 
 @app.exception_handler(Exception)

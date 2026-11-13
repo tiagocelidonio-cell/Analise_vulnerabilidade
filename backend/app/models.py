@@ -252,3 +252,14 @@ class CveImportStatus(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ApiCredential(Base):
+    """Chaves/segredos de integracao, editaveis pelo admin no painel.
+    Sobrepoem o .env quando a linha existe. O valor nunca e devolvido ao front."""
+
+    __tablename__ = "api_credentials"
+
+    key_name: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
