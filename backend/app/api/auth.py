@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,41 @@ from app.models import User
 from app.schemas import LoginIn, TokenOut, UserCreate, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class ProfileUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    current_password: str | None = None
+    new_password: str | None = None
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(
+    body: ProfileUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """O proprio usuario edita seus dados e troca a senha (qualquer perfil)."""
+    if body.name is not None:
+        user.name = body.name.strip()
+    if body.email and body.email.strip().lower() != user.email.lower():
+        novo = body.email.strip().lower()
+        exists = await session.scalar(select(User).where(User.email == novo))
+        if exists is not None:
+            raise HTTPException(409, "E-mail ja cadastrado por outro usuario.")
+        user.email = novo
+    if body.new_password:
+        if not body.current_password or not verify_password(
+            body.current_password, user.hashed_password
+        ):
+            raise HTTPException(400, "Senha atual incorreta.")
+        if len(body.new_password) < 6:
+            raise HTTPException(400, "A nova senha deve ter ao menos 6 caracteres.")
+        user.hashed_password = hash_password(body.new_password)
+    await session.commit()
+    await session.refresh(user)
+    return user
 
 
 @router.post("/login", response_model=TokenOut)

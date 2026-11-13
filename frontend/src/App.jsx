@@ -9,6 +9,7 @@ import { FLAT_TOOLS } from "./tools.js";
 import { downloadCsv } from "./csv.js";
 import Overview from "./Overview.jsx";
 import Admin from "./Admin.jsx";
+import Profile from "./Profile.jsx";
 import Login from "./Login.jsx";
 
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
@@ -618,6 +619,7 @@ export default function App() {
   const [, setBrandV] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Re-renderiza quando a marca (logo/nome/cores) muda.
   useEffect(() => onBrandingChange(() => setBrandV((v) => v + 1)), []);
@@ -670,6 +672,8 @@ export default function App() {
                 <div className="usermenu">
                   <div className="uname">{user.name || user.email}</div>
                   <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>{user.email} · {user.role}</div>
+                  <button className="btn block" style={{ marginBottom: 6 }}
+                    onClick={() => { setProfileOpen(true); setMenuOpen(false); }}>Meu perfil</button>
                   <button className="btn block" onClick={logout}>Sair</button>
                 </div>
               </>
@@ -739,6 +743,11 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {profileOpen && (
+        <Profile user={user} onClose={() => setProfileOpen(false)}
+          onSaved={(u) => setUser(u)} />
       )}
     </div>
   );

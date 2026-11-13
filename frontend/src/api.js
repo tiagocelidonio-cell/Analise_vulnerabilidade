@@ -52,6 +52,7 @@ export const api = {
     return r;
   },
   me: () => req("/auth/me"),
+  updateMe: (body) => req("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
   getConfig: () => req("/config"),
   updateConfig: (body) => req("/config", { method: "PUT", body: JSON.stringify(body) }),
   logout: () => setToken(null),
