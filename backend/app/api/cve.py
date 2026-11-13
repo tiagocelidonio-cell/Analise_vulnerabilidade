@@ -78,11 +78,12 @@ async def cve_update(
 ) -> dict:
     """Dispara a atualizacao da base de CVE em background (worker).
 
+    Restrito ao admin (item de administracao).
     - full=false (padrao): re-busca remediacao dos CVEs ja vistos (leve).
-    - full=true: baixa o bundle oficial e importa tudo (pesado, so admin).
+    - full=true: baixa o bundle oficial e importa tudo (pesado).
     """
-    if full and user.role != "admin":
-        raise HTTPException(403, "Importacao completa e restrita ao admin.")
+    if user.role != "admin":
+        raise HTTPException(403, "Apenas admin pode atualizar a base de CVE.")
 
     pool = getattr(request.app.state, "redis_pool", None)
     if pool is None:

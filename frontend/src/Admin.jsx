@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
 import { applyConfig, branding, fmtDateTime } from "./branding.js";
+import CveBase from "./CveBase.jsx";
 
 const TIMEZONES = [
   "America/Sao_Paulo", "America/Manaus", "America/Belem", "America/Fortaleza",
@@ -230,6 +231,7 @@ function Clock() {
 
 const SECTIONS = [
   { k: "users", label: "Usuários" },
+  { k: "cve", label: "Base de CVEs" },
   { k: "platform", label: "Plataforma" },
   { k: "identity", label: "Identidade visual" },
   { k: "clock", label: "Data / hora" },
@@ -250,6 +252,7 @@ export default function Admin({ me }) {
         ))}
       </div>
       {sec === "users" && <Users me={me} />}
+      {sec === "cve" && <CveBase />}
       {sec === "platform" && <Platform />}
       {sec === "identity" && <Identity />}
       {sec === "clock" && <Clock />}

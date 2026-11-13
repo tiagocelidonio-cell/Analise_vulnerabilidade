@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
+import { fmtDateTime } from "./branding.js";
 
 const SEV = [
   { key: "critical", label: "Crítico", color: "#7f1d1d" },
@@ -14,43 +15,14 @@ export default function Overview() {
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
   const [cveSt, setCveSt] = useState(null);
-  const [cveMsg, setCveMsg] = useState("");
-  const [sched, setSched] = useState(null); // {enabled, interval_hours, full,...}
 
   const load = useCallback(async () => {
     try { setD(await api.overview()); } catch (e) { setErr(e.message); }
   }, []);
   const loadCve = useCallback(async () => {
-    try {
-      const st = await api.cveStatus();
-      setCveSt(st);
-      if (st.schedule) setSched((prev) => prev || st.schedule);
-    } catch { /* ignore */ }
+    try { setCveSt(await api.cveStatus()); } catch { /* ignore */ }
   }, []);
   useEffect(() => { load(); loadCve(); }, [load, loadCve]);
-
-  async function updateCve(full) {
-    setCveMsg(full ? "Importando base completa (pode demorar)…" : "Atualizando CVEs vistos…");
-    try {
-      const r = await api.cveUpdate(full);
-      setCveMsg(r.mensagem || "Atualização iniciada.");
-      setTimeout(loadCve, 4000);
-    } catch (e) { setCveMsg(`Falha: ${e.message}`); }
-  }
-
-  async function saveSchedule() {
-    try {
-      const saved = await api.cveScheduleSet({
-        enabled: sched.enabled,
-        interval_hours: Number(sched.interval_hours) || 24,
-        full: sched.full,
-      });
-      setSched(saved);
-      setCveMsg(saved.enabled
-        ? `Rotina salva: a cada ${saved.interval_hours}h (${saved.full ? "base completa" : "CVEs vistos"}).`
-        : "Rotina desativada.");
-    } catch (e) { setCveMsg(`Falha ao salvar rotina: ${e.message}`); }
-  }
 
   if (err) return <div className="err">{err}</div>;
   if (!d) return <div className="muted">Carregando visão geral…</div>;
@@ -159,59 +131,10 @@ export default function Overview() {
           Fontes: {cve.sources}. Atualizada a cada varredura; prevalência = % de
           clientes afetados (anônimo, para benchmarking).
         </p>
-        <div className="cvectl">
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-            Base local: <b>{cveSt?.count ?? "—"}</b> CVEs
-            {cveSt?.last_updated && ` · atualizada ${new Date(cveSt.last_updated).toLocaleString("pt-BR")}`}
-          </div>
-
-          {/* Opção 1 — manual */}
-          <div className="cveopt">
-            <b style={{ fontSize: 13 }}>1 · Atualização manual</b>
-            <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-              <button className="btn" style={{ padding: "3px 10px" }} onClick={() => updateCve(false)}>
-                ↻ Atualizar CVEs vistos
-              </button>
-              <button className="btn" style={{ padding: "3px 10px" }} onClick={() => updateCve(true)}
-                title="Baixa o bundle oficial (CVE List JSON 5.0). Pesado. Só admin.">
-                ⬇ Importar base completa
-              </button>
-            </div>
-          </div>
-
-          {/* Opção 2 — programada */}
-          <div className="cveopt">
-            <b style={{ fontSize: 13 }}>2 · Atualização programada</b>
-            {sched ? (
-              <div className="row" style={{ gap: 10, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
-                <label className="check">
-                  <input type="checkbox" checked={sched.enabled}
-                    onChange={(e) => setSched({ ...sched, enabled: e.target.checked })} /> Ativar rotina
-                </label>
-                <span className="muted" style={{ fontSize: 12 }}>a cada</span>
-                <input type="number" min="1" value={sched.interval_hours} style={{ width: 70 }}
-                  onChange={(e) => setSched({ ...sched, interval_hours: e.target.value })} />
-                <span className="muted" style={{ fontSize: 12 }}>horas</span>
-                <select value={sched.full ? "full" : "seen"}
-                  onChange={(e) => setSched({ ...sched, full: e.target.value === "full" })}
-                  style={{ width: "auto" }}>
-                  <option value="seen">CVEs vistos (leve)</option>
-                  <option value="full">Base completa (pesado)</option>
-                </select>
-                <button className="btn primary" style={{ padding: "3px 12px" }} onClick={saveSchedule}>
-                  Salvar rotina
-                </button>
-              </div>
-            ) : <div className="muted" style={{ fontSize: 12 }}>carregando…</div>}
-            {sched?.last_run && (
-              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                Última execução automática: {new Date(sched.last_run).toLocaleString("pt-BR")}
-                {sched.last_result && ` — ${sched.last_result}`}
-              </div>
-            )}
-          </div>
-
-          {cveMsg && <div className="info" style={{ fontSize: 12, marginTop: 8 }}>{cveMsg}</div>}
+        <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+          Base local: <b>{cveSt?.count ?? "—"}</b> CVEs
+          {cveSt?.last_updated && ` · atualizada ${fmtDateTime(cveSt.last_updated)}`}
+          <span> · a atualização fica em <b>Administração › Base de CVEs</b>.</span>
         </div>
         <table className="t">
           <thead><tr><th>CVE</th><th>Clientes</th><th>Prevalência</th><th>CVSS</th><th>EPSS</th><th>KEV</th></tr></thead>
