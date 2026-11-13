@@ -82,10 +82,9 @@ export default function Reports() {
 
   return (
     <div>
-      <div className="head"><div>
-        <h2>Relatórios</h2>
-        <p className="muted">Relatório consolidado e exportação de dados.</p>
-      </div></div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Dados consolidados de todos os clientes — visível apenas para o administrador.
+      </p>
 
       <div className="card" style={{ maxWidth: 680 }}>
         <h3>Relatório consolidado (todos os clientes)</h3>
