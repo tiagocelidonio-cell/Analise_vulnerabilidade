@@ -97,8 +97,10 @@ async def _detect(client: httpx.AsyncClient, host: str, port: int) -> CollectedF
     if mg:
         tech.add(mg.group(1))
 
+    # Sempre emite quando o host RESPONDEU (mesmo sem assinatura clara): ao menos
+    # registra o servidor e o status, util para a superficie de ataque.
     if not tech:
-        return None
+        tech.add(f"servidor nao identificado (HTTP {r.status_code})")
     techs = sorted(tech)
     return CollectedFact(
         target=host, port=port, service="tech",

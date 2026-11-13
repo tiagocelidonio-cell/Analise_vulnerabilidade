@@ -114,23 +114,39 @@ class OsintCollector:
                         title=f"E-mail público: {e}", raw=e,
                         data={"severity_hint": "info", "email": e, "source": "osint"}))
 
-                await tick(f"osint: domínios (crt.sh) de {domain}")
-                domains = await _crtsh_domains(client, domain)
+                # Dominios: subfinder/amass (robusto) UNIAO crt.sh (CT).
+                await tick(f"osint: subdomínios de {domain}")
+                domains: set[str] = set()
                 ips: set[str] = set()
+                try:
+                    from app.collectors.subfinder_scan import SubfinderCollector
+                    subf = await SubfinderCollector().run(
+                        [domain], cancel_check=kwargs.get("cancel_check"), on_tick=on_tick)
+                    for sf in subf:
+                        if sf.service == "subdomain":
+                            domains.add(sf.target)
+                            for ip in (sf.data or {}).get("ips", []):
+                                ips.add(ip)
+                except Exception:  # noqa: BLE001
+                    pass
+                await tick(f"osint: certificados (crt.sh) de {domain}")
+                domains |= await _crtsh_domains(client, domain)
+
                 for d in sorted(domains):
-                    resolved = await asyncio.to_thread(_resolve, d)
-                    for ip in resolved:
+                    dips = (await asyncio.to_thread(_resolve, d)) or []
+                    for ip in dips:
                         ips.add(ip)
                     facts.append(CollectedFact(
                         target=d, service="osint",
-                        title=f"Domínio público (CT): {d}", raw=", ".join(resolved) or "nao resolve",
-                        data={"severity_hint": "info", "ips": resolved, "source": "osint_ct"}))
+                        title=f"Domínio público: {d}", raw=", ".join(dips) or "nao resolve",
+                        data={"severity_hint": "info", "ips": dips, "source": "osint_domain"}))
 
                 facts.append(CollectedFact(
                     target=domain, service="osint",
                     title=f"Pegada pública de {domain}: {len(emails)} e-mails, "
                           f"{len(domains)} domínios, {len(ips)} IPs",
-                    raw=f"emails={len(emails)} dominios={len(domains)} ips={len(ips)}",
+                    raw=(f"E-mails: {', '.join(sorted(emails)) or '-'}\n"
+                         f"Domínios: {len(domains)}\nIPs: {', '.join(sorted(ips)) or '-'}"),
                     data={"severity_hint": "info", "emails": sorted(emails),
                           "domains": sorted(domains), "ips": sorted(ips), "source": "osint_summary"}))
         return facts

@@ -11,11 +11,24 @@ import os
 import shutil
 import tempfile
 
+import httpx
+
 from app.collectors.base import CollectedFact
 from app.collectors.proc import run_killable
 
 _HTTPS_PORTS = {443, 8443}
 _MAX = 30  # teto de capturas por scan (evita payload gigante)
+
+
+async def _responds(url: str) -> bool:
+    """Checa rapido se ha servico web (evita screenshot de IP morto do range)."""
+    try:
+        async with httpx.AsyncClient(verify=False, timeout=5,
+                                     headers={"User-Agent": "VulnScope"}) as c:
+            r = await c.get(url, follow_redirects=True)
+            return r.status_code < 500
+    except (httpx.HTTPError, OSError):
+        return False
 
 
 def _chromium() -> str | None:
@@ -57,8 +70,10 @@ class ScreenshotCollector:
                 if count >= _MAX:
                     break
                 url = f"{_scheme(p)}://{host}:{p}"
+                if not await _responds(url):
+                    continue
                 tmp = tempfile.mktemp(suffix=".png")
-                args = [chrome, "--headless=new", "--no-sandbox", "--disable-gpu",
+                args = [chrome, "--headless", "--no-sandbox", "--disable-gpu",
                         "--hide-scrollbars", "--disable-dev-shm-usage",
                         "--virtual-time-budget=8000", "--window-size=1280,800",
                         f"--screenshot={tmp}", url]
