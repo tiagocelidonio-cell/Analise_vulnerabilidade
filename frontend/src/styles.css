@@ -17,7 +17,7 @@ h3 { font-size: 14px; margin: 4px 0; }
 .shell { display: flex; flex-direction: column; min-height: 100vh; }
 .app { display: flex; flex: 1; min-height: 0; }
 .sidebar { width: 300px; background: var(--panel); border-right: 1px solid var(--line);
-  padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
 
 /* ---- Barra superior ---- */
 .topbar { display: flex; align-items: center; justify-content: space-between;
@@ -67,7 +67,7 @@ button.chip.active { background: var(--accent); border-color: var(--accent); col
 .navbtn.active { background: var(--card); border-color: var(--accent); }
 
 .list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px;
-  flex: 1; min-height: 0; overflow-y: auto; }
+  margin-bottom: 8px; }
 .clientshead { font-size: 11px; text-transform: uppercase; letter-spacing: .4px;
   color: var(--muted); font-weight: 700; margin-top: 4px; padding-top: 8px;
   border-top: 1px solid var(--line); }
@@ -149,7 +149,7 @@ select { background: var(--bg); border: 1px solid var(--line); color: var(--text
 .engdel:hover { color: #fca5a5; border-color: #7f1d1d; background: #450a0a; }
 .ename { font-weight: 600; }
 .eclient, .muted { color: var(--muted); font-size: 12px; }
-.api { margin-top: auto; font-size: 11px; }
+.api { margin-top: 12px; font-size: 11px; }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
   padding: 14px; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
