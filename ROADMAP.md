@@ -51,6 +51,8 @@ os itens conforme forem concluídos. Nada aqui quebra o que já existe.
 6. **Visualização** — topologia do ambiente colorida por risco.
 7. **Orquestração** — muitas ferramentas open-source em 2º plano, resultado normalizado.
 8. **Relatórios** — executivo + técnico, no padrão dos slides Lozinsky.
+9. **Threat Intelligence & Novidades** — aproveitar a base de CVE como inteligência
+   viva: CVEs recentes, exploração ativa (KEV), notícias de ataques e campanhas.
 
 ---
 
@@ -112,6 +114,24 @@ os itens conforme forem concluídos. Nada aqui quebra o que já existe.
   deduplica e correlaciona — sempre sob nomes funcionais.
 - [ ] **Perfis de varredura** (rápido / completo / furtivo) e **rate-limit/stealth**.
 - [ ] Observabilidade: fila, uso de recursos, tempo por módulo.
+
+### Onda TI — Threat Intelligence & Novidades (aproveitar a base de CVE)
+> A base de CVE que baixamos vira **inteligência viva**, não um arquivo parado.
+- [ ] **Capturar a data de publicação** dos CVEs no import (campo `published`/
+  `lastModified` da NVD) — pré-requisito para ordenar "mais recentes".
+- [ ] **Painel "CVEs recentes" na Visão geral** (estilo feed de notícias): últimos
+  CVEs baixados/publicados, com severidade, CVSS, se está em KEV (exploração
+  ativa) e link. Filtros por severidade/KEV e destaque para os críticos.
+- [ ] **"Relevantes para você"**: cruzar os CVEs recentes com as **tecnologias
+  detectadas** nos clientes → alertar "saiu um CVE crítico para o Nginx/SAP que
+  você tem no cliente X". Esse é o grande diferencial.
+- [ ] **Feed de Threat Intelligence**: novidades de segurança (ex.: CISA KEV novos,
+  avisos de fornecedores, campanhas/ataques) via fontes públicas/RSS, exibidas
+  como notícias. Curado e com data/fonte.
+- [ ] **Alertas**: quando um CVE novo em KEV casar com a carteira, notificar
+  (painel + opcional e-mail).
+- [ ] **Boletim periódico** (opcional): resumo semanal das novidades relevantes
+  para a carteira, exportável/encaminhável.
 
 ### Transversal (sempre)
 - [ ] **Relatórios profissionais** no padrão Lozinsky: capa, superfície de ataque,
