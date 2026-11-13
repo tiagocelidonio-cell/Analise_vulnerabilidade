@@ -132,7 +132,7 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 | **Maltego** | 🖥️ | replicamos o valor com nossa **topologia** (grafo) | 2 |
 | **BeEF** | 🔒 (nicho) | exploração de navegador; opcional/avançado | 4+ |
 | **SET (phishing)** | ⚠️ trilha à parte | engenharia social exige autorização própria por campanha | futuro |
-| **Aircrack-ng / Wifite / Kismet** | ❌ no cloud | wireless precisa de **rádio físico** → só via agente on-site com hardware | — |
+| **Aircrack-ng / Wifite / Kismet** | 🏠 (agente no notebook) | wireless pelo **agente local** do operador, com adaptador em modo monitor | 3/4 |
 
 ### Leitura rápida
 - **Ganho imediato (Onda 1):** theHarvester, Recon-ng, ffuf/Gobuster, Nikto,
@@ -142,8 +142,9 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
   Netcat — operador dispara, no escopo, com evidência. Nada autônomo.
 - **AD/interno (Onda 3–4, 🏠):** Responder, BloodHound, Mimikatz, tshark — exigem
   estar na rede do cliente (VPN ou agente). É o coração do pentest interno.
-- **Não cabe no cloud:** wireless (rádio físico). Phishing/SET: trilha separada,
-  com autorização própria por campanha.
+- **Wireless (via agente no notebook):** não roda no cloud, mas **roda no agente
+  local do operador** (seu notebook) — captura de handshake WPA/WPA2, WPS, etc.
+  Phishing/SET: trilha separada, com autorização própria por campanha.
 - **Operador, não módulo:** Burp (manual) e Maltego (cujo valor — grafo de
   relações — a gente entrega com a **topologia** própria).
 
@@ -204,6 +205,14 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 - [ ] **Agente/worker interno opcional** (quando VPN não é viável): um coletor
   que o cliente roda na rede dele e devolve resultados com segurança.
 - [ ] Descoberta de rede interna (hosts ativos sem ping, segmentos, serviços).
+- [ ] **Módulo Wi-Fi (via agente no notebook do operador):** mapear redes,
+  capturar handshake WPA/WPA2 e testar WPS — orquestrado pela plataforma, mas
+  executado localmente onde há rádio. Motores: Kismet (mapeamento/IDS),
+  Aircrack-ng (captura/quebra), Wifite (fluxo automatizado).
+  - **Pré-requisitos (honestos):** agente em **Linux**, **root**, e um adaptador
+    Wi-Fi com **modo monitor + injeção** (o cartão interno do notebook geralmente
+    NÃO suporta; normalmente um USB tipo Alfa). Só redes **autorizadas no escopo**.
+    Sem desautenticação em massa (anti-DoS); captura passiva/alvo pontual.
 
 ### Onda 4 — Exploração assistida & pós-exploração (gated)
 > Só habilita em Pentest + autorização + NDA. Operador confirma cada passo.
