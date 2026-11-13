@@ -35,8 +35,17 @@ async def list_engagements(
     # Admin ve todos; consultor ve apenas os seus.
     if user.role != "admin":
         stmt = stmt.where(Engagement.owner_id == user.id)
-    rows = await session.scalars(stmt)
-    return list(rows)
+    engs = list(await session.scalars(stmt))
+
+    # Resolve o nome do consultor dono (para o admin agrupar na barra lateral).
+    owner_ids = {e.owner_id for e in engs if e.owner_id}
+    names: dict[str, str] = {}
+    if owner_ids:
+        urows = await session.scalars(select(User).where(User.id.in_(owner_ids)))
+        names = {u.id: (u.name or u.email) for u in urows}
+    for e in engs:
+        e.owner_name = names.get(e.owner_id) if e.owner_id else None
+    return engs
 
 
 @router.get("/{engagement_id}", response_model=EngagementOut)

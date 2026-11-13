@@ -67,7 +67,13 @@ button.chip.active { background: var(--accent); border-color: var(--accent); col
 .navbtn.active { background: var(--card); border-color: var(--accent); }
 
 .list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px;
-  border-top: 1px solid var(--line); padding-top: 8px; }
+  flex: 1; min-height: 0; overflow-y: auto; }
+.clientshead { font-size: 11px; text-transform: uppercase; letter-spacing: .4px;
+  color: var(--muted); font-weight: 700; margin-top: 4px; padding-top: 8px;
+  border-top: 1px solid var(--line); }
+.cgroup { margin-bottom: 6px; }
+.cgrouphead { font-size: 12px; font-weight: 700; color: var(--text);
+  padding: 6px 4px 3px; border-bottom: 1px dashed var(--line); margin-bottom: 4px; }
 select { background: var(--bg); border: 1px solid var(--line); color: var(--text);
   border-radius: 7px; padding: 8px 10px; font: inherit; }
 

@@ -76,7 +76,7 @@ function NewEngagement({ onCreated }) {
   }
 
   if (!open)
-    return <button className="btn block" onClick={() => setOpen(true)}>+ Novo cliente / engagement</button>;
+    return <button className="btn block" onClick={() => setOpen(true)}>+ Adicionar outro cliente</button>;
 
   return (
     <form className="card" onSubmit={submit}>
@@ -651,6 +651,41 @@ export default function App() {
 
   const initials = ((user.name || user.email || "?").trim()[0] || "?").toUpperCase();
 
+  const clientRow = (e) => (
+    <div key={e.id} className={`engrow ${selected?.id === e.id && view === "client" ? "active" : ""}`}>
+      <button className="eng" onClick={() => { setSelected(e); setView("client"); }}>
+        <div className="ename">{e.name}</div>
+        <div className="eclient muted">{e.client_name}{e.authorized ? "" : " · não autorizado"}</div>
+      </button>
+      <button className="engdel" title="Excluir cliente"
+        onClick={async () => {
+          if (!window.confirm(`Excluir o cliente "${e.client_name}" e TODOS os seus scans, achados e evidências?\n\nEsta ação não pode ser desfeita.`)) return;
+          try {
+            await api.deleteEngagement(e.id);
+            if (selected?.id === e.id) { setSelected(null); setView("overview"); }
+            load();
+          } catch (err) { setError(err.message); }
+        }}>🗑</button>
+    </div>
+  );
+
+  // Admin: agrupa os clientes por consultor (nome do dono). Consultor: lista plana.
+  function renderClients() {
+    if (engagements.length === 0) return <p className="muted">Nenhum cliente.</p>;
+    if (user.role !== "admin") return engagements.map(clientRow);
+    const groups = {};
+    for (const e of engagements) {
+      const k = e.owner_name || "Sem consultor";
+      (groups[k] = groups[k] || []).push(e);
+    }
+    return Object.keys(groups).sort((a, b) => a.localeCompare(b)).map((consultor) => (
+      <div key={consultor} className="cgroup">
+        <div className="cgrouphead">👤 {consultor} <span className="muted">({groups[consultor].length})</span></div>
+        {groups[consultor].map(clientRow)}
+      </div>
+    ));
+  }
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -687,28 +722,11 @@ export default function App() {
           <button className={`navbtn ${view === "overview" ? "active" : ""}`}
             onClick={() => { setView("overview"); setSelected(null); }}>Visão geral</button>
         </nav>
-        <NewEngagement onCreated={(e) => { load(); setSelected(e); setView("client"); }} />
+        <div className="clientshead">{user.role === "admin" ? "Clientes por consultor" : "Meus clientes"}</div>
         <div className="list">
-          {engagements.map((e) => (
-            <div key={e.id} className={`engrow ${selected?.id === e.id && view === "client" ? "active" : ""}`}>
-              <button className="eng"
-                onClick={() => { setSelected(e); setView("client"); }}>
-                <div className="ename">{e.name}</div>
-                <div className="eclient muted">{e.client_name}{e.authorized ? "" : " · nao autorizado"}</div>
-              </button>
-              <button className="engdel" title="Excluir cliente"
-                onClick={async () => {
-                  if (!window.confirm(`Excluir o cliente "${e.client_name}" e TODOS os seus scans, achados e evidências?\n\nEsta ação não pode ser desfeita.`)) return;
-                  try {
-                    await api.deleteEngagement(e.id);
-                    if (selected?.id === e.id) { setSelected(null); setView("overview"); }
-                    load();
-                  } catch (err) { setError(err.message); }
-                }}>🗑</button>
-            </div>
-          ))}
-          {engagements.length === 0 && <p className="muted">Nenhum cliente.</p>}
+          {renderClients()}
         </div>
+        <NewEngagement onCreated={(e) => { load(); setSelected(e); setView("client"); }} />
         {error && <div className="err">{error}</div>}
         <div className="api muted">API: {api.base}</div>
       </aside>

@@ -54,6 +54,7 @@ class EngagementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     owner_id: str | None
+    owner_name: str | None = None
     client_name: str
     name: str
     scope: list[str]
