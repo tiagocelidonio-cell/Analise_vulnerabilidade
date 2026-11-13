@@ -40,6 +40,8 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 _MIGRATIONS = [
     "ALTER TABLE engagements ADD COLUMN IF NOT EXISTS owner_id VARCHAR",
     "ALTER TABLE engagements ADD COLUMN IF NOT EXISTS allow_intrusive BOOLEAN DEFAULT false",
+    "ALTER TABLE engagements ADD COLUMN IF NOT EXISTS engagement_type VARCHAR DEFAULT 'vuln_analysis'",
+    "ALTER TABLE engagements ADD COLUMN IF NOT EXISTS allow_exploitation BOOLEAN DEFAULT false",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS collectors JSON DEFAULT '[]'",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS phase VARCHAR DEFAULT ''",

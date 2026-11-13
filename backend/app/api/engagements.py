@@ -19,7 +19,11 @@ async def create_engagement(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Engagement:
-    eng = Engagement(**body.model_dump(), owner_id=user.id)
+    from app.schemas import ENGAGEMENT_TYPES
+    data = body.model_dump()
+    if data.get("engagement_type") not in ENGAGEMENT_TYPES:
+        data["engagement_type"] = "vuln_analysis"
+    eng = Engagement(**data, owner_id=user.id)
     session.add(eng)
     await session.commit()
     await session.refresh(eng)

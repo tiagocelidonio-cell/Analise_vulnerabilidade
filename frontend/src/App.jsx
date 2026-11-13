@@ -14,6 +14,16 @@ import Profile from "./Profile.jsx";
 import Login from "./Login.jsx";
 
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
+const ENGAGEMENT_TYPES = [
+  { v: "vuln_analysis", l: "Análise de Vulnerabilidades" },
+  { v: "pentest_blackbox", l: "Pentest Blackbox" },
+  { v: "pentest_graybox", l: "Pentest Graybox" },
+  { v: "pentest_whitebox", l: "Pentest Whitebox" },
+  { v: "pentest_internal", l: "Pentest Interno / Rede" },
+  { v: "wireless", l: "Wireless" },
+  { v: "red_team", l: "Red Team" },
+];
+const ENG_TYPE_LABEL = Object.fromEntries(ENGAGEMENT_TYPES.map((t) => [t.v, t.l]));
 const STATUS_PT = {
   queued: "na fila", running: "em andamento", completed: "concluído",
   failed: "falhou", cancelled: "cancelado", paused: "pausado",
@@ -57,8 +67,8 @@ function Pill({ sev }) {
 function NewEngagement({ onCreated }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
-    client_name: "", name: "", scope: "", authorized: false, authorized_by: "",
-    allow_intrusive: false,
+    client_name: "", name: "", engagement_type: "vuln_analysis", scope: "",
+    authorized: false, authorized_by: "", allow_intrusive: false, allow_exploitation: false,
   });
   const [err, setErr] = useState("");
 
@@ -71,8 +81,8 @@ function NewEngagement({ onCreated }) {
         scope: form.scope.split("\n").map((s) => s.trim()).filter(Boolean),
       };
       const eng = await api.createEngagement(body);
-      setForm({ client_name: "", name: "", scope: "", authorized: false,
-        authorized_by: "", allow_intrusive: false });
+      setForm({ client_name: "", name: "", engagement_type: "vuln_analysis", scope: "",
+        authorized: false, authorized_by: "", allow_intrusive: false, allow_exploitation: false });
       setOpen(false);
       onCreated(eng);
     } catch (e) { setErr(e.message); }
@@ -92,6 +102,11 @@ function NewEngagement({ onCreated }) {
       <input placeholder="Nome do trabalho (ex: Externo Q4)" value={form.name} name="eng_name"
         autoComplete="off"
         onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+      <label className="muted" style={{ fontSize: 12 }}>Modalidade</label>
+      <select value={form.engagement_type}
+        onChange={(e) => setForm({ ...form, engagement_type: e.target.value })}>
+        {ENGAGEMENT_TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
+      </select>
       <textarea placeholder="Escopo (um por linha): 10.0.0.0/24, example.com, 1.2.3.4"
         value={form.scope} rows={3} autoComplete="off"
         onChange={(e) => setForm({ ...form, scope: e.target.value })} />
@@ -107,6 +122,11 @@ function NewEngagement({ onCreated }) {
         <input type="checkbox" checked={form.allow_intrusive}
           onChange={(e) => setForm({ ...form, allow_intrusive: e.target.checked })} />
         Permitir sondas intrusivas (ativas, não-destrutivas) — opt-in
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={form.allow_exploitation}
+          onChange={(e) => setForm({ ...form, allow_exploitation: e.target.checked })} />
+        Permitir <b>exploração</b> (operador confirma cada passo; requer autorização) — opt-in
       </label>
       {err && <div className="err">{err}</div>}
       <div className="row">
@@ -238,6 +258,8 @@ function FindingRow({ f, selected, onToggle }) {
 function ScopeEditor({ engagement, onSaved, onCancel }) {
   const [list, setList] = useState([...(engagement.scope || [])]);
   const [entry, setEntry] = useState("");
+  const [etype, setEtype] = useState(engagement.engagement_type || "vuln_analysis");
+  const [expl, setExpl] = useState(!!engagement.allow_exploitation);
   const [err, setErr] = useState("");
 
   function add() {
@@ -247,14 +269,24 @@ function ScopeEditor({ engagement, onSaved, onCancel }) {
   }
   async function save() {
     try {
-      const upd = await api.updateEngagement(engagement.id, { scope: list });
+      const upd = await api.updateEngagement(engagement.id, {
+        scope: list, engagement_type: etype, allow_exploitation: expl });
       onSaved(upd);
     } catch (e) { setErr(e.message); }
   }
 
   return (
     <div className="card">
-      <h3>Editar escopo (IPs, CIDRs, domínios, hosts)</h3>
+      <h3>Editar engagement</h3>
+      <label className="muted" style={{ fontSize: 12 }}>Modalidade</label>
+      <select value={etype} onChange={(e) => setEtype(e.target.value)} style={{ marginBottom: 8 }}>
+        {ENGAGEMENT_TYPES.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
+      </select>
+      <label className="check" style={{ marginBottom: 8 }}>
+        <input type="checkbox" checked={expl} onChange={(e) => setExpl(e.target.checked)} />
+        Permitir exploração (operador confirma; requer autorização)
+      </label>
+      <h3 style={{ marginTop: 6 }}>Escopo (IPs, CIDRs, domínios, hosts)</h3>
       <div className="scopeList">
         {list.map((s) => (
           <span key={s} className="chip">
@@ -414,7 +446,14 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
       <>
       <div className="head">
         <div>
-          <h2>{engagement.name}</h2>
+          <h2>{engagement.name}
+            <span className="pill" style={{ background: "#1c476b", marginLeft: 8, fontSize: 11, verticalAlign: "middle" }}>
+              {ENG_TYPE_LABEL[engagement.engagement_type] || "Análise de Vulnerabilidades"}
+            </span>
+            {engagement.allow_exploitation && (
+              <span className="pill" style={{ background: "#7f1d1d", marginLeft: 6, fontSize: 11, verticalAlign: "middle" }}>exploração habilitada</span>
+            )}
+          </h2>
           <p className="muted">{engagement.client_name} · {engagement.scope.join(", ") || "sem escopo"}</p>
         </div>
         <div className="row">

@@ -32,22 +32,32 @@ class UserOut(BaseModel):
     is_active: bool
 
 
+ENGAGEMENT_TYPES = {
+    "vuln_analysis", "pentest_blackbox", "pentest_graybox", "pentest_whitebox",
+    "pentest_internal", "wireless", "red_team",
+}
+
+
 class EngagementCreate(BaseModel):
     client_name: str
     name: str
+    engagement_type: str = "vuln_analysis"
     scope: list[str] = Field(default_factory=list)
     authorized: bool = False
     authorized_by: str | None = None
     allow_intrusive: bool = False
+    allow_exploitation: bool = False
 
 
 class EngagementUpdate(BaseModel):
     client_name: str | None = None
     name: str | None = None
+    engagement_type: str | None = None
     scope: list[str] | None = None
     authorized: bool | None = None
     authorized_by: str | None = None
     allow_intrusive: bool | None = None
+    allow_exploitation: bool | None = None
 
 
 class EngagementOut(BaseModel):
@@ -57,10 +67,12 @@ class EngagementOut(BaseModel):
     owner_name: str | None = None
     client_name: str
     name: str
+    engagement_type: str = "vuln_analysis"
     scope: list[str]
     authorized: bool
     authorized_by: str | None
     allow_intrusive: bool
+    allow_exploitation: bool = False
     created_at: datetime
 
 

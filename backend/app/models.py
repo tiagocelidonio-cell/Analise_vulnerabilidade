@@ -70,6 +70,9 @@ class Engagement(Base):
     owner_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
     client_name: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    # Modalidade: vuln_analysis | pentest_blackbox/graybox/whitebox |
+    # pentest_internal | wireless | red_team.
+    engagement_type: Mapped[str] = mapped_column(String, default="vuln_analysis")
     # Escopo autorizado: lista de hosts, IPs, CIDRs e dominios.
     scope: Mapped[list] = mapped_column(JSON, default=list)
     # Gate de autorizacao: sem isso, nenhum scan roda.
@@ -77,6 +80,8 @@ class Engagement(Base):
     authorized_by: Mapped[str | None] = mapped_column(String, nullable=True)
     # Opt-in para sondas intrusivas (ativas, nao-destrutivas). Padrao: desligado.
     allow_intrusive: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Opt-in para EXPLORACAO (gated; operador-no-loop). Configuravel por engagement.
+    allow_exploitation: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     scans: Mapped[list[ScanJob]] = relationship(
