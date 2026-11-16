@@ -433,15 +433,23 @@ def _sev_from_cvss(cvss) -> str:
 
 
 async def recent_cves(session: AsyncSession, limit: int = 30) -> list[dict]:
-    """Feed dos CVEs mais recentes (por data de publicacao)."""
+    """Feed dos CVEs mais recentes.
+
+    Prefere data de PUBLICACAO (import NVD 2.0 a captura). CVEs sem data
+    (import por bundle) NAO sao mais excluidos: caem para a data de importacao,
+    ordenados depois dos publicados. Assim o feed nunca fica vazio so porque os
+    registros vieram sem 'published'."""
+    from sqlalchemy import func as _func
+    lim = min(limit, 100)
+    # published desc NULLS LAST, depois updated_at desc.
     rows = list(await session.scalars(
         select(CveRemediation)
-        .where(CveRemediation.published.is_not(None))
-        .order_by(CveRemediation.published.desc())
-        .limit(min(limit, 100))))
+        .order_by(_func.coalesce(CveRemediation.published, CveRemediation.updated_at).desc())
+        .limit(lim)))
     return [{
         "cve_id": r.cve_id, "cvss": r.cvss, "severity": _sev_from_cvss(r.cvss),
         "description": r.description,
+        "products": (r.products or [])[:6],
         "published": r.published.isoformat() if r.published else None,
     } for r in rows]
 

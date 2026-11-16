@@ -234,17 +234,18 @@ const TYPE_ICON = {
 function findingType(f) {
   const svc = (f.service || "").toLowerCase();
   const d = f.data || {};
-  const title = (f.title || "").toLowerCase();
   if (d.ot) return "ot";
   if ((f.cve_ids || []).length > 0) return "vuln";
   if (d.source === "leaks" || svc === "leak" || svc === "leaks" || d.breach) return "leaks";
+  // E-mail so pelo DADO (data.email/emails) — NUNCA pelo hostname (ex.: um host
+  // chamado "email.cliente.com" NAO e' um achado de e-mail).
+  if (d.email || (Array.isArray(d.emails) && d.emails.length)) return "emails";
   if (svc === "tech") return "tech";
   if (svc === "subdomain" || svc === "host") return "assets";
-  if (svc === "osint") return d.email ? "emails" : "web";
-  if (d.email || /e-?mail/.test(title)) return "emails";
+  if (svc === "osint") return "assets";              // domínios/IPs da pegada pública
   if (svc === "tls" || d.weakness || d.path || d.listing) return "exposure";
   if (svc === "http" || svc === "https") return "web";
-  if (f.port && (title.includes("aberta") || title.includes("porta") || svc)) return "ports";
+  if (f.port) return "ports";
   return "other";
 }
 
@@ -311,11 +312,60 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
               {f.last_seen && ` · última vez ${new Date(f.last_seen).toLocaleString()}`}
               {f.times_seen > 1 && " — a vulnerabilidade PERSISTE após rescan."}
             </p>
-            {f.cve_ids?.length > 0 && <p><b>CVEs:</b> {f.cve_ids.join(", ")}</p>}
+            {f.cve_ids?.length > 0 && (
+              <p><b>CVEs:</b>{" "}
+                {f.cve_ids.map((c, i) => (
+                  <span key={c}>
+                    {i > 0 && ", "}
+                    <a href={`https://nvd.nist.gov/vuln/detail/${c}`} target="_blank" rel="noreferrer"
+                      style={{ color: "var(--accent)" }}>{c}</a>
+                  </span>
+                ))}
+              </p>
+            )}
+            {f.data?.cve_lookup_error && (
+              <p className="err" style={{ fontSize: 12 }}>
+                ⚠ Correlação de CVE indisponível para <b>{f.data.cve_lookup_error}</b> (NVD
+                inacessível ou limite de taxa) — pode haver CVE não detectado. Configure a
+                <b> NVD_API_KEY</b> em Administração e rode de novo.
+              </p>
+            )}
+            {/* Detalhes técnicos estruturados (servem a qualquer tipo de achado). */}
+            {(() => {
+              const d = f.data || {};
+              const rows = [];
+              if (d.email) rows.push(["E-mail", d.email]);
+              if (Array.isArray(d.emails) && d.emails.length) rows.push(["E-mails", d.emails.join(", ")]);
+              if (d.server) rows.push(["Servidor", d.server]);
+              if (d.banner && d.banner !== `Server: ${d.server || ""}`) rows.push(["Banner", d.banner]);
+              if (d.product || d.version) rows.push(["Produto/versão", `${d.product || ""} ${d.version || ""}`.trim()]);
+              if (Array.isArray(d.technologies) && d.technologies.length) rows.push(["Tecnologias", d.technologies.join(", ")]);
+              if (d.url) rows.push(["URL", d.url]);
+              if (d.path) rows.push(["Caminho", d.path]);
+              if (d.status) rows.push(["HTTP", String(d.status)]);
+              if (Array.isArray(d.ips) && d.ips.length) rows.push(["IPs", d.ips.join(", ")]);
+              if (Array.isArray(d.domains) && d.domains.length) rows.push(["Domínios", d.domains.slice(0, 30).join(", ")]);
+              if (d.via_port) rows.push(["Porta de resposta", String(d.via_port)]);
+              if (!rows.length) return null;
+              return (
+                <div style={{ margin: "6px 0" }}>
+                  <b style={{ fontSize: 13 }}>Detalhes técnicos</b>
+                  <table className="t" style={{ marginTop: 4 }}>
+                    <tbody>
+                      {rows.map(([k, v]) => (
+                        <tr key={k}><td style={{ width: 160, fontWeight: 600 }}>{k}</td>
+                          <td style={{ wordBreak: "break-all" }}>{v}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
             <p><b>Risco:</b> {a.risk_summary || "-"}</p>
             <p><b>Explorabilidade:</b> {a.exploitability || "-"}</p>
             <p><b>Recomendacao:</b> {a.recommendation || "-"}</p>
             {a.remediation && <p><b>Remediação (NVD):</b> {a.remediation}</p>}
+            {a.cve_description && <p><b>Descrição do CVE:</b> {a.cve_description}</p>}
             {a.references?.length > 0 && (
               <p><b>Referências / patch:</b><br />
                 {a.references.map((r) => (
@@ -487,19 +537,20 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
   }
   function exportFindings() {
     const rows = findings.filter((f) => !sevFilter || f.severity === sevFilter);
+    const statusLabel = (f) => (FSTATUS[f.status] || FSTATUS.open).l;
     downloadCsv(`achados_${engagement.client_name || "cliente"}.csv`, rows, [
       { label: "Severidade", key: "severity" },
+      { label: "Status", get: statusLabel },
       { label: "Alvo", get: (f) => f.target + (f.port ? `:${f.port}` : "") },
-      { label: "Serviço", key: "service" },
       { label: "Achado", key: "title" },
+      { label: "Tipo", get: (f) => TYPE_LABEL[findingType(f)] },
       { label: "CVSS", key: "cvss" },
       { label: "EPSS", key: "epss" },
       { label: "KEV", get: (f) => (f.in_kev ? "SIM" : "") },
-      { label: "CVEs", get: (f) => (f.cve_ids || []).join(" ") },
       { label: "Confiança", get: (f) => Math.round((f.confidence || 0) * 100) + "%" },
-      { label: "Vezes visto", key: "times_seen" },
-      { label: "Recomendação", get: (f) => (f.ai_assessment || {}).recommendation || "" },
       { label: "Data", get: (f) => (f.created_at ? fmtDateTime(f.created_at) : "") },
+      { label: "CVEs", get: (f) => (f.cve_ids || []).join(" ") },
+      { label: "Recomendação", get: (f) => (f.ai_assessment || {}).recommendation || "" },
     ]);
   }
 
