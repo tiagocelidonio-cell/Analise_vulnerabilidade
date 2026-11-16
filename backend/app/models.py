@@ -83,6 +83,9 @@ class Engagement(Base):
     allow_intrusive: Mapped[bool] = mapped_column(Boolean, default=False)
     # Opt-in para EXPLORACAO (gated; operador-no-loop). Configuravel por engagement.
     allow_exploitation: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Opt-in para RECON RECURSIVO (nivel 1): apos descobrir subdominios, varre-os
+    # automaticamente (portas+web+tecnologias). So subdominios no escopo; sem IPs.
+    auto_recon: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     scans: Mapped[list[ScanJob]] = relationship(
@@ -104,6 +107,9 @@ class ScanJob(Base):
     ports: Mapped[list] = mapped_column(JSON, default=list)
     collectors: Mapped[list] = mapped_column(JSON, default=list)
     profile: Mapped[str] = mapped_column(String, default="full")  # basic | full
+    # Nivel do recon recursivo: 0 = semente (manual); 1 = aprofundamento
+    # automatico. So scans nivel 0 disparam auto-recon (evita recursao infinita).
+    auto_level: Mapped[int] = mapped_column(Integer, default=0)
     # Texto puro (NAO enum nativo do PG): enum nativo quebra ao adicionar valores
     # ("invalid input value for enum"). Os valores vem de ScanStatus (str enum),
     # entao atribuicoes e comparacoes com ScanStatus continuam funcionando.
