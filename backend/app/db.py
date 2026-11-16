@@ -57,6 +57,7 @@ _MIGRATIONS = [
     "ALTER TABLE scan_jobs ALTER COLUMN status DROP DEFAULT",
     "ALTER TABLE scan_jobs ALTER COLUMN status TYPE VARCHAR USING status::text",
     "ALTER TABLE scan_jobs ALTER COLUMN status SET DEFAULT 'queued'",
+    "ALTER TABLE findings ADD COLUMN IF NOT EXISTS data JSON DEFAULT '{}'",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'open'",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS assignee VARCHAR",
     "ALTER TABLE findings ADD COLUMN IF NOT EXISTS notes TEXT",

@@ -98,12 +98,14 @@ function ReportConfig({ engagement, onClose }) {
 
 export default function Dashboard({ engagement }) {
   const [data, setData] = useState(null);
+  const [surf, setSurf] = useState(null);
   const [msg, setMsg] = useState("");
   const [cfgOpen, setCfgOpen] = useState(false);
 
   const load = useCallback(async () => {
     try { setData(await api.risk(engagement.id)); }
     catch (e) { setMsg(e.message); }
+    try { setSurf(await api.surface(engagement.id)); } catch { /* ignore */ }
   }, [engagement.id]);
 
   useEffect(() => { load(); }, [load]);
@@ -111,8 +113,41 @@ export default function Dashboard({ engagement }) {
   if (!data) return <div className="muted">Carregando risco…</div>;
 
   const critAlto = (data.by_level.critico || 0) + (data.by_level.alto || 0);
+  const sc = surf?.counts || {};
 
   const widgets = [
+    {
+      id: "surface", title: "Superfície de ataque", wide: true, node: (
+        <div className="kpis" style={{ margin: 0, flexWrap: "wrap" }}>
+          <div className="kpi"><div className="n">{sc.domains ?? "—"}</div><div className="l">DOMÍNIOS</div></div>
+          <div className="kpi"><div className="n">{sc.subdomains ?? "—"}</div><div className="l">SUBDOMÍNIOS</div></div>
+          <div className="kpi"><div className="n">{sc.ips ?? "—"}</div><div className="l">IPs</div></div>
+          <div className="kpi"><div className="n">{sc.services ?? "—"}</div><div className="l">SERVIÇOS</div></div>
+          <div className="kpi"><div className="n">{sc.web_services ?? "—"}</div><div className="l">SERVIÇOS WEB</div></div>
+          <div className="kpi"><div className="n">{sc.emails ?? "—"}</div><div className="l">E-MAILS</div></div>
+        </div>
+      ),
+    },
+    {
+      id: "techmap", title: "Mapa de tecnologias", wide: true, node: (
+        (surf?.tech_map || []).length === 0
+          ? <p className="muted">Sem tecnologias ainda. Rode uma <b>Varredura Web</b> ou <b>Reconhecimento Web</b>.</p>
+          : (
+            <table className="t">
+              <thead><tr><th>Categoria</th><th>Tecnologias</th><th>Hosts</th></tr></thead>
+              <tbody>
+                {surf.tech_map.map((c) => (
+                  <tr key={c.category}>
+                    <td><b>{c.category}</b></td>
+                    <td>{c.items.map((i) => i.tech).slice(0, 8).join(", ")}{c.items.length > 8 ? "…" : ""}</td>
+                    <td>{c.items.reduce((a, i) => Math.max(a, i.count), 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+      ),
+    },
     {
       id: "kpis", title: "Indicadores", wide: true, node: (
         <div className="kpis" style={{ margin: 0 }}>

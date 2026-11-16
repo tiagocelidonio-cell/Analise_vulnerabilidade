@@ -152,6 +152,9 @@ class Finding(Base):
     in_kev: Mapped[bool] = mapped_column(Boolean, default=False)
     cve_ids: Mapped[list] = mapped_column(JSON, default=list)
 
+    # Dados estruturados do fato coletado (tecnologias, IPs, portas, etc.) —
+    # alimenta a superficie de ataque, o mapa de tecnologias e a topologia.
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
     # Saida da camada de IA (raciocinio sobre os fatos).
     ai_assessment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Confianca 0..1 do achado, para o analista filtrar ruido.

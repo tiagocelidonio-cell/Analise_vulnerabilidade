@@ -188,9 +188,9 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
   automaticamente, com limite de profundidade e escopo.
 - [ ] **OSINT abrangente** (inspirado no osintframework): CT logs, DNS/ASN,
   e-mails, buckets, repositórios, metadados — consolidado por empresa.
-- [ ] **Superfície de ataque consolidada**: contadores (domínios, subdomínios,
+- [x] **Superfície de ataque consolidada**: contadores (domínios, subdomínios,
   IPs, serviços) + "o que um atacante vê" (igual aos slides Atvos).
-- [ ] **Mapa de tecnologias** por categoria (nuvem, web server, ERP, banco, SO),
+- [x] **Mapa de tecnologias** por categoria (nuvem, web server, ERP, banco, SO),
   com porta e função — exportável para o relatório.
 
 ### Onda 2 — Topologia visual com risco

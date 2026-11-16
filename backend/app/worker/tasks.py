@@ -207,6 +207,10 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     return {"halted": True}
                 fact_dict = asdict(fact)
                 now = datetime.now(timezone.utc)
+                # Dados estruturados do fato (sem o base64 da imagem, que e pesado
+                # e ja vira Evidence). Alimenta superficie/tecnologias/topologia.
+                fdata = {k: v for k, v in (fact.data or {}).items()
+                         if k != "screenshot_b64"}
                 # Assinatura para deduplicar o mesmo achado entre scans.
                 signature = f"{fact.target}|{fact.port}|{fact.title}".lower()
 
@@ -258,6 +262,8 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     existing.epss = enrichment.get("max_epss") or None
                     existing.in_kev = enrichment.get("any_kev", False)
                     existing.ai_assessment = {**(existing.ai_assessment or {}), **assess_dict}
+                    if fdata:
+                        existing.data = {**(existing.data or {}), **fdata}
                 else:
                     finding = Finding(
                         engagement_id=eng.id,
@@ -272,6 +278,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                         epss=enrichment.get("max_epss") or None,
                         in_kev=enrichment.get("any_kev", False),
                         cve_ids=cve_ids,
+                        data=fdata,
                         ai_assessment=assess_dict,
                         confidence=assessment.confidence,
                         signature=signature,
