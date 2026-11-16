@@ -57,6 +57,10 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
         else:
             correlation = await correlate(fact.data.get("banner", "") or fact.raw)
             cve_ids = correlation["cve_ids"]
+            # Consulta de CVE indisponivel (rede/limite) NAO e' "sem CVE":
+            # marca para o painel nao dar falsa sensacao de seguranca.
+            if correlation.get("lookup_error") and correlation.get("product"):
+                fdata["cve_lookup_error"] = correlation.get("product")
         fact_dict["correlation"] = correlation
 
         # 2) Enriquece com EPSS (probabilidade) e KEV (exploracao ativa).

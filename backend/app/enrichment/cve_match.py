@@ -14,6 +14,8 @@ import re
 
 import httpx
 
+from app.config import settings
+
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 # Padroes de banner -> (produto, versao). Ampliavel.
@@ -55,24 +57,33 @@ def _extract_cvss(metrics: dict) -> float | None:
     return None
 
 
-async def search_nvd(product: str, version: str | None, limit: int = 10) -> list[dict]:
-    """Busca CVEs no NVD por palavra-chave produto+versao."""
+async def search_nvd(product: str, version: str | None, limit: int = 10) -> list[dict] | None:
+    """Busca CVEs no NVD por palavra-chave produto+versao.
+
+    Retorna a lista (pode ser vazia = sem CVE) ou None quando a CONSULTA FALHOU
+    (rede/rate-limit). Distinguir os dois e' crucial: "0 CVEs" nao pode mascarar
+    "nao consegui consultar". Usa a NVD_API_KEY (do painel/.env) quando houver:
+    sobe muito o limite de taxa e a confiabilidade."""
     keyword = f"{product} {version}".strip() if version else product
-    params = {
-        "keywordSearch": keyword,
-        "resultsPerPage": limit,
-    }
+    params = {"keywordSearch": keyword, "resultsPerPage": limit}
+    headers = {"User-Agent": "VulnScope"}
+    if settings.nvd_api_key:
+        headers["apiKey"] = settings.nvd_api_key
+    # Com chave o limite e' alto; sem chave respeita 5 req/30s com retry.
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=25, headers=headers) as client:
             resp = await client.get(NVD_URL, params=params)
-            if resp.status_code == 403:
-                # rate limit sem chave: espera e tenta uma vez
-                await asyncio.sleep(6)
+            for _ in range(2):
+                if resp.status_code not in (403, 429, 503):
+                    break
+                await asyncio.sleep(2 if settings.nvd_api_key else 6)
                 resp = await client.get(NVD_URL, params=params)
+            if resp.status_code in (403, 429, 503):
+                return None  # consulta falhou (nao e' "sem CVE")
             resp.raise_for_status()
             vulns = resp.json().get("vulnerabilities", [])
-    except (httpx.HTTPError, ValueError):
-        return []
+    except (httpx.HTTPError, ValueError, OSError):
+        return None
 
     out = []
     for item in vulns:
@@ -99,10 +110,14 @@ async def correlate(banner: str) -> dict:
     """
     parsed = parse_banner(banner)
     if parsed is None:
-        return {"product": None, "version": None, "cve_ids": [], "max_cvss": None, "cves": []}
+        return {"product": None, "version": None, "cve_ids": [],
+                "max_cvss": None, "cves": [], "lookup_error": False}
 
     product, version = parsed
     cves = await search_nvd(product, version)
+    if cves is None:  # consulta indisponivel -> NAO e' "sem CVE"
+        return {"product": product, "version": version, "cve_ids": [],
+                "max_cvss": None, "cves": [], "lookup_error": True}
     cve_ids = [c["cve_id"] for c in cves]
     cvss_values = [c["cvss"] for c in cves if c["cvss"] is not None]
     return {
@@ -111,4 +126,5 @@ async def correlate(banner: str) -> dict:
         "cve_ids": cve_ids,
         "max_cvss": max(cvss_values, default=None),
         "cves": cves,
+        "lookup_error": False,
     }
