@@ -79,7 +79,8 @@ function NewEngagement({ onCreated }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     client_name: "", name: "", engagement_type: "vuln_analysis", scope: "",
-    authorized: false, authorized_by: "", allow_intrusive: false, allow_exploitation: false,
+    authorized: false, authorized_by: "", allow_intrusive: false,
+    allow_exploitation: false, auto_recon: false,
   });
   const [err, setErr] = useState("");
 
@@ -93,7 +94,8 @@ function NewEngagement({ onCreated }) {
       };
       const eng = await api.createEngagement(body);
       setForm({ client_name: "", name: "", engagement_type: "vuln_analysis", scope: "",
-        authorized: false, authorized_by: "", allow_intrusive: false, allow_exploitation: false });
+        authorized: false, authorized_by: "", allow_intrusive: false,
+        allow_exploitation: false, auto_recon: false });
       setOpen(false);
       onCreated(eng);
     } catch (e) { setErr(e.message); }
@@ -138,6 +140,11 @@ function NewEngagement({ onCreated }) {
         <input type="checkbox" checked={form.allow_exploitation}
           onChange={(e) => setForm({ ...form, allow_exploitation: e.target.checked })} />
         Permitir <b>exploração</b> (operador confirma cada passo; requer autorização) — opt-in
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={form.auto_recon}
+          onChange={(e) => setForm({ ...form, auto_recon: e.target.checked })} />
+        <b>Recon automático</b> (ao achar subdomínios, varre-os sozinho: portas + web + tecnologias) — opt-in
       </label>
       {err && <div className="err">{err}</div>}
       <div className="row">
@@ -314,6 +321,7 @@ function ScopeEditor({ engagement, onSaved, onCancel }) {
   const [entry, setEntry] = useState("");
   const [etype, setEtype] = useState(engagement.engagement_type || "vuln_analysis");
   const [expl, setExpl] = useState(!!engagement.allow_exploitation);
+  const [autoRec, setAutoRec] = useState(!!engagement.auto_recon);
   const [err, setErr] = useState("");
 
   function add() {
@@ -324,7 +332,7 @@ function ScopeEditor({ engagement, onSaved, onCancel }) {
   async function save() {
     try {
       const upd = await api.updateEngagement(engagement.id, {
-        scope: list, engagement_type: etype, allow_exploitation: expl });
+        scope: list, engagement_type: etype, allow_exploitation: expl, auto_recon: autoRec });
       onSaved(upd);
     } catch (e) { setErr(e.message); }
   }
@@ -339,6 +347,10 @@ function ScopeEditor({ engagement, onSaved, onCancel }) {
       <label className="check" style={{ marginBottom: 8 }}>
         <input type="checkbox" checked={expl} onChange={(e) => setExpl(e.target.checked)} />
         Permitir exploração (operador confirma; requer autorização)
+      </label>
+      <label className="check" style={{ marginBottom: 8 }}>
+        <input type="checkbox" checked={autoRec} onChange={(e) => setAutoRec(e.target.checked)} />
+        Recon automático (varre subdomínios descobertos: portas + web + tecnologias)
       </label>
       <h3 style={{ marginTop: 6 }}>Escopo (IPs, CIDRs, domínios, hosts)</h3>
       <div className="scopeList">
@@ -513,6 +525,9 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
             {engagement.allow_exploitation && (
               <span className="pill" style={{ background: "#7f1d1d", marginLeft: 6, fontSize: 11, verticalAlign: "middle" }}>exploração habilitada</span>
             )}
+            {engagement.auto_recon && (
+              <span className="pill" style={{ background: "#1c476b", marginLeft: 6, fontSize: 11, verticalAlign: "middle" }}>recon auto</span>
+            )}
           </h2>
           <p className="muted">{engagement.client_name} · {engagement.scope.join(", ") || "sem escopo"}</p>
         </div>
@@ -539,6 +554,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
               <td><span className={`status ${s.status}`}>{STATUS_PT[s.status] || s.status}</span></td>
               <td className="muted" style={{ fontSize: 12 }}>
                 {scanTypeLabel(s.collectors)}
+                {s.auto_level > 0 && <span className="persist" style={{ background: "#1c476b", color: "#dbeafe", borderColor: "#1c476b" }}>auto</span>}
                 <div style={{ fontSize: 10, opacity: 0.8 }}>{s.profile === "basic" ? "básico" : "completo"}</div>
               </td>
               <td>

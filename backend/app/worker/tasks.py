@@ -349,6 +349,15 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             scan.findings_count = created
             scan.finished_at = datetime.now(timezone.utc)
             await session.commit()
+
+            # Recon recursivo (nivel 1): so em scan SEMENTE (auto_level 0) com
+            # auto_recon ligado. Enfileira UMA varredura dos subdominios vivos
+            # descobertos (no escopo, ainda nao escaneados). Sem recursao alem.
+            if getattr(eng, "auto_recon", False) and (scan.auto_level or 0) == 0:
+                try:
+                    await _auto_recon(ctx, session, eng, scan)
+                except Exception:  # noqa: BLE001  nunca derruba o scan
+                    pass
             return {"findings": created}
 
         except Exception as exc:  # noqa: BLE001
@@ -356,6 +365,50 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             scan.error = str(exc)
             await session.commit()
             return {"error": str(exc)}
+
+
+async def _auto_recon(ctx, session, eng, scan) -> None:
+    """Nivel 1: varre automaticamente os subdominios vivos descobertos (no
+    escopo), que ainda nao foram alvo de uma varredura de portas. Teto de 200.
+    So subdominios (nunca IPs resolvidos). Nao recorre alem do nivel 1."""
+    from app.scope import is_in_scope
+
+    scope = eng.scope or []
+    # Subdominios vivos no escopo.
+    subs: set[str] = set()
+    rows = await session.scalars(
+        select(Finding).where(
+            Finding.engagement_id == eng.id, Finding.service == "subdomain"))
+    for f in rows:
+        d = f.data or {}
+        host = (f.target or "").lower()
+        if host and d.get("alive") and is_in_scope(host, scope):
+            subs.add(host)
+    if not subs:
+        return
+    # Dedup: remove os que ja foram alvo de alguma varredura de portas.
+    scanned: set[str] = set()
+    srows = await session.scalars(
+        select(ScanJob).where(ScanJob.engagement_id == eng.id))
+    for s in srows:
+        if "port_scan" in (s.collectors or []):
+            for t in s.targets or []:
+                scanned.add((t or "").lower())
+    todo = sorted(subs - scanned)[:200]
+    if not todo:
+        return
+    new = ScanJob(
+        engagement_id=eng.id, targets=todo,
+        collectors=["port_scan", "http_probe", "tech_detect"],
+        profile="full", status=ScanStatus.queued, auto_level=1,
+    )
+    session.add(new)
+    await session.commit()
+    await session.refresh(new)
+    try:
+        await ctx["redis"].enqueue_job("run_scan", new.id)
+    except Exception:  # noqa: BLE001  se nao conseguir enfileirar, fica na fila
+        pass
 
 
 async def update_cve_base(ctx: dict, full: bool = False) -> dict:

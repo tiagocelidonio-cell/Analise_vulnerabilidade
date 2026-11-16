@@ -47,6 +47,7 @@ class EngagementCreate(BaseModel):
     authorized_by: str | None = None
     allow_intrusive: bool = False
     allow_exploitation: bool = False
+    auto_recon: bool = False
 
 
 class EngagementUpdate(BaseModel):
@@ -58,6 +59,7 @@ class EngagementUpdate(BaseModel):
     authorized_by: str | None = None
     allow_intrusive: bool | None = None
     allow_exploitation: bool | None = None
+    auto_recon: bool | None = None
 
 
 class EngagementOut(BaseModel):
@@ -73,6 +75,7 @@ class EngagementOut(BaseModel):
     authorized_by: str | None
     allow_intrusive: bool
     allow_exploitation: bool = False
+    auto_recon: bool = False
     created_at: datetime
 
 
@@ -91,6 +94,7 @@ class ScanOut(BaseModel):
     ports: list[int]
     collectors: list[str]
     profile: str = "full"
+    auto_level: int = 0
     status: str
     progress: int
     phase: str

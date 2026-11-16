@@ -183,7 +183,7 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 
 ### Onda 1 — Motor de reconhecimento recursivo (ASM)
 > O coração da sua visão: de um domínio, descobrir *tudo* e ir aprofundando.
-- [ ] **Pipeline de descoberta em grafo**: cada ativo encontrado (domínio →
+- [x] **Pipeline de descoberta em grafo**: cada ativo encontrado (domínio →
   subdomínio → IP → porta → serviço → novo host) **re-alimenta a fila**
   automaticamente, com limite de profundidade e escopo.
 - [ ] **OSINT abrangente** (inspirado no osintframework): CT logs, DNS/ASN,
