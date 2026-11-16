@@ -18,6 +18,7 @@ export default function Overview() {
   const [err, setErr] = useState("");
   const [cveSt, setCveSt] = useState(null);
   const [recent, setRecent] = useState([]);
+  const [rel, setRel] = useState(null);
 
   const load = useCallback(async () => {
     try { setD(await api.overview()); } catch (e) { setErr(e.message); }
@@ -25,6 +26,7 @@ export default function Overview() {
   const loadCve = useCallback(async () => {
     try { setCveSt(await api.cveStatus()); } catch { /* ignore */ }
     try { setRecent((await api.cveRecent(30)).cves || []); } catch { /* ignore */ }
+    try { setRel(await api.intelRelevant()); } catch { /* ignore */ }
   }, []);
   useEffect(() => { load(); loadCve(); }, [load, loadCve]);
 
@@ -56,6 +58,49 @@ export default function Overview() {
         d.insights.length > 0
           ? d.insights.map((t, i) => <p key={i} style={{ margin: "4px 0" }}>• {t}</p>)
           : <p className="muted">Sem insights ainda.</p>
+      ),
+    },
+    {
+      id: "relevant", title: "⚡ Relevantes para a sua carteira", wide: true, node: (
+        !rel ? <p className="muted">Carregando…</p>
+          : rel.matches.length === 0 ? (
+            <p className="muted">
+              Nenhum CVE recente casou com as tecnologias detectadas
+              {rel.counts?.technologies ? ` (${rel.counts.technologies} tecnologias mapeadas)` : ""}.
+              {" "}Rode varreduras com <b>Tecnologias</b> e baixe a <b>base completa de CVEs</b>
+              {" "}(captura os produtos afetados) para ativar os alertas.
+            </p>
+          ) : (
+            <>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                <b style={{ color: "#b91c1c" }}>{rel.counts.matches}</b> CVEs recentes afetam
+                {" "}<b>{rel.counts.clients}</b> cliente(s) · cruzados com
+                {" "}{rel.counts.technologies} tecnologias detectadas
+              </div>
+              <table className="t">
+                <thead><tr>
+                  <th>Publicado</th><th>CVE</th><th>Sev</th><th>CVSS</th>
+                  <th>Cliente(s)</th><th>Tecnologia</th><th>Conf.</th>
+                </tr></thead>
+                <tbody>
+                  {rel.matches.slice(0, 40).map((m) => (
+                    <tr key={m.cve_id}>
+                      <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{m.published ? fmtDateTime(m.published) : "—"}</td>
+                      <td><a href={`https://nvd.nist.gov/vuln/detail/${m.cve_id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{m.cve_id}</a></td>
+                      <td><span className="pill" style={{ background: SEV_COLOR[m.severity] || "#334155", fontSize: 10 }}>{m.severity.toUpperCase()}</span></td>
+                      <td>{m.cvss != null ? m.cvss.toFixed(1) : "—"}</td>
+                      <td style={{ fontSize: 12 }}>{m.clients.join(", ") || "—"}</td>
+                      <td style={{ fontSize: 12 }}>{m.technologies.join(", ")}</td>
+                      <td><span className="pill" style={{ background: m.confidence === "alta" ? "#15803d" : "#a16207", fontSize: 10 }}>{m.confidence}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+                <b>alta</b> = produto afetado bate com o CPE do CVE · <b>média</b> = citado na descrição.
+              </p>
+            </>
+          )
       ),
     },
     {

@@ -239,9 +239,11 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 - [x] **Painel "CVEs recentes" na Visão geral** (estilo feed de notícias): últimos
   CVEs baixados/publicados, com severidade, CVSS, se está em KEV (exploração
   ativa) e link. Filtros por severidade/KEV e destaque para os críticos.
-- [ ] **"Relevantes para você"**: cruzar os CVEs recentes com as **tecnologias
+- [x] **"Relevantes para você"**: cruzar os CVEs recentes com as **tecnologias
   detectadas** nos clientes → alertar "saiu um CVE crítico para o Nginx/SAP que
-  você tem no cliente X". Esse é o grande diferencial.
+  você tem no cliente X". Esse é o grande diferencial. *(carteira na Visão geral +
+  por engagement; casa por produto do CPE — confiança "alta" — ou descrição —
+  "média". Import agora captura os produtos afetados.)*
 - [ ] **Feed de Threat Intelligence**: novidades de segurança (ex.: CISA KEV novos,
   avisos de fornecedores, campanhas/ataques) via fontes públicas/RSS, exibidas
   como notícias. Curado e com data/fonte.

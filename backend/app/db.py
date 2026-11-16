@@ -54,6 +54,7 @@ _MIGRATIONS = [
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS profile VARCHAR DEFAULT 'full'",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS heartbeat TIMESTAMPTZ",
     "ALTER TABLE cve_remediation ADD COLUMN IF NOT EXISTS published TIMESTAMPTZ",
+    "ALTER TABLE cve_remediation ADD COLUMN IF NOT EXISTS products JSON DEFAULT '[]'",
     # Converte status de enum nativo do PG -> VARCHAR (fim dos erros de enum).
     # Idempotente: se ja for varchar, o USING ::text e inofensivo.
     "ALTER TABLE scan_jobs ALTER COLUMN status DROP DEFAULT",

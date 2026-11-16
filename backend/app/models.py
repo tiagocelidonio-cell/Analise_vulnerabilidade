@@ -216,6 +216,9 @@ class CveRemediation(Base):
     references: Mapped[list] = mapped_column(JSON, default=list)
     cvss: Mapped[float | None] = mapped_column(Float, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Produtos afetados (vendor+product do CPE, normalizados) -> permite cruzar
+    # CVE x tecnologias detectadas ("Relevantes para voce").
+    products: Mapped[list] = mapped_column(JSON, default=list)
     # Data de publicacao (NVD) -> permite o feed de "CVEs recentes".
     published: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True, nullable=True)

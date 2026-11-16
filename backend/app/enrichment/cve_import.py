@@ -85,6 +85,33 @@ def _parse_dt(s):
         return None
 
 
+def _cpe_products(cve: dict) -> list[str]:
+    """Extrai 'vendor product' (normalizado) das configuracoes CPE do CVE.
+
+    Ex.: cpe:2.3:a:apache:http_server:2.4.* -> 'apache http server'. Serve para
+    cruzar o CVE com as tecnologias detectadas nos ativos do cliente."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for conf in cve.get("configurations") or []:
+        nodes = conf.get("nodes") if isinstance(conf, dict) else None
+        for node in nodes or []:
+            for m in node.get("cpeMatch") or []:
+                crit = (m.get("criteria") or "").replace("\\", "")
+                parts = crit.split(":")
+                if len(parts) < 5:
+                    continue
+                vendor, product = parts[3], parts[4]
+                if product in ("*", "-", ""):
+                    continue
+                label = f"{vendor} {product}".replace("_", " ").strip().lower()
+                if label and label not in seen:
+                    seen.add(label)
+                    out.append(label)
+                    if len(out) >= 40:
+                        return out
+    return out
+
+
 def _parse_nvd_vuln(item: dict) -> dict | None:
     cve = (item or {}).get("cve") or {}
     cid = cve.get("id")
@@ -105,6 +132,7 @@ def _parse_nvd_vuln(item: dict) -> dict | None:
                 continue
     return {"cve_id": cid, "description": (desc or "")[:400] or None,
             "references": refs, "cvss": cvss, "solution": _SOLUTION_BASE,
+            "products": _cpe_products(cve),
             "published": _parse_dt(cve.get("published"))}
 
 
@@ -286,12 +314,27 @@ def parse_cve_record(obj: dict) -> dict | None:
         desc = descs[0].get("value", "")
     refs = [r.get("url") for r in (cna.get("references") or []) if r.get("url")][:8]
     cvss = _cvss_from_metrics(cna.get("metrics") or [])
+    # Produtos afetados (CVE 5.0): containers.cna.affected[].vendor/product.
+    prods: list[str] = []
+    seen: set[str] = set()
+    for aff in cna.get("affected") or []:
+        vendor = (aff.get("vendor") or "").strip()
+        product = (aff.get("product") or "").strip()
+        if not product or product.lower() in ("n/a", "unspecified", "*"):
+            continue
+        label = f"{vendor} {product}".replace("_", " ").strip().lower()
+        if label and label not in seen:
+            seen.add(label)
+            prods.append(label)
+            if len(prods) >= 40:
+                break
     return {
         "cve_id": cve_id,
         "description": (desc or "")[:400] or None,
         "references": refs,
         "cvss": cvss,
         "solution": _SOLUTION_BASE,
+        "products": prods,
     }
 
 
@@ -304,6 +347,8 @@ async def _upsert(session: AsyncSession, rec: dict) -> None:
     row.references = rec["references"]
     row.cvss = rec["cvss"]
     row.description = rec["description"]
+    if rec.get("products"):
+        row.products = rec["products"]
     if rec.get("published") is not None:
         row.published = rec["published"]
     row.updated_at = datetime.now(timezone.utc)
