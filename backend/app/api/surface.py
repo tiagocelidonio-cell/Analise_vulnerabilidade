@@ -53,14 +53,9 @@ def _is_ip(v: str) -> bool:
 _EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 
-@router.get("/engagements/{engagement_id}/surface")
-async def surface(
-    eng: Engagement = Depends(require_engagement_access),
-    session: AsyncSession = Depends(get_session),
-) -> dict:
-    findings = list(await session.scalars(
-        select(Finding).where(Finding.engagement_id == eng.id)))
-
+def build_surface(findings: list, scope: list[str]) -> dict:
+    """Agrega a superficie de ataque + mapa de tecnologias (reutilizado no
+    relatorio)."""
     domains: set[str] = set()
     subdomains: set[str] = set()
     ips: set[str] = set()
@@ -69,7 +64,7 @@ async def surface(
     emails: set[str] = set()
     tech_hosts: dict[str, set[str]] = {}  # tech -> hosts
 
-    for f in eng.scope or []:
+    for f in scope or []:
         if _is_ip(f):
             ips.add(f)
         elif "." in f:
@@ -126,3 +121,13 @@ async def surface(
         "emails": sorted(emails)[:200],
         "tech_map": tech_map,
     }
+
+
+@router.get("/engagements/{engagement_id}/surface")
+async def surface(
+    eng: Engagement = Depends(require_engagement_access),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    findings = list(await session.scalars(
+        select(Finding).where(Finding.engagement_id == eng.id)))
+    return build_surface(findings, eng.scope or [])

@@ -159,6 +159,26 @@ _TEMPLATE = Template(
 
 {% if opt.include_targets %}
 <h2 class="pb">3. Alvos identificados e testados</h2>
+<h3>Superfície de ataque</h3>
+<div class="kpis">
+  <div class="kpi"><div class="n">{{ surface.counts.domains }}</div><div class="l">DOMÍNIOS</div></div>
+  <div class="kpi"><div class="n">{{ surface.counts.subdomains }}</div><div class="l">SUBDOMÍNIOS</div></div>
+  <div class="kpi"><div class="n">{{ surface.counts.ips }}</div><div class="l">IPs</div></div>
+  <div class="kpi"><div class="n">{{ surface.counts.services }}</div><div class="l">SERVIÇOS</div></div>
+  <div class="kpi"><div class="n">{{ surface.counts.web_services }}</div><div class="l">SERVIÇOS WEB</div></div>
+  <div class="kpi"><div class="n">{{ surface.counts.emails }}</div><div class="l">E-MAILS</div></div>
+</div>
+{% if surface.tech_map %}
+<h3>Principais tecnologias identificadas</h3>
+<table><thead><tr><th>Categoria</th><th>Tecnologia / Produto</th><th>Hosts</th></tr></thead><tbody>
+{% for c in surface.tech_map %}
+<tr><td>{{ c.category }}</td>
+    <td>{{ c['items'][:8] | map(attribute='tech') | join(', ') }}{{ '…' if c['items']|length > 8 else '' }}</td>
+    <td>{{ c['items'] | map(attribute='count') | max }}</td></tr>
+{% endfor %}
+</tbody></table>
+{% endif %}
+<h3>Endereços identificados (domínios e IPs)</h3>
 <p>Relação de domínios, IPs e hosts avaliados / descobertos durante a enumeração:</p>
 <table><thead><tr><th>Ativo</th><th>Maior risco</th><th>Achados</th></tr></thead><tbody>
 {% for t in targets %}
@@ -215,6 +235,9 @@ _TEMPLATE = Template(
       <p class="meta small">{{ ev.kind }} · {{ ev.collected_at.strftime('%d/%m/%Y %H:%M UTC') }}</p>
       <div class="evi">{{ ev.content or ev.s3_key or '(sem conteúdo inline)' }}</div>
     {% endfor %}
+  {% endif %}
+  {% if f.ai_assessment and f.ai_assessment.get('exploit_available') %}
+    <p><strong style="color:#b91c1c">⚠ Existe exploit público conhecido para este achado.</strong></p>
   {% endif %}
   <h4>Classificação</h4>
   <p class="meta">Severidade: <strong>{{ sev_pt[f.severity.value] }}</strong>
@@ -300,11 +323,17 @@ async def render_html(
         for p in (5, 4, 3, 2, 1)
     ]
 
+    # Superficie usa TODOS os achados (nao o filtro de severidade do relatorio).
+    from app.api.surface import build_surface
+    all_rows = await session.scalars(
+        select(Finding).where(Finding.engagement_id == engagement_id))
+    surface = build_surface(list(all_rows), eng.scope or [])
+
     return _TEMPLATE.render(
         eng=eng, findings=findings, counts=counts, total=len(findings),
         hosts=hosts, targets=targets, sev_order=_SEV_ORDER, sev_color=_SEV_COLOR,
         sev_pt=_SEV_PT, exec_line=_exec_line(counts), risk=risk, risk_rows=risk_rows,
-        opt=opt,
+        opt=opt, surface=surface,
         generated_at=datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC"),
     )
 

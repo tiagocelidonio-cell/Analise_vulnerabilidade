@@ -251,7 +251,7 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
   para a carteira, exportável/encaminhável.
 
 ### Transversal (sempre)
-- [ ] **Relatórios profissionais** no padrão Lozinsky: capa, superfície de ataque,
+- [~] **Relatórios profissionais** no padrão Lozinsky: capa, superfície de ataque,
   "o que o atacante vê", tecnologias, riscos por severidade, detalhamento,
   topologia, conclusão. Templates reutilizáveis.
 - [ ] Performance e resiliência; testes; documentação de operação.
