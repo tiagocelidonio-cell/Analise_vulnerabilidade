@@ -194,7 +194,7 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
   com porta e função — exportável para o relatório.
 
 ### Onda 2 — Topologia visual com risco
-- [ ] **Grafo do ambiente** (estilo Zenmap, porém web e moderno): nós = hosts/
+- [x] **Grafo do ambiente** (estilo Zenmap, porém web e moderno): nós = hosts/
   domínios/serviços; cor = risco; tamanho = nº de achados; arestas = relação
   (subdomínio→IP, host→porta). Zoom, filtro por severidade, clicar abre o ativo.
 - [ ] Exportar a topologia para o relatório (imagem/ً PDF).

@@ -5,6 +5,7 @@ import Dashboard from "./Dashboard.jsx";
 import ToolCatalog from "./ToolCatalog.jsx";
 import Assets from "./Assets.jsx";
 import Documents from "./Documents.jsx";
+import Topology from "./Topology.jsx";
 import ToolForm from "./ToolForm.jsx";
 import { FLAT_TOOLS } from "./tools.js";
 import { downloadCsv } from "./csv.js";
@@ -489,6 +490,8 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           onClick={() => setTab("assets")}>Ativos</button>
         <button className={`tab ${tab === "ops" ? "active" : ""}`}
           onClick={() => setTab("ops")}>Achados</button>
+        <button className={`tab ${tab === "topo" ? "active" : ""}`}
+          onClick={() => setTab("topo")}>Topologia</button>
         <button className={`tab ${tab === "docs" ? "active" : ""}`}
           onClick={() => setTab("docs")}>Documentos</button>
       </div>
@@ -497,6 +500,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
       {tab === "tools" && <ToolCatalog engagement={engagement}
         onUpdated={onUpdated} onRan={() => { setTab("ops"); refresh(); }} />}
       {tab === "assets" && <Assets engagement={engagement} onUpdated={onUpdated} />}
+      {tab === "topo" && <Topology engagement={engagement} />}
       {tab === "docs" && <Documents engagement={engagement} />}
       {tab === "ops" && (
       <>

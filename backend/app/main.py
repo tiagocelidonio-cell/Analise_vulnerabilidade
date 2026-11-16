@@ -30,6 +30,7 @@ from app.api import (
     risk,
     scans,
     surface,
+    topology,
 )
 from app.auth import ensure_seed_admin, get_current_user
 from app.config import settings
@@ -107,6 +108,7 @@ app.include_router(integrations.router, dependencies=_auth)
 app.include_router(documents.router, dependencies=_auth)
 app.include_router(audit.router, dependencies=_auth)
 app.include_router(surface.router, dependencies=_auth)
+app.include_router(topology.router, dependencies=_auth)
 
 
 @app.exception_handler(Exception)

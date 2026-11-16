@@ -94,6 +94,7 @@ export const api = {
   risk: (id) => req(`/engagements/${id}/risk`),
   assets: (id) => req(`/engagements/${id}/assets`),
   surface: (id) => req(`/engagements/${id}/surface`),
+  topology: (id) => req(`/engagements/${id}/topology`),
   validate: (id, opts = {}) =>
     req(`/engagements/${id}/validate`, {
       method: "POST",
