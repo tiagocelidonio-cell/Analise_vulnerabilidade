@@ -16,6 +16,7 @@ logger = logging.getLogger("vulnscope")
 from app.api import auth as auth_api
 from app.api import (
     assets,
+    audit,
     config as config_api,
     cve,
     documents,
@@ -59,6 +60,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def _audit(request: Request, call_next):
+    """Trilha de auditoria: registra toda mutacao (quem, o que, resultado)."""
+    response = await call_next(request)
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        try:
+            from app.auth import _extract_token, decode_token
+            from app.models import AuditLog
+            token = _extract_token(request)
+            sub = None
+            if token:
+                payload = decode_token(token)
+                sub = payload.get("sub") if payload else None
+            # nao registra o proprio login (ruido) nem leituras
+            if request.url.path != "/auth/login":
+                async with SessionLocal() as session:
+                    session.add(AuditLog(
+                        user_id=sub, method=request.method,
+                        path=request.url.path, status=response.status_code))
+                    await session.commit()
+        except Exception:  # noqa: BLE001  auditoria nunca quebra a requisicao
+            pass
+    return response
+
 # Rotas publicas (sem auth): login, health e config (para aplicar a marca
 # antes do login; o PUT de config valida admin internamente).
 app.include_router(auth_api.router)
@@ -78,6 +104,7 @@ app.include_router(assets.router, dependencies=_auth)
 app.include_router(cve.router, dependencies=_auth)
 app.include_router(integrations.router, dependencies=_auth)
 app.include_router(documents.router, dependencies=_auth)
+app.include_router(audit.router, dependencies=_auth)
 
 
 @app.exception_handler(Exception)

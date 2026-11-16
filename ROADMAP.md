@@ -177,8 +177,8 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 - [x] **Abstração de nomes de ferramentas**: UI passa a mostrar *capacidades*
   (ex.: "Enumeração de Ativos", "Descoberta de Portas", "Verificação de
   Vulnerabilidades"), nunca `nmap/amass/nuclei`. Mapa técnico só no código.
-- [ ] **Auditoria**: log imutável de cada ação (quem, o quê, alvo, quando).
-- [ ] **Gestão de status do achado**: `aberto → confirmado → em correção →
+- [x] **Auditoria**: log imutável de cada ação (quem, o quê, alvo, quando).
+- [x] **Gestão de status do achado**: `aberto → confirmado → em correção →
   corrigido → aceito (risco) → falso-positivo`, com reteste e responsável.
 
 ### Onda 1 — Motor de reconhecimento recursivo (ASM)

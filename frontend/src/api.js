@@ -54,6 +54,7 @@ export const api = {
   me: () => req("/auth/me"),
   updateMe: (body) => req("/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
   getConfig: () => req("/config"),
+  getAudit: () => req("/audit"),
   updateConfig: (body) => req("/config", { method: "PUT", body: JSON.stringify(body) }),
   logout: () => setToken(null),
   listUsers: () => req("/auth/users"),

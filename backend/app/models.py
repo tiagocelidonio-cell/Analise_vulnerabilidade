@@ -292,3 +292,16 @@ class EngagementDocument(Base):
     data: Mapped[bytes] = mapped_column(LargeBinary)
     uploaded_by: Mapped[str | None] = mapped_column(String, nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class AuditLog(Base):
+    """Trilha de auditoria: toda acao de mutacao (POST/PUT/PATCH/DELETE)."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    method: Mapped[str] = mapped_column(String, default="")
+    path: Mapped[str] = mapped_column(String, default="")
+    status: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=_now)

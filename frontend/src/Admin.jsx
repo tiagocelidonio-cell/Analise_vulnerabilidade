@@ -4,6 +4,42 @@ import { applyConfig, branding, fmtDateTime } from "./branding.js";
 import CveBase from "./CveBase.jsx";
 import Integrations from "./Integrations.jsx";
 
+const METHOD_COLOR = { POST: "#15803d", PUT: "#1c476b", PATCH: "#b45309", DELETE: "#b91c1c" };
+
+function Audit() {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState("");
+  const load = useCallback(async () => {
+    try { setRows(await api.getAudit()); } catch (e) { setErr(e.message); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  if (err) return <div className="err">{err}</div>;
+  if (!rows) return <div className="muted">Carregando…</div>;
+  return (
+    <div>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <p className="muted" style={{ marginTop: 0 }}>Últimas ações de alteração no sistema.</p>
+        <button className="btn" onClick={load}>Atualizar</button>
+      </div>
+      <table className="t">
+        <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Recurso</th><th>Resultado</th></tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{fmtDateTime(r.created_at)}</td>
+              <td>{r.user}</td>
+              <td><span className="pill" style={{ background: METHOD_COLOR[r.method] || "#334155", fontSize: 10 }}>{r.method}</span></td>
+              <td className="muted" style={{ fontSize: 12, wordBreak: "break-all" }}>{r.path}</td>
+              <td>{r.status}</td>
+            </tr>
+          ))}
+          {rows.length === 0 && <tr><td colSpan={5} className="muted">Sem registros.</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const TIMEZONES = [
   "America/Sao_Paulo", "America/Manaus", "America/Belem", "America/Fortaleza",
   "America/Recife", "America/Bahia", "America/Cuiaba", "America/Campo_Grande",
@@ -237,6 +273,7 @@ const SECTIONS = [
   { k: "platform", label: "Plataforma" },
   { k: "identity", label: "Identidade visual" },
   { k: "clock", label: "Data / hora" },
+  { k: "audit", label: "Auditoria" },
 ];
 
 export default function Admin({ me }) {
@@ -259,6 +296,7 @@ export default function Admin({ me }) {
       {sec === "platform" && <Platform />}
       {sec === "identity" && <Identity />}
       {sec === "clock" && <Clock />}
+      {sec === "audit" && <Audit />}
     </div>
   );
 }
