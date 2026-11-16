@@ -32,10 +32,11 @@ export default function CveBase() {
     return () => clearInterval(timer.current);
   }, [load]);
 
-  async function update(full) {
-    setMsg(full ? "Iniciando download da base completa…" : "Atualizando CVEs vistos…");
+  async function update(full, resume = false) {
+    setMsg(resume ? "Retomando o download…"
+      : full ? "Iniciando download da base completa…" : "Atualizando CVEs vistos…");
     try {
-      const r = await api.cveUpdate(full);
+      const r = await api.cveUpdate(full, resume);
       setMsg(r.mensagem || "Atualização iniciada.");
       setTimeout(load, 1200);
     } catch (e) { setMsg(`Falha: ${e.message}`); }
@@ -61,6 +62,7 @@ export default function CveBase() {
   if (!st) return <div className="muted">Carregando…</div>;
   const imp = st.import || { state: "idle", percent: 0 };
   const running = imp.running;
+  const stale = !!imp.stale;  // "baixando" mas sem avanco ha muito tempo = travado
 
   return (
     <div className="card" style={{ maxWidth: 680 }}>
@@ -103,9 +105,19 @@ export default function CveBase() {
         {imp.state === "error" && imp.error && (
           <div className="err" style={{ marginTop: 6, fontSize: 12 }}>⚠ {imp.error}</div>
         )}
+        {stale && (
+          <div style={{ marginTop: 6, fontSize: 12, color: "#a16207" }}>
+            ⚠ Sem avanço há {imp.stale_seconds}s — o download parece <b>travado</b>
+            {" "}(o worker pode ter sido reiniciado). Ele retoma sozinho quando o
+            worker voltar; se não voltar, use <b>Forçar parada</b> e baixe de novo
+            (continua de onde parou).
+          </div>
+        )}
         {running && (
           <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn danger" style={{ padding: "3px 12px" }} onClick={cancelImport}>⏹ Parar download</button>
+            <button className="btn danger" style={{ padding: "3px 12px" }} onClick={cancelImport}>
+              {stale ? "⏹ Forçar parada (travado)" : "⏹ Parar download"}
+            </button>
           </div>
         )}
       </div>
@@ -114,10 +126,10 @@ export default function CveBase() {
       <div className="cveopt">
         <b style={{ fontSize: 13 }}>Atualização manual</b>
         <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-          <button className="btn" onClick={() => update(false)} disabled={running}>↻ Atualizar CVEs vistos</button>
-          <button className="btn primary" onClick={() => update(true)} disabled={running}
+          <button className="btn" onClick={() => update(false)} disabled={running && !stale}>↻ Atualizar CVEs vistos</button>
+          <button className="btn primary" onClick={() => update(true, stale)} disabled={running && !stale}
             title="Baixa a base completa pela API oficial da NVD (paginada, com progresso).">
-            ⬇ Baixar base completa (NVD)
+            {stale ? "⬇ Retomar download (de onde parou)" : "⬇ Baixar base completa (NVD)"}
           </button>
         </div>
         <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>

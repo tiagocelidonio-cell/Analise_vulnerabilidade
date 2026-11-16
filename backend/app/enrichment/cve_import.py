@@ -47,13 +47,29 @@ async def get_import_status(session: AsyncSession) -> CveImportStatus:
     return st
 
 
+# Sem atualizacao por mais que isto, com estado "em andamento", = travado
+# (worker morto/reiniciado no meio). Folga generosa p/ nao marcar durante
+# retries de rate-limit (sem chave a NVD e lenta). Veja _startup no worker.
+STALE_SECONDS = 180
+
+
 def import_status_dict(st: CveImportStatus) -> dict:
     pct = int(100 * st.processed / st.total) if st.total else (100 if st.state == "done" else 0)
+    running = st.state in ("connecting", "downloading")
+    stale_seconds = None
+    stale = False
+    if running and st.updated_at is not None:
+        upd = st.updated_at
+        if upd.tzinfo is None:
+            upd = upd.replace(tzinfo=timezone.utc)
+        stale_seconds = int((datetime.now(timezone.utc) - upd).total_seconds())
+        stale = stale_seconds > STALE_SECONDS
     return {
         "state": st.state, "phase": st.phase, "total": st.total,
         "processed": st.processed, "imported": st.imported, "percent": pct,
         "source": st.source, "error": st.error,
-        "running": st.state in ("connecting", "downloading"),
+        "running": running,
+        "stale": stale, "stale_seconds": stale_seconds,
         "started_at": st.started_at.isoformat() if st.started_at else None,
         "updated_at": st.updated_at.isoformat() if st.updated_at else None,
         "finished_at": st.finished_at.isoformat() if st.finished_at else None,
@@ -92,23 +108,42 @@ def _parse_nvd_vuln(item: dict) -> dict | None:
             "published": _parse_dt(cve.get("published"))}
 
 
-async def import_full_nvd(session: AsyncSession) -> dict:
+async def import_full_nvd(session: AsyncSession, resume: bool = False) -> dict:
     """Baixa a base completa de CVE pela API oficial da NVD, PAGINADA e
     MONITORADA. Atualiza CveImportStatus a cada pagina (progresso, conexao,
-    erro) e respeita cancelamento. Resiliente a rate-limit (429/403)."""
+    erro) e respeita cancelamento. Resiliente a rate-limit (429/403).
+
+    resume=True: RETOMA de onde o download anterior parou (borda de pagina;
+    o upsert e idempotente). Usado quando o worker reinicia no meio."""
     st = await get_import_status(session)
-    st.state = "connecting"
-    st.phase = "conectando à NVD…"
-    st.error = None
-    st.cancel_requested = False
-    st.total = 0
-    st.processed = 0
-    st.imported = 0
-    st.source = "NVD 2.0 API" + (" (com chave)" if settings.nvd_api_key else " (sem chave)")
-    st.started_at = datetime.now(timezone.utc)
-    st.updated_at = st.started_at
-    st.finished_at = None
-    await session.commit()
+    now0 = datetime.now(timezone.utc)
+    if resume and st.processed and st.total:
+        resume_start = (st.processed // _PAGE) * _PAGE
+        base_imported = st.imported or resume_start
+        st.state = "downloading"
+        st.phase = f"retomando em {st.processed}/{st.total}…"
+        st.error = None
+        st.cancel_requested = False
+        st.finished_at = None
+        st.updated_at = now0
+        if st.started_at is None:
+            st.started_at = now0
+        await session.commit()
+    else:
+        resume_start = 0
+        base_imported = 0
+        st.state = "connecting"
+        st.phase = "conectando à NVD…"
+        st.error = None
+        st.cancel_requested = False
+        st.total = 0
+        st.processed = 0
+        st.imported = 0
+        st.source = "NVD 2.0 API" + (" (com chave)" if settings.nvd_api_key else " (sem chave)")
+        st.started_at = now0
+        st.updated_at = now0
+        st.finished_at = None
+        await session.commit()
 
     headers = {"User-Agent": "VulnScope"}
     if settings.nvd_api_key:
@@ -130,9 +165,9 @@ async def import_full_nvd(session: AsyncSession) -> dict:
         await session.commit()
         return {"error": msg, "imported": st.imported}
 
-    start = 0
-    imported = 0
-    processed = 0
+    start = resume_start
+    imported = base_imported
+    processed = resume_start
     async with httpx.AsyncClient(timeout=60, headers=headers) as client:
         while True:
             if await _cancelled():

@@ -411,15 +411,16 @@ async def _auto_recon(ctx, session, eng, scan) -> None:
         pass
 
 
-async def update_cve_base(ctx: dict, full: bool = False) -> dict:
+async def update_cve_base(ctx: dict, full: bool = False, resume: bool = False) -> dict:
     """Atualiza a base local de CVE.
-    full=True: baixa a base completa pela NVD (paginada + monitorada)."""
+    full=True: baixa a base completa pela NVD (paginada + monitorada).
+    resume=True: retoma o download completo de onde parou (apos reinicio)."""
     from app.api.integrations import apply_db_keys
     from app.enrichment.cve_import import import_full_nvd, refresh_seen
     async with SessionLocal() as session:
         await apply_db_keys(session)  # pega NVD_API_KEY salva no painel
         if full:
-            return await import_full_nvd(session)
+            return await import_full_nvd(session, resume=resume)
         return await refresh_seen(session)
 
 
@@ -467,6 +468,30 @@ async def _startup(ctx: dict) -> None:
             s.status = ScanStatus.cancelled
             s.phase = "interrompido (worker reiniciado)"
         await session.commit()
+
+    # Download de CVE orfao: o worker caiu/reiniciou no meio (ex.: um
+    # `docker compose up -d --build`). O status fica preso em "baixando" sem
+    # ninguem para avanca-lo nem ler o cancelamento. RETOMA de onde parou.
+    from app.enrichment.cve_import import get_import_status
+    resume_cve = False
+    async with SessionLocal() as session:
+        st = await get_import_status(session)
+        if st.state in ("connecting", "downloading"):
+            st.phase = "retomando após reinício…"
+            st.cancel_requested = False
+            st.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            resume_cve = True
+    if resume_cve:
+        try:
+            redis = ctx.get("redis")
+            if redis is None:
+                from arq import create_pool
+                redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+            # update_cve_base(ctx, full=True, resume=True)
+            await redis.enqueue_job("update_cve_base", True, True)
+        except Exception:  # noqa: BLE001  se nao enfileirar, a UI permite forcar
+            pass
 
 
 def _cron_jobs():
