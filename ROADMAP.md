@@ -234,9 +234,9 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 
 ### Onda TI — Threat Intelligence & Novidades (aproveitar a base de CVE)
 > A base de CVE que baixamos vira **inteligência viva**, não um arquivo parado.
-- [ ] **Capturar a data de publicação** dos CVEs no import (campo `published`/
+- [x] **Capturar a data de publicação** dos CVEs no import (campo `published`/
   `lastModified` da NVD) — pré-requisito para ordenar "mais recentes".
-- [ ] **Painel "CVEs recentes" na Visão geral** (estilo feed de notícias): últimos
+- [x] **Painel "CVEs recentes" na Visão geral** (estilo feed de notícias): últimos
   CVEs baixados/publicados, com severidade, CVSS, se está em KEV (exploração
   ativa) e link. Filtros por severidade/KEV e destaque para os críticos.
 - [ ] **"Relevantes para você"**: cruzar os CVEs recentes com as **tecnologias

@@ -14,6 +14,7 @@ from app.enrichment.cve_import import (
     get_import_status,
     get_schedule,
     import_status_dict,
+    recent_cves,
 )
 from app.models import User
 
@@ -46,6 +47,15 @@ async def cve_status(
     st["schedule"] = _sched_dict(cfg)
     st["import"] = import_status_dict(await get_import_status(session))
     return st
+
+
+@router.get("/cve/recent")
+async def cve_recent(
+    limit: int = 30,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return {"cves": await recent_cves(session, limit)}
 
 
 @router.get("/cve/schedule")

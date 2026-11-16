@@ -60,6 +60,15 @@ def import_status_dict(st: CveImportStatus) -> dict:
     }
 
 
+def _parse_dt(s):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
 def _parse_nvd_vuln(item: dict) -> dict | None:
     cve = (item or {}).get("cve") or {}
     cid = cve.get("id")
@@ -79,7 +88,8 @@ def _parse_nvd_vuln(item: dict) -> dict | None:
             except (KeyError, IndexError, ValueError, TypeError):
                 continue
     return {"cve_id": cid, "description": (desc or "")[:400] or None,
-            "references": refs, "cvss": cvss, "solution": _SOLUTION_BASE}
+            "references": refs, "cvss": cvss, "solution": _SOLUTION_BASE,
+            "published": _parse_dt(cve.get("published"))}
 
 
 async def import_full_nvd(session: AsyncSession) -> dict:
@@ -259,6 +269,8 @@ async def _upsert(session: AsyncSession, rec: dict) -> None:
     row.references = rec["references"]
     row.cvss = rec["cvss"]
     row.description = rec["description"]
+    if rec.get("published") is not None:
+        row.published = rec["published"]
     row.updated_at = datetime.now(timezone.utc)
 
 
@@ -326,6 +338,32 @@ async def refresh_seen(session: AsyncSession) -> dict:
             continue
     await session.commit()
     return {"updated": updated, "total_seen": len(cves)}
+
+
+def _sev_from_cvss(cvss) -> str:
+    if cvss is None:
+        return "info"
+    if cvss >= 9.0:
+        return "critical"
+    if cvss >= 7.0:
+        return "high"
+    if cvss >= 4.0:
+        return "medium"
+    return "low"
+
+
+async def recent_cves(session: AsyncSession, limit: int = 30) -> list[dict]:
+    """Feed dos CVEs mais recentes (por data de publicacao)."""
+    rows = list(await session.scalars(
+        select(CveRemediation)
+        .where(CveRemediation.published.is_not(None))
+        .order_by(CveRemediation.published.desc())
+        .limit(min(limit, 100))))
+    return [{
+        "cve_id": r.cve_id, "cvss": r.cvss, "severity": _sev_from_cvss(r.cvss),
+        "description": r.description,
+        "published": r.published.isoformat() if r.published else None,
+    } for r in rows]
 
 
 async def base_status(session: AsyncSession) -> dict:

@@ -17,12 +17,14 @@ export default function Overview() {
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
   const [cveSt, setCveSt] = useState(null);
+  const [recent, setRecent] = useState([]);
 
   const load = useCallback(async () => {
     try { setD(await api.overview()); } catch (e) { setErr(e.message); }
   }, []);
   const loadCve = useCallback(async () => {
     try { setCveSt(await api.cveStatus()); } catch { /* ignore */ }
+    try { setRecent((await api.cveRecent(30)).cves || []); } catch { /* ignore */ }
   }, []);
   useEffect(() => { load(); loadCve(); }, [load, loadCve]);
 
@@ -105,6 +107,28 @@ export default function Overview() {
             {d.top_clients.length === 0 && <tr><td colSpan={4} className="muted">Sem dados.</td></tr>}
           </tbody>
         </table>
+      ),
+    },
+    {
+      id: "cverecent", title: "CVEs recentes (feed)", wide: true, node: (
+        recent.length === 0
+          ? <p className="muted">Sem CVEs recentes. Baixe a base completa em <b>Administração › Base de CVEs</b> (captura a data de publicação).</p>
+          : (
+            <table className="t">
+              <thead><tr><th>Publicado</th><th>CVE</th><th>Sev</th><th>CVSS</th><th>Descrição</th></tr></thead>
+              <tbody>
+                {recent.map((c) => (
+                  <tr key={c.cve_id}>
+                    <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{c.published ? fmtDateTime(c.published) : "—"}</td>
+                    <td><a href={`https://nvd.nist.gov/vuln/detail/${c.cve_id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{c.cve_id}</a></td>
+                    <td><span className="pill" style={{ background: SEV_COLOR[c.severity] || "#334155", fontSize: 10 }}>{c.severity.toUpperCase()}</span></td>
+                    <td>{c.cvss != null ? c.cvss.toFixed(1) : "—"}</td>
+                    <td style={{ fontSize: 12 }}>{(c.description || "").slice(0, 140)}{(c.description || "").length > 140 ? "…" : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
       ),
     },
     {

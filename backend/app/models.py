@@ -207,6 +207,9 @@ class CveRemediation(Base):
     references: Mapped[list] = mapped_column(JSON, default=list)
     cvss: Mapped[float | None] = mapped_column(Float, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Data de publicacao (NVD) -> permite o feed de "CVEs recentes".
+    published: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

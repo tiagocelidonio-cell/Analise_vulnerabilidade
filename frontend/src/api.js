@@ -65,6 +65,7 @@ export const api = {
   getIntegrations: () => req("/integrations"),
   updateIntegrations: (updates) => req("/integrations", { method: "PUT", body: JSON.stringify({ updates }) }),
   cveStatus: () => req("/cve/status"),
+  cveRecent: (limit = 30) => req(`/cve/recent?limit=${limit}`),
   cveUpdate: (full = false) => req(`/cve/update?full=${full}`, { method: "POST" }),
   cveImportCancel: () => req("/cve/import/cancel", { method: "POST" }),
   cveSchedule: () => req("/cve/schedule"),
