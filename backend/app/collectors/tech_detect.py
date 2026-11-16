@@ -9,9 +9,7 @@ from __future__ import annotations
 import asyncio
 import re
 
-import httpx
-
-from app.collectors.base import CollectedFact
+from app.collectors.base import CollectedFact, http_fetch
 from app.config import settings
 
 _HTTP_PORTS = {80, 8000, 8080, 3000, 9000}
@@ -63,14 +61,13 @@ def _os_hint(server: str) -> str | None:
     return None
 
 
-async def _detect(client: httpx.AsyncClient, host: str, port: int) -> CollectedFact | None:
+async def _detect(host: str, port: int, timeout: float) -> CollectedFact | None:
     url = f"{_scheme(port)}://{host}:{port}"
-    try:
-        r = await client.get(url, follow_redirects=True)
-    except (httpx.HTTPError, OSError):
+    res = await http_fetch(url, timeout, max_body=200000)  # teto de tempo + corpo limitado
+    if res is None:
         return None
+    status, headers, body = res
     tech: set[str] = set()
-    headers = {k.lower(): v for k, v in r.headers.items()}
 
     server = headers.get("server", "")
     if server:
@@ -85,7 +82,6 @@ async def _detect(client: httpx.AsyncClient, host: str, port: int) -> CollectedF
     for sign, name in _COOKIE_SIGNS.items():
         if sign in cookies:
             tech.add(name)
-    body = r.text[:200000]
     for pat, name in _BODY_SIGNS:
         m = pat.search(body)
         if m:
@@ -100,7 +96,7 @@ async def _detect(client: httpx.AsyncClient, host: str, port: int) -> CollectedF
     # Sempre emite quando o host RESPONDEU (mesmo sem assinatura clara): ao menos
     # registra o servidor e o status, util para a superficie de ataque.
     if not tech:
-        tech.add(f"servidor nao identificado (HTTP {r.status_code})")
+        tech.add(f"servidor nao identificado (HTTP {status})")
     techs = sorted(tech)
     return CollectedFact(
         target=host, port=port, service="tech",
@@ -114,30 +110,39 @@ class TechDetectCollector:
     name = "tech_detect"
 
     async def run(self, targets: list[str], ports: list[int] | None = None, **kwargs):
+        cancel_check = kwargs.get("cancel_check")
         on_tick = kwargs.get("on_tick")
         plist = ports or [443, 80]
-        # Timeout curto: num /24 a maioria dos IPs nao responde; nao da para
-        # esperar muito por host (senao o scan "trava").
+        # Timeout curto: num /24 a maioria dos IPs nao responde; cada probe tem
+        # teto de tempo proprio (http_fetch), entao nenhum host trava o scan.
         timeout = min(settings.scan_connect_timeout * 2, 4.0)
         facts: list[CollectedFact] = []
-        # on_tick (heartbeat) NAO pode ser chamado de dentro das corrotinas
-        # paralelas: a sessao async do worker nao aceita commits concorrentes.
-        # O worker ja bate o heartbeat a cada lote; aqui so sinalizamos no inicio.
-        if on_tick:
-            try:
-                await on_tick()
-            except Exception:  # noqa: BLE001
-                pass
-        sem = asyncio.Semaphore(40)  # roda os hosts em PARALELO
-        async with httpx.AsyncClient(verify=False, timeout=timeout,
-                                     headers={"User-Agent": "Mozilla/5.0 VulnScope"}) as client:
-            async def one(raw_host: str) -> None:
-                host = raw_host.split("://")[-1].split("/")[0].split(":")[0]
-                async with sem:
-                    for p in plist:
-                        f = await _detect(client, host, p)
-                        if f is not None:
-                            facts.append(f)
-                            break  # um fingerprint por host basta
-            await asyncio.gather(*(one(h) for h in targets))
+        conc = 40
+        sem = asyncio.Semaphore(conc)  # roda os hosts em PARALELO
+        hosts = [h.split("://")[-1].split("/")[0].split(":")[0] for h in targets]
+
+        async def one(host: str) -> None:
+            async with sem:
+                for p in plist:
+                    f = await _detect(host, p, timeout)
+                    if f is not None:
+                        facts.append(f)
+                        break  # um fingerprint por host basta
+
+        # Blocos: cancel/heartbeat ENTRE blocos (nunca de dentro das corrotinas
+        # concorrentes -> a sessao async do worker nao aceita commits simultaneos).
+        chunk = max(conc, 64)
+        for k in range(0, len(hosts), chunk):
+            if cancel_check is not None:
+                try:
+                    if await cancel_check():
+                        break
+                except Exception:  # noqa: BLE001
+                    pass
+            await asyncio.gather(*(one(h) for h in hosts[k:k + chunk]))
+            if on_tick is not None:
+                try:
+                    await on_tick()
+                except Exception:  # noqa: BLE001
+                    pass
         return facts

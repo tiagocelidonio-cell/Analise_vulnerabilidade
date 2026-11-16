@@ -8,9 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-import httpx
-
-from app.collectors.base import CollectedFact
+from app.collectors.base import CollectedFact, http_fetch
 from app.config import settings
 
 _HTTP_PORTS = {80, 8000, 8080, 3000, 9000}
@@ -58,50 +56,64 @@ class WebContentCollector:
     async def run(
         self, targets: list[str], ports: list[int] | None = None, **kwargs
     ) -> list[CollectedFact]:
+        cancel_check = kwargs.get("cancel_check")
+        on_tick = kwargs.get("on_tick")
         ports = ports or sorted(_HTTP_PORTS | _HTTPS_PORTS)
         timeout = settings.scan_connect_timeout * 2
-        sem = asyncio.Semaphore(settings.scan_max_concurrency)
+        conc = max(1, settings.scan_max_concurrency)
+        sem = asyncio.Semaphore(conc)
         facts: list[CollectedFact] = []
 
-        async def check(client: httpx.AsyncClient, base: str, path: str, hint: str):
+        async def check(base: str, path: str, hint: str):
             url = f"{base}/{path}"
-            try:
-                async with sem:
-                    resp = await client.get(url)
-            except (httpx.HTTPError, OSError):
+            async with sem:
+                # follow_redirects=False: detecta o caminho, nao o destino do
+                # redirect. Corpo limitado + teto de tempo (nao pendura).
+                res = await http_fetch(url, timeout, max_body=2048,
+                                       follow_redirects=False)
+            if res is None:
                 return
-            if resp.status_code not in _INTERESTING:
+            status, _headers, body_full = res
+            if status not in _INTERESTING:
                 return
-            body = resp.text[:2000] if resp.status_code == 200 else ""
+            body = body_full if status == 200 else ""
             listing = "Index of /" in body
             # 200 em caminho sensivel confirma exposicao; 401/403 indica existencia
-            sev = hint if resp.status_code == 200 else (
+            sev = hint if status == 200 else (
                 "low" if hint in ("high", "medium") else "info"
             )
             facts.append(
                 CollectedFact(
                     target=base.split("//")[1], service="http",
-                    title=f"[{resp.status_code}] /{path}"
+                    title=f"[{status}] /{path}"
                           + (" (directory listing!)" if listing else ""),
-                    raw=f"{url}\nHTTP {resp.status_code}"
+                    raw=f"{url}\nHTTP {status}"
                         + (f"\n{body[:300]}" if body else ""),
                     data={"severity_hint": "high" if listing else sev,
-                          "url": url, "status": resp.status_code,
+                          "url": url, "status": status,
                           "listing": listing, "path": path},
                 )
             )
 
+        # Monta todos os probes (host x base x path) e roda em BLOCOS, com
+        # cancelamento e heartbeat ENTRE blocos.
+        probes = []
         for host in targets:
-            bases = _base_urls(host, ports)
-            if not bases:
-                continue
-            async with httpx.AsyncClient(
-                verify=False, timeout=timeout, follow_redirects=False
-            ) as client:
-                tasks = [
-                    check(client, base, path, hint)
-                    for base in bases
-                    for path, hint in _PATHS.items()
-                ]
-                await asyncio.gather(*tasks)
+            for base in _base_urls(host, ports):
+                for path, hint in _PATHS.items():
+                    probes.append((base, path, hint))
+        chunk = max(conc, 64)
+        for k in range(0, len(probes), chunk):
+            if cancel_check is not None:
+                try:
+                    if await cancel_check():
+                        break
+                except Exception:  # noqa: BLE001
+                    pass
+            await asyncio.gather(*(check(b, p, h) for b, p, h in probes[k:k + chunk]))
+            if on_tick is not None:
+                try:
+                    await on_tick()
+                except Exception:  # noqa: BLE001
+                    pass
         return facts

@@ -16,12 +16,15 @@ async def run_killable(
     cancel_check=None,
     poll: float = 1.0,
     on_tick=None,
+    max_seconds: float | None = None,
 ) -> bytes | None:
     """Roda `args`, devolvendo o stdout em bytes.
 
     - Retorna None se nem conseguiu iniciar (ex.: binario ausente) -> fallback.
     - Retorna b"" se foi abortado por cancel_check (mata o processo).
     - on_tick: coroutine opcional chamada a cada poll enquanto roda (heartbeat).
+    - max_seconds: TETO de parede. Se o processo passar disso, e morto (evita
+      um binario travado — ex.: chromium numa pagina ruim — pendurar o scan).
     """
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -32,6 +35,8 @@ async def run_killable(
     except OSError:
         return None
 
+    loop = asyncio.get_event_loop()
+    started = loop.time()
     comm = asyncio.ensure_future(proc.communicate())
     while not comm.done():
         done, _ = await asyncio.wait({comm}, timeout=poll)
@@ -42,6 +47,17 @@ async def run_killable(
                 await on_tick()
             except Exception:  # noqa: BLE001  batimento nunca derruba o scan
                 pass
+        timed_out = max_seconds is not None and (loop.time() - started) > max_seconds
+        if timed_out:
+            with contextlib.suppress(ProcessLookupError):
+                proc.terminate()
+            try:
+                await asyncio.wait_for(comm, 5)
+            except Exception:  # noqa: BLE001  nao morreu -> kill
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+                await asyncio.gather(comm, return_exceptions=True)
+            return b""
         if cancel_check is not None:
             try:
                 stop = bool(await cancel_check())

@@ -14,9 +14,7 @@ import re
 import ssl
 from datetime import datetime, timezone
 
-import httpx
-
-from app.collectors.base import CollectedFact
+from app.collectors.base import CollectedFact, http_fetch
 from app.config import settings
 
 _HTTP_PORTS = {80, 8000, 8080, 3000, 9000}
@@ -37,7 +35,15 @@ def _scheme_for(port: int) -> str:
 
 
 async def _tls_cert_fact(host: str, port: int, timeout: float) -> CollectedFact | None:
-    """Conecta via TLS e checa validade do certificado."""
+    """Conecta via TLS e checa validade do certificado (com teto de tempo)."""
+    try:
+        return await asyncio.wait_for(_tls_cert_once(host, port, timeout),
+                                      timeout=timeout * 2 + 2)
+    except (OSError, asyncio.TimeoutError, ssl.SSLError):
+        return None
+
+
+async def _tls_cert_once(host: str, port: int, timeout: float) -> CollectedFact | None:
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE  # scanner precisa inspecionar cert invalido tambem
@@ -92,17 +98,13 @@ async def _probe_url(host: str, port: int, timeout: float) -> list[CollectedFact
     scheme = _scheme_for(port)
     url = f"{scheme}://{host}:{port}/"
     facts: list[CollectedFact] = []
-    try:
-        async with httpx.AsyncClient(
-            verify=False, timeout=timeout, follow_redirects=True
-        ) as client:
-            resp = await client.get(url)
-    except (httpx.HTTPError, OSError):
+    res = await http_fetch(url, timeout)  # teto de tempo + corpo limitado
+    if res is None:
         return facts
+    status, headers, text = res
 
-    headers = {k.lower(): v for k, v in resp.headers.items()}
     server = headers.get("server", "")
-    title_m = _TITLE_RE.search(resp.text or "")
+    title_m = _TITLE_RE.search(text or "")
     title = (title_m.group(1).strip()[:120] if title_m else "")
 
     # Fato de servico HTTP (Server header realimenta a correlacao CVE).
@@ -110,8 +112,8 @@ async def _probe_url(host: str, port: int, timeout: float) -> list[CollectedFact
         CollectedFact(
             target=host, port=port, service=scheme,
             title=f"Servico {scheme.upper()} ({server or 'sem Server header'})",
-            raw=f"Server: {server}\nStatus: {resp.status_code}\nTitle: {title}",
-            data={"banner": f"Server: {server}", "status": resp.status_code,
+            raw=f"Server: {server}\nStatus: {status}\nTitle: {title}",
+            data={"banner": f"Server: {server}", "status": status,
                   "title": title, "server": server},
         )
     )
@@ -146,9 +148,12 @@ class HttpProbeCollector:
     async def run(
         self, targets: list[str], ports: list[int] | None = None, **kwargs
     ) -> list[CollectedFact]:
+        cancel_check = kwargs.get("cancel_check")
+        on_tick = kwargs.get("on_tick")
         ports = ports or sorted(_HTTP_PORTS | _HTTPS_PORTS)
         timeout = settings.scan_connect_timeout * 2
-        sem = asyncio.Semaphore(settings.scan_max_concurrency)
+        conc = max(1, settings.scan_max_concurrency)
+        sem = asyncio.Semaphore(conc)
         out: list[CollectedFact] = []
 
         async def guarded(host: str, port: int) -> None:
@@ -159,5 +164,23 @@ class HttpProbeCollector:
                     if cert:
                         out.append(cert)
 
-        await asyncio.gather(*(guarded(h, p) for h in targets for p in ports))
+        pairs = [(h, p) for h in targets for p in ports]
+        # Processa em BLOCOS: cancelamento e heartbeat acontecem ENTRE blocos
+        # (nunca de dentro das corrotinas concorrentes -> a sessao async do
+        # worker nao aceita commits simultaneos). Cada probe ja tem teto de
+        # tempo proprio, entao um bloco sempre termina.
+        chunk = max(conc, 64)
+        for k in range(0, len(pairs), chunk):
+            if cancel_check is not None:
+                try:
+                    if await cancel_check():
+                        break
+                except Exception:  # noqa: BLE001
+                    pass
+            await asyncio.gather(*(guarded(h, p) for h, p in pairs[k:k + chunk]))
+            if on_tick is not None:
+                try:
+                    await on_tick()
+                except Exception:  # noqa: BLE001
+                    pass
         return out

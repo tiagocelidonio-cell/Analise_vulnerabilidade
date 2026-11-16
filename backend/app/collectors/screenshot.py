@@ -12,9 +12,7 @@ import os
 import shutil
 import tempfile
 
-import httpx
-
-from app.collectors.base import CollectedFact
+from app.collectors.base import CollectedFact, http_fetch
 from app.collectors.proc import run_killable
 
 _HTTPS_PORTS = {443, 8443}
@@ -22,14 +20,11 @@ _MAX = 30  # teto de capturas por scan (evita payload gigante)
 
 
 async def _responds(url: str) -> bool:
-    """Checa rapido se ha servico web (evita screenshot de IP morto do range)."""
-    try:
-        async with httpx.AsyncClient(verify=False, timeout=5,
-                                     headers={"User-Agent": "VulnScope"}) as c:
-            r = await c.get(url, follow_redirects=True)
-            return r.status_code < 500
-    except (httpx.HTTPError, OSError):
-        return False
+    """Checa rapido se ha servico web (evita screenshot de IP morto do range).
+
+    Usa o fetch com teto de tempo + corpo limitado (nao pendura em host trickle)."""
+    res = await http_fetch(url, timeout=5, max_body=2048)
+    return res is not None and res[0] < 500
 
 
 def _chromium() -> str | None:
@@ -97,7 +92,9 @@ class ScreenshotCollector:
                     f"--screenshot={tmp}", url]
             b64 = None
             try:
-                await run_killable(args, cancel_check=cancel_check, on_tick=on_tick)
+                # Teto de 25s por captura: pagina ruim nunca pendura o scan.
+                await run_killable(args, cancel_check=cancel_check, on_tick=on_tick,
+                                   max_seconds=25)
                 if os.path.exists(tmp) and os.path.getsize(tmp) > 0:
                     with open(tmp, "rb") as fh:
                         b64 = base64.b64encode(fh.read()).decode("ascii")
