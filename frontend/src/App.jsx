@@ -213,6 +213,41 @@ function NewScan({ engagement, onStarted }) {
   );
 }
 
+// Classificacao FUNCIONAL dos achados por tipo (para agrupar na aba Achados).
+const TYPE_ORDER = ["vuln", "ports", "web", "tech", "assets", "emails", "exposure", "ot", "leaks", "other"];
+const TYPE_LABEL = {
+  vuln: "Vulnerabilidades (CVE)",
+  ports: "Portas abertas / serviços",
+  web: "Serviços web / integrações",
+  tech: "Tecnologias",
+  assets: "Subdomínios e ativos",
+  emails: "E-mails",
+  exposure: "Exposições e configuração",
+  ot: "OT / IoT",
+  leaks: "Vazamentos",
+  other: "Outras informações",
+};
+const TYPE_ICON = {
+  vuln: "🛡️", ports: "🔌", web: "🌐", tech: "🧩", assets: "🗂️",
+  emails: "✉️", exposure: "⚠️", ot: "🏭", leaks: "💧", other: "ℹ️",
+};
+function findingType(f) {
+  const svc = (f.service || "").toLowerCase();
+  const d = f.data || {};
+  const title = (f.title || "").toLowerCase();
+  if (d.ot) return "ot";
+  if ((f.cve_ids || []).length > 0) return "vuln";
+  if (d.source === "leaks" || svc === "leak" || svc === "leaks" || d.breach) return "leaks";
+  if (svc === "tech") return "tech";
+  if (svc === "subdomain" || svc === "host") return "assets";
+  if (svc === "osint") return d.email ? "emails" : "web";
+  if (d.email || /e-?mail/.test(title)) return "emails";
+  if (svc === "tls" || d.weakness || d.path || d.listing) return "exposure";
+  if (svc === "http" || svc === "https") return "web";
+  if (f.port && (title.includes("aberta") || title.includes("porta") || svc)) return "ports";
+  return "other";
+}
+
 function FindingRow({ f, selected, onToggle, onUpdated }) {
   const [open, setOpen] = useState(false);
   const [assignee, setAssignee] = useState(f.assignee || "");
@@ -390,6 +425,8 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
   const [pickOpen, setPickOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [sortBy, setSortBy] = useState("sev");
+  const [groupByType, setGroupByType] = useState(true);
+  const [collapsedTypes, setCollapsedTypes] = useState(() => new Set());
 
   function toggleSel(f) {
     setSel((prev) => {
@@ -661,6 +698,9 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
               className={`chip ${sevFilter === s ? "active" : ""}`}
               onClick={() => setSevFilter(s)}>{s ? s.toUpperCase() : "TODOS"}</button>
           ))}
+          <button className={`chip ${groupByType ? "active" : ""}`}
+            title="Agrupar os achados por tipo (e-mails, tecnologias, portas…)"
+            onClick={() => setGroupByType((v) => !v)}>⊞ Por tipo</button>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
             style={{ width: "auto", padding: "4px 8px", fontSize: 13 }} title="Ordenar por">
             <option value="sev">Ordenar: criticidade</option>
@@ -695,21 +735,68 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
           if (sortBy === "target") return (a.target || "").localeCompare(b.target || "");
           return rank(a.severity) - rank(b.severity) || (b.cvss || 0) - (a.cvss || 0);
         });
-        const allSel = sorted.length > 0 && sorted.every((f) => sel.has(f.id));
-        const toggleAll = () => setSel(allSel ? new Set() : new Set(sorted.map((f) => f.id)));
+
+        const renderTable = (rows, headChk) => (
+          <table className="t">
+            <thead><tr>
+              <th>{headChk}</th>
+              <th>Sev</th><th>Status</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th><th>Data</th>
+            </tr></thead>
+            <tbody>
+              {rows.map((f) => <FindingRow key={f.id} f={f}
+                selected={sel.has(f.id)} onToggle={toggleSel} onUpdated={refresh} />)}
+            </tbody>
+          </table>
+        );
+
+        if (findings.length === 0) {
+          return <div className="muted" style={{ padding: 12 }}>
+            Sem achados ainda. Vá em <b>Nova varredura</b> e rode uma ferramenta.</div>;
+        }
+        if (filtered.length === 0) {
+          return <div className="muted" style={{ padding: 12 }}>
+            Nenhum achado nesta severidade.</div>;
+        }
+
+        if (!groupByType) {
+          const allSel = sorted.every((f) => sel.has(f.id));
+          const toggleAll = () => setSel(allSel ? new Set() : new Set(sorted.map((f) => f.id)));
+          return renderTable(sorted,
+            <input type="checkbox" checked={allSel} onChange={toggleAll} />);
+        }
+
+        // Agrupado por tipo funcional.
+        const groups = {};
+        for (const f of sorted) { const t = findingType(f); (groups[t] ||= []).push(f); }
         return (
-        <table className="t">
-          <thead><tr>
-            <th><input type="checkbox" checked={allSel} onChange={toggleAll} /></th>
-            <th>Sev</th><th>Status</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th><th>Data</th>
-          </tr></thead>
-          <tbody>
-            {sorted.map((f) => <FindingRow key={f.id} f={f}
-              selected={sel.has(f.id)} onToggle={toggleSel} onUpdated={refresh} />)}
-            {findings.length === 0 && <tr><td colSpan={10} className="muted">
-              Sem achados ainda. Vá em <b>Nova varredura</b> e rode uma ferramenta.</td></tr>}
-          </tbody>
-        </table>
+          <div>
+            {TYPE_ORDER.filter((t) => groups[t] && groups[t].length).map((t) => {
+              const rows = groups[t];
+              const open = !collapsedTypes.has(t);
+              const gAll = rows.every((f) => sel.has(f.id));
+              const toggleG = () => setSel((prev) => {
+                const n = new Set(prev);
+                rows.forEach((f) => (gAll ? n.delete(f.id) : n.add(f.id)));
+                return n;
+              });
+              return (
+                <div key={t} style={{ marginBottom: 14 }}>
+                  <div className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer",
+                    padding: "6px 2px", borderBottom: "1px solid var(--border)" }}
+                    onClick={() => setCollapsedTypes((prev) => {
+                      const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n; })}>
+                    <span style={{ width: 12, color: "var(--muted)" }}>{open ? "▾" : "▸"}</span>
+                    <span style={{ fontSize: 15 }}>{TYPE_ICON[t]}</span>
+                    <b style={{ fontSize: 14 }}>{TYPE_LABEL[t]}</b>
+                    <span className="muted" style={{ fontSize: 12 }}>({rows.length})</span>
+                  </div>
+                  {open && renderTable(rows,
+                    <input type="checkbox" checked={gAll} onChange={toggleG}
+                      onClick={(e) => e.stopPropagation()} title="Selecionar todos deste tipo" />)}
+                </div>
+              );
+            })}
+          </div>
         );
       })()}
 
