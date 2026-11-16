@@ -15,6 +15,17 @@ from app.config import settings
 _HTTP_PORTS = {80, 8000, 8080, 3000, 9000}
 _HTTPS_PORTS = {443, 8443}
 
+# Assinaturas de HOSPEDAGEM ESTATICA / landing (a aplicacao nao roda aqui).
+# NAO inclui CDNs que frentam apps reais (Cloudflare/Fastly/Akamai).
+_STATIC_HOSTS = [
+    ("github.com", "GitHub Pages"), ("jekyll", "GitHub Pages/Jekyll"),
+    ("netlify", "Netlify"), ("vercel", "Vercel"),
+    ("amazons3", "Amazon S3 (site estático)"), ("cloudflare pages", "Cloudflare Pages"),
+    ("surge", "Surge.sh"), ("gatsby", "site estático (Gatsby)"),
+    ("hugo", "site estático (Hugo)"), ("gitbook", "GitBook"),
+    ("read the docs", "Read the Docs"), ("pages.dev", "Cloudflare Pages"),
+]
+
 # Assinaturas no HTML/headers -> tecnologia.
 _BODY_SIGNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"wp-content|wp-includes|/wp-json", re.I), "WordPress"),
@@ -97,12 +108,33 @@ async def _detect(host: str, port: int, timeout: float) -> CollectedFact | None:
     # registra o servidor e o status, util para a superficie de ataque.
     if not tech:
         tech.add(f"servidor nao identificado (HTTP {status})")
+
+    # Detecta HOSPEDAGEM ESTATICA / LANDING PAGE: a aplicacao real NAO vive aqui
+    # (ex.: owasp-juice.shop serve a pagina do projeto no GitHub Pages/Jekyll, nao
+    # o app vulneravel). Evita o falso "o scanner nao achou nada".
+    blob = (server + " " + " ".join(tech)).lower()
+    static_name = None
+    for sig, nome in _STATIC_HOSTS:
+        if sig in blob:
+            static_name = nome
+            break
+
     techs = sorted(tech)
+    data = {"severity_hint": "info", "technologies": techs, "source": "tech_detect"}
+    title = (f"Tecnologias em {host}: {', '.join(techs[:6])}"
+             f"{'…' if len(techs) > 6 else ''}")
+    if static_name:
+        data["static_hosting"] = static_name
+        data["severity_hint"] = "low"
+        title = (f"⚠ {host}: hospedagem estática/landing ({static_name}) — "
+                 f"não é a aplicação")
+        techs = [f"⚠ Hospedagem estática/landing: {static_name} — "
+                 f"vulnerabilidades de aplicação NÃO vivem aqui; teste a "
+                 f"instância real da aplicação"] + techs
+        data["technologies"] = techs
     return CollectedFact(
         target=host, port=port, service="tech",
-        title=f"Tecnologias em {host}: {', '.join(techs[:6])}{'…' if len(techs) > 6 else ''}",
-        raw="\n".join(techs),
-        data={"severity_hint": "info", "technologies": techs, "source": "tech_detect"},
+        title=title, raw="\n".join(techs), data=data,
     )
 
 
