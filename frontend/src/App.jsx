@@ -579,6 +579,25 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                 })() : s.status === "failed" ? <span className="muted" title={s.error || ""}>falhou</span>
                   : s.status === "cancelled" ? <span className="muted">cancelado</span>
                   : <span className="muted">concluído</span>}
+                {Array.isArray(s.stages) && s.stages.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                    {s.stages.map((st, i) => {
+                      const ic = st.status === "ok" ? "✓" : st.status === "failed" ? "✕"
+                        : st.status === "running" ? "⟳" : st.status === "skipped" ? "○" : "·";
+                      const col = st.status === "ok" ? "#15803d" : st.status === "failed" ? "#b91c1c"
+                        : st.status === "running" ? "var(--accent)" : "#64748b";
+                      const tip = st.error || (st.status === "ok"
+                        ? `${st.found || 0} coletado(s)${st.created ? `, ${st.created} novo(s)` : ""}`
+                        : st.status);
+                      return (
+                        <span key={i} title={tip} style={{ fontSize: 10, padding: "1px 6px",
+                          borderRadius: 10, border: `1px solid ${col}`, color: col, whiteSpace: "nowrap" }}>
+                          {ic} {st.label}{st.status === "ok" && st.created ? ` (${st.created})` : ""}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </td>
               <td>{s.targets.join(", ")}</td>
               <td className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>

@@ -12,7 +12,15 @@ from arq.connections import RedisSettings
 from sqlalchemy import select
 
 from app.ai.agent import analyst
-from app.collectors import COLLECTORS, DEFAULT_COLLECTORS, HOST_COLLECTORS
+from app.collectors import (
+    COLLECTORS,
+    DEFAULT_COLLECTORS,
+    HOST_COLLECTORS,
+    STAGE_LABELS,
+    STAGE_ORDER,
+    WEB_PORTS,
+    WEB_STAGES,
+)
 from app.config import settings
 from app.db import SessionLocal, init_db
 from app.enrichment.cve_match import correlate
@@ -22,6 +30,115 @@ from app.enrichment.sources import enrich_cves
 from app.models import Evidence, Finding, ScanJob, ScanStatus, Severity
 from app.scope import validate_targets
 from app.targets import expand_targets
+
+
+async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
+                        base_count: int = 0) -> tuple[int, bool]:
+    """Enriquece, deduplica e GRAVA os fatos como Findings+Evidence.
+
+    Chamada ao fim de CADA etapa -> os achados sobem para o banco
+    incrementalmente (nao mais so no fim do scan). Retorna (criados, parou)."""
+    created = 0
+    total = max(len(facts), 1)
+    for n, fact in enumerate(facts):
+        if n % 20 == 0 and await halted():
+            return created, True
+        fact_dict = asdict(fact)
+        now = datetime.now(timezone.utc)
+        fdata = {k: v for k, v in (fact.data or {}).items()
+                 if k != "screenshot_b64"}
+        signature = f"{fact.target}|{fact.port}|{fact.title}".lower()
+
+        # 1) CVEs: nuclei ja traz os CVEs; senao, correlaciona o banner (NVD).
+        if fact.data.get("cve_ids"):
+            cve_ids = fact.data["cve_ids"]
+            correlation = {"cve_ids": cve_ids, "max_cvss": fact.data.get("cvss")}
+        else:
+            correlation = await correlate(fact.data.get("banner", "") or fact.raw)
+            cve_ids = correlation["cve_ids"]
+        fact_dict["correlation"] = correlation
+
+        # 2) Enriquece com EPSS (probabilidade) e KEV (exploracao ativa).
+        enrichment = await enrich_cves(cve_ids) if cve_ids else {
+            "epss": {}, "kev": {}, "max_epss": 0.0, "any_kev": False}
+
+        # 3) IA raciocina sobre os fatos ja provados.
+        assessment = await analyst.assess(fact_dict, enrichment)
+        assess_dict = assessment.to_dict()
+
+        # 3b) Remediacao (NVD, cacheada) para o CVE principal.
+        if cve_ids:
+            try:
+                rem = await get_remediation(session, cve_ids[0])
+            except Exception:  # noqa: BLE001  nunca derruba o scan
+                rem = None
+            if rem:
+                assess_dict["remediation"] = rem.get("solution")
+                assess_dict["references"] = rem.get("references") or []
+                if rem.get("description"):
+                    assess_dict["cve_description"] = rem["description"]
+
+        # 3c) Exploit publico conhecido (Exploit-DB) para o CVE principal.
+        if cve_ids:
+            cid = cve_ids[0]
+            if cid not in exploit_cache:
+                try:
+                    exploit_cache[cid] = await exploits_for_cve(cid)
+                except Exception:  # noqa: BLE001
+                    exploit_cache[cid] = []
+            if exploit_cache[cid]:
+                fdata["exploits"] = exploit_cache[cid]
+                assess_dict["exploit_available"] = True
+
+        # Dedup: ja existe esse achado neste cliente? Entao so atualiza.
+        existing = await session.scalar(
+            select(Finding).where(
+                Finding.engagement_id == eng.id,
+                Finding.signature == signature,
+            )
+        )
+        if existing is not None:
+            existing.times_seen += 1
+            existing.last_seen = now
+            existing.scan_id = scan.id
+            existing.severity = Severity(assessment.severity)
+            existing.cvss = correlation.get("max_cvss")
+            existing.epss = enrichment.get("max_epss") or None
+            existing.in_kev = enrichment.get("any_kev", False)
+            existing.ai_assessment = {**(existing.ai_assessment or {}), **assess_dict}
+            if fdata:
+                existing.data = {**(existing.data or {}), **fdata}
+        else:
+            finding = Finding(
+                engagement_id=eng.id, scan_id=scan.id,
+                target=fact.target, port=fact.port, service=fact.service,
+                title=fact.title, description=assessment.risk_summary,
+                severity=Severity(assessment.severity),
+                cvss=correlation.get("max_cvss"),
+                epss=enrichment.get("max_epss") or None,
+                in_kev=enrichment.get("any_kev", False),
+                cve_ids=cve_ids, data=fdata, ai_assessment=assess_dict,
+                confidence=assessment.confidence, signature=signature,
+                times_seen=1, last_seen=now,
+            )
+            session.add(finding)
+            await session.flush()  # garante finding.id
+            session.add(Evidence(
+                finding_id=finding.id, kind="raw",
+                content=fact.raw[:4000] if fact.raw else fact.title))
+            shot = fact.data.get("screenshot_b64")
+            if shot:
+                session.add(Evidence(
+                    finding_id=finding.id, kind="screenshot",
+                    content="data:image/png;base64," + shot))
+            created += 1
+        if n % 5 == 0:
+            scan.findings_count = base_count + created
+            scan.heartbeat = datetime.now(timezone.utc)
+            await session.commit()
+    scan.findings_count = base_count + created
+    await session.commit()
+    return created, False
 
 
 async def run_scan(ctx: dict, scan_id: str) -> dict:
@@ -159,192 +276,159 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             # Coletores de host recebem os IPs expandidos do range; os de
             # recon (dominio) recebem os alvos originais.
             host_targets = expand_targets(scan.targets)
-            # Todos os coletores de host rodam em LOTES de IPs: permite cancelar
-            # no meio (inclusive o nmap) e mostrar progresso real.
-            host_collectors = HOST_COLLECTORS
-            facts = []
-            for i, name in enumerate(selected):
+            # É um RANGE (ex.: /24) quando a expansão gera mais IPs que alvos.
+            is_range = len(host_targets) > len(scan.targets)
+
+            # ===== PIPELINE POR ETAPAS =====
+            # Monta o plano na ordem canônica a partir dos coletores escolhidos.
+            # Cada etapa usa o resultado da anterior (hosts vivos -> portas ->
+            # web) e GRAVA no banco ao terminar (achados sobem incrementalmente).
+            # Falha de uma etapa é registrada e NÃO derruba o scan.
+            chosen = list(selected)
+            has_host_stage = any(c in HOST_COLLECTORS for c in chosen)
+            if is_range and has_host_stage and "host_discovery" not in chosen:
+                chosen = ["host_discovery"] + chosen  # etapa 1: poda IPs mortos
+            stage_keys = [k for k in STAGE_ORDER if k in chosen]
+            for k in chosen:  # selecionados fora da ordem canônica
+                if k not in stage_keys and k in COLLECTORS:
+                    stage_keys.append(k)
+            nstages = max(len(stage_keys), 1)
+
+            stage_log: list[dict] = []      # status por etapa -> scan.stages
+            live_hosts: set | None = None   # setado pela descoberta de hosts
+            web_hosts: set | None = None    # setado pelo port_scan (hosts c/ web)
+            created_total = 0
+            _exploit_cache: dict[str, list] = {}
+            counters = {"subdomain": 0, "ports": 0, "web": 0, "ot": 0, "hosts": 0}
+
+            def _stage_targets(nm: str) -> list[str]:
+                if nm not in HOST_COLLECTORS:
+                    return scan.targets                       # recon de domínio
+                if nm in WEB_STAGES:
+                    if web_hosts is not None:
+                        return sorted(web_hosts)              # só hosts com web
+                    if live_hosts is not None:
+                        return sorted(live_hosts)
+                    return host_targets
+                if nm == "port_scan" and live_hosts is not None:
+                    return sorted(live_hosts)                 # só hosts vivos
+                return host_targets
+
+            for i, name in enumerate(stage_keys):
                 if await _halted():
                     return {"halted": True}
+                label = STAGE_LABELS.get(name, name)
+                entry = {"key": name, "label": label, "status": "running",
+                         "found": 0, "created": 0, "error": None}
+                stage_log.append(entry)
+                base = 5 + int(85 * i / nstages)
+                scan.phase = f"Etapa {i + 1}/{nstages}: {label}"
+                scan.progress = base
+                scan.stages = list(stage_log)
+                scan.heartbeat = datetime.now(timezone.utc)
+                await session.commit()
+
                 collector = COLLECTORS.get(name)
+                tlist = _stage_targets(name)
                 if collector is None:
+                    entry["status"] = "skipped"
+                    entry["error"] = "coletor indisponível"
+                    scan.stages = list(stage_log)
+                    await session.commit()
                     continue
-                scan.phase = f"coletando: {name}"
-                scan.heartbeat = datetime.now(timezone.utc)
-                await session.commit()
-                tlist = host_targets if name in host_collectors else scan.targets
-                # Coletores de host em lotes -> permite cancelar no meio e
-                # atualizar progresso enquanto varre muitos IPs.
-                if name in host_collectors and len(tlist) > 16:
-                    for j in range(0, len(tlist), 16):
-                        if await _halted():
-                            return {"halted": True}
-                        batch = tlist[j:j + 16]
-                        facts.extend(await collector.run(
-                            batch, ports=scan.ports or None,
-                            profile=prof, cancel_check=_abort_check, on_tick=_beat))
-                        frac = (j + len(batch)) / len(tlist)
-                        scan.phase = f"coletando: {name} ({int(frac * 100)}%)"
-                        scan.progress = 5 + int(40 * (i + frac) / max(len(selected), 1))
-                        scan.heartbeat = datetime.now(timezone.utc)
-                        await session.commit()
-                else:
-                    facts.extend(await collector.run(
-                        tlist, ports=scan.ports or None,
-                        profile=prof, cancel_check=_abort_check, on_tick=_beat))
-                # coleta ocupa ate 45% do progresso
-                scan.progress = 5 + int(40 * (i + 1) / max(len(selected), 1))
-                scan.heartbeat = datetime.now(timezone.utc)
-                await session.commit()
+                if not tlist:
+                    entry["status"] = "skipped"
+                    entry["error"] = "sem alvos (etapa anterior não achou hosts)"
+                    scan.stages = list(stage_log)
+                    await session.commit()
+                    continue
 
-            total = max(len(facts), 1)
-            scan.phase = f"analisando {len(facts)} achado(s)"
-            scan.progress = 50
-            await session.commit()
-
-            created = 0
-            _exploit_cache: dict[str, list] = {}  # CVE -> exploits (por scan)
-            for n, fact in enumerate(facts):
-                if n % 20 == 0 and await _halted():
-                    return {"halted": True}
-                fact_dict = asdict(fact)
-                now = datetime.now(timezone.utc)
-                # Dados estruturados do fato (sem o base64 da imagem, que e pesado
-                # e ja vira Evidence). Alimenta superficie/tecnologias/topologia.
-                fdata = {k: v for k, v in (fact.data or {}).items()
-                         if k != "screenshot_b64"}
-                # Assinatura para deduplicar o mesmo achado entre scans.
-                signature = f"{fact.target}|{fact.port}|{fact.title}".lower()
-
-                # 1) CVEs: nuclei ja traz os CVEs; senao, correlaciona o banner (NVD).
-                if fact.data.get("cve_ids"):
-                    cve_ids = fact.data["cve_ids"]
-                    correlation = {"cve_ids": cve_ids,
-                                   "max_cvss": fact.data.get("cvss")}
-                else:
-                    correlation = await correlate(fact.data.get("banner", "") or fact.raw)
-                    cve_ids = correlation["cve_ids"]
-                fact_dict["correlation"] = correlation
-
-                # 2) Enriquece esses CVEs com EPSS (probabilidade) e KEV (exploracao ativa).
-                enrichment = await enrich_cves(cve_ids) if cve_ids else {
-                    "epss": {}, "kev": {}, "max_epss": 0.0, "any_kev": False
-                }
-
-                # 3) IA raciocina sobre os fatos ja provados.
-                assessment = await analyst.assess(fact_dict, enrichment)
-
-                # 3b) Remediacao (NVD, cacheada localmente) para o CVE principal.
-                assess_dict = assessment.to_dict()
-                if cve_ids:
-                    try:
-                        rem = await get_remediation(session, cve_ids[0])
-                    except Exception:  # noqa: BLE001  nunca derruba o scan
-                        rem = None
-                    if rem:
-                        assess_dict["remediation"] = rem.get("solution")
-                        assess_dict["references"] = rem.get("references") or []
-                        if rem.get("description"):
-                            assess_dict["cve_description"] = rem["description"]
-
-                # 3c) Exploit publico conhecido (Exploit-DB) para o CVE principal.
-                exploits = []
-                if cve_ids:
-                    cid = cve_ids[0]
-                    if cid not in _exploit_cache:
-                        try:
-                            _exploit_cache[cid] = await exploits_for_cve(cid)
-                        except Exception:  # noqa: BLE001
-                            _exploit_cache[cid] = []
-                    exploits = _exploit_cache[cid]
-                    if exploits:
-                        fdata["exploits"] = exploits
-                        assess_dict["exploit_available"] = True
-
-                # Dedup: ja existe esse achado neste cliente? Entao so atualiza
-                # (persiste apos rescan), sem duplicar.
-                existing = await session.scalar(
-                    select(Finding).where(
-                        Finding.engagement_id == eng.id,
-                        Finding.signature == signature,
-                    )
-                )
-                if existing is not None:
-                    existing.times_seen += 1
-                    existing.last_seen = now
-                    existing.scan_id = scan.id
-                    existing.severity = Severity(assessment.severity)
-                    existing.cvss = correlation.get("max_cvss")
-                    existing.epss = enrichment.get("max_epss") or None
-                    existing.in_kev = enrichment.get("any_kev", False)
-                    existing.ai_assessment = {**(existing.ai_assessment or {}), **assess_dict}
-                    if fdata:
-                        existing.data = {**(existing.data or {}), **fdata}
-                else:
-                    finding = Finding(
-                        engagement_id=eng.id,
-                        scan_id=scan.id,
-                        target=fact.target,
-                        port=fact.port,
-                        service=fact.service,
-                        title=fact.title,
-                        description=assessment.risk_summary,
-                        severity=Severity(assessment.severity),
-                        cvss=correlation.get("max_cvss"),
-                        epss=enrichment.get("max_epss") or None,
-                        in_kev=enrichment.get("any_kev", False),
-                        cve_ids=cve_ids,
-                        data=fdata,
-                        ai_assessment=assess_dict,
-                        confidence=assessment.confidence,
-                        signature=signature,
-                        times_seen=1,
-                        last_seen=now,
-                    )
-                    session.add(finding)
-                    await session.flush()  # garante finding.id
-                    session.add(
-                        Evidence(
-                            finding_id=finding.id,
-                            kind="raw",
-                            content=fact.raw[:4000] if fact.raw else fact.title,
-                        )
-                    )
-                    # Screenshot (evidencia visual) -> data URI renderizavel.
-                    shot = fact.data.get("screenshot_b64")
-                    if shot:
-                        session.add(Evidence(
-                            finding_id=finding.id, kind="screenshot",
-                            content="data:image/png;base64," + shot))
-                    created += 1
-                # analise ocupa de 50% a 95%
-                if n % 5 == 0:
-                    scan.progress = 50 + int(45 * (n + 1) / total)
-                    scan.findings_count = created
+                # Host collectors em LOTES (cancelar/heartbeat/matar processo no
+                # meio). Falha de UMA etapa é registrada e o scan segue.
+                facts: list = []
+                try:
+                    if name in HOST_COLLECTORS and len(tlist) > 16:
+                        for j in range(0, len(tlist), 16):
+                            if await _halted():
+                                return {"halted": True}
+                            batch = tlist[j:j + 16]
+                            facts.extend(await collector.run(
+                                batch, ports=scan.ports or None, profile=prof,
+                                cancel_check=_abort_check, on_tick=_beat))
+                            frac = (j + len(batch)) / len(tlist)
+                            scan.phase = (f"Etapa {i + 1}/{nstages}: {label} "
+                                          f"({int(frac * 100)}%)")
+                            scan.heartbeat = datetime.now(timezone.utc)
+                            await session.commit()
+                    else:
+                        facts = await collector.run(
+                            tlist, ports=scan.ports or None, profile=prof,
+                            cancel_check=_abort_check, on_tick=_beat)
+                except Exception as exc:  # noqa: BLE001  etapa falha, scan segue
+                    entry["status"] = "failed"
+                    entry["error"] = str(exc)[:300]
+                    scan.stages = list(stage_log)
                     scan.heartbeat = datetime.now(timezone.utc)
                     await session.commit()
+                    continue
 
+                # Feed-forward: resultado desta etapa alimenta as próximas.
+                if name == "host_discovery":
+                    live_hosts = {f.target for f in facts if f.service == "host"}
+                    counters["hosts"] += len(live_hosts)
+                if name == "port_scan":
+                    web_hosts = {f.target for f in facts
+                                 if f.port in WEB_PORTS
+                                 and "aberta" in (f.title or "").lower()}
+                counters["subdomain"] += sum(1 for f in facts if f.service == "subdomain")
+                counters["ports"] += sum(1 for f in facts if "aberta" in (f.title or "").lower())
+                counters["web"] += sum(1 for f in facts if f.service in ("http", "https"))
+                counters["ot"] += sum(1 for f in facts if (f.data or {}).get("ot"))
+
+                # GRAVA os achados desta etapa AGORA (sobem para o banco).
+                if facts:
+                    scan.phase = (f"Etapa {i + 1}/{nstages}: {label} — "
+                                  f"gravando {len(facts)} achado(s)")
+                    await session.commit()
+                delta, was_halted = await persist_facts(
+                    session, eng, scan, facts, _exploit_cache, _halted,
+                    base_count=created_total)
+                if was_halted:
+                    return {"halted": True}
+                created_total += delta
+                entry["found"] = len(facts)
+                entry["created"] = delta
+                entry["status"] = "ok"
+                scan.stages = list(stage_log)
+                scan.progress = 5 + int(85 * (i + 1) / nstages)
+                scan.findings_count = created_total
+                scan.heartbeat = datetime.now(timezone.utc)
+                await session.commit()
+
+            created = created_total
             if await _halted():
                 return {"halted": True}
 
-            # Resumo amigavel do que foi encontrado (estilo "4 subdominios").
+            # Resumo amigável do que foi encontrado + falhas por etapa.
             parts = []
-            subs = sum(1 for f in facts if f.service == "subdomain")
-            ports = sum(1 for f in facts if "aberta" in (f.title or "").lower())
-            web = sum(1 for f in facts if f.service in ("http", "https"))
-            ot = sum(1 for f in facts if (f.data or {}).get("ot"))
-            if subs:
-                parts.append(f"{subs} subdomínios")
-            if ports:
-                parts.append(f"{ports} portas abertas")
-            if web:
-                parts.append(f"{web} serviços web")
-            if ot:
-                parts.append(f"{ot} OT/IoT")
+            if counters["subdomain"]:
+                parts.append(f"{counters['subdomain']} subdomínios")
+            if counters["hosts"]:
+                parts.append(f"{counters['hosts']} hosts ativos")
+            if counters["ports"]:
+                parts.append(f"{counters['ports']} portas abertas")
+            if counters["web"]:
+                parts.append(f"{counters['web']} serviços web")
+            if counters["ot"]:
+                parts.append(f"{counters['ot']} OT/IoT")
+            failed = [e["label"] for e in stage_log if e["status"] == "failed"]
             scan.summary = ", ".join(parts) or f"{created} achados"
+            if failed:
+                scan.summary += f" · falhas: {', '.join(failed)}"
 
             scan.status = ScanStatus.completed
-            scan.phase = "concluido"
+            scan.phase = ("concluído com falhas em " + ", ".join(failed)
+                          if failed else "concluído")
             scan.progress = 100
             scan.findings_count = created
             scan.finished_at = datetime.now(timezone.utc)

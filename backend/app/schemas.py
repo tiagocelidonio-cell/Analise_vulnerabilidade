@@ -100,6 +100,7 @@ class ScanOut(BaseModel):
     phase: str
     findings_count: int
     summary: str
+    stages: list = Field(default_factory=list)
     error: str | None
     created_at: datetime
     heartbeat: datetime | None = None

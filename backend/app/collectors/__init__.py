@@ -1,4 +1,5 @@
 from app.collectors.google_dorks import GoogleDorksCollector
+from app.collectors.host_discovery import HostDiscoveryCollector
 from app.collectors.http_probe import HttpProbeCollector
 from app.collectors.leaks import LeaksCollector
 from app.collectors.nmap_scan import NmapCollector
@@ -15,6 +16,7 @@ from app.collectors.web_content import WebContentCollector
 #   subdomain_enum-> subfinder (fallback: crt.sh + wordlist)
 #   web_vuln      -> nuclei (sem fallback; vazio se ausente)
 COLLECTORS = {
+    "host_discovery": HostDiscoveryCollector(),
     "port_scan": NmapCollector(),
     "http_probe": HttpProbeCollector(),
     "web_content": WebContentCollector(),
@@ -28,8 +30,39 @@ COLLECTORS = {
     "leaks": LeaksCollector(),
 }
 # Coletores de host (recebem IPs expandidos e rodam em lote).
-HOST_COLLECTORS = {"port_scan", "http_probe", "web_content", "web_vuln",
-                   "tech_detect", "screenshot"}
+HOST_COLLECTORS = {"host_discovery", "port_scan", "http_probe", "web_content",
+                   "web_vuln", "tech_detect", "screenshot"}
+
+# Ordem canonica das ETAPAS do pipeline (quando varias sao selecionadas).
+# Cada etapa usa o resultado da anterior (hosts vivos -> portas -> web...).
+STAGE_ORDER = [
+    "subdomain_enum", "osint", "host_discovery", "port_scan", "http_probe",
+    "tech_detect", "web_content", "web_vuln", "screenshot", "wayback",
+    "google_dorks", "leaks",
+]
+
+# Rotulo funcional (UI nunca ve o nome do binario).
+STAGE_LABELS = {
+    "subdomain_enum": "Enumeração de ativos",
+    "osint": "OSINT (e-mails, domínios, IPs)",
+    "host_discovery": "Descoberta de hosts ativos",
+    "port_scan": "Descoberta de portas e serviços",
+    "http_probe": "Reconhecimento web",
+    "tech_detect": "Detecção de tecnologias",
+    "web_content": "Conteúdo exposto",
+    "web_vuln": "Verificação de vulnerabilidades",
+    "screenshot": "Captura de tela",
+    "wayback": "Histórico (Wayback)",
+    "google_dorks": "Google Dorks",
+    "leaks": "Vazamentos de credenciais",
+}
+
+# Etapas que consomem a lista de HOSTS WEB (hosts com porta web aberta no
+# port_scan). Se o port_scan nao rodou neste scan, caem para hosts vivos / todos.
+WEB_STAGES = {"http_probe", "tech_detect", "web_content", "web_vuln", "screenshot"}
+
+# Portas consideradas "web" para decidir quais hosts seguem para as etapas web.
+WEB_PORTS = {80, 443, 8080, 8443, 8000, 3000, 9000, 8081, 8888, 5000}
 
 # Coletores de host (port/http) sao o padrao. Os de recon (dominio) sao opt-in.
 DEFAULT_COLLECTORS = ["port_scan", "http_probe"]

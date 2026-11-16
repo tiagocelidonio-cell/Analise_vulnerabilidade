@@ -119,6 +119,9 @@ class ScanJob(Base):
     phase: Mapped[str] = mapped_column(String, default="")      # etapa atual
     findings_count: Mapped[int] = mapped_column(Integer, default=0)
     summary: Mapped[str] = mapped_column(String, default="")    # resumo (ex: "4 subdominios")
+    # Status por ETAPA do pipeline: [{key,label,status,found,created,error}].
+    # Permite mostrar no painel o andamento etapa a etapa e as falhas.
+    stages: Mapped[list] = mapped_column(JSON, default=list)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     pause_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     # Batimento: atualizado enquanto o scan trabalha (inclusive durante um

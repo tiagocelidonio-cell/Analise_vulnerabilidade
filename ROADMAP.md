@@ -30,6 +30,10 @@ os itens conforme forem concluídos. Nada aqui quebra o que já existe.
 - Engagements multi-tenant (admin vê todos; consultor só os seus), escopo + flag
   de autorização, sondas intrusivas opt-in.
 - Motor de scan em background (fila ARQ) com Parar/Pausar/Retomar e heartbeat.
+- **Pipeline por ETAPAS**: descoberta de hosts vivos → portas → web → tecnologias
+  → … Cada etapa usa o resultado da anterior (poda IPs mortos/sem web), **grava
+  no banco ao terminar** (achados sobem incrementalmente) e registra status/falha
+  por etapa. Etapas selecionáveis (scans incrementais); falha de uma não derruba o scan.
 - Coletores: descoberta de subdomínios (2 fontes), portas/serviços, fingerprint
   web, conteúdo exposto, OSINT (e-mails/domínios/IPs), tecnologias, screenshot,
   vulnerabilidades (templates + CVE por versão de serviço), vazamentos.
