@@ -56,6 +56,36 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
   const [candidates, setCandidates] = useState(null); // null = carregando
   const [picked, setPicked] = useState(() => new Set());
 
+  // Sub-passos ("o que será executado"): catálogo + seleção (checkbox).
+  const [stepMeta, setStepMeta] = useState(null);
+  const [selSteps, setSelSteps] = useState(() => new Set());
+  const collectorsKey = (tool.collectors || []).join(",");
+
+  useEffect(() => {
+    if (isExploit) return;
+    (async () => {
+      try {
+        const meta = await api.scanSteps();
+        setStepMeta(meta);
+        const def = new Set();
+        for (const c of tool.collectors || [])
+          for (const s of meta[c] || [])
+            if (s.default !== false) def.add(s.key);
+        setSelSteps(def);
+      } catch { setStepMeta({}); }
+    })();
+  }, [isExploit, collectorsKey]);
+
+  const toolSteps = () =>
+    (tool.collectors || []).flatMap((c) => (stepMeta && stepMeta[c]) || []);
+  function toggleStep(key) {
+    setSelSteps((prev) => {
+      const n = new Set(prev);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
+  }
+
   useEffect(() => {
     if (!isExploit) return;
     (async () => {
@@ -118,6 +148,7 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
       await api.createScan(engagement.id, {
         targets: targetList(), ports: portsForRun(), collectors: tool.collectors,
         profile: scanType === "light" ? "basic" : "full",
+        steps: [...selSteps],
       });
       onRan && onRan(`${tool.name} iniciada.`);
       onClose();
@@ -223,10 +254,30 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
                   </div>
                 )}
               </>
-            ) : (
+            ) : null}
+
+            {/* O QUE SERÁ EXECUTADO — checklist de sub-passos (transparência). */}
+            {stepMeta && toolSteps().length > 0 && (
               <div className="info" style={{ marginTop: 12 }}>
-                <b>Modo único.</b> Esta ferramenta roda sempre a mesma varredura
-                padronizada — sem configuração extra.
+                <b>O que será executado</b> — desmarque o que não quiser rodar:
+                <ul className="checklist" style={{ marginTop: 6, listStyle: "none", paddingLeft: 0 }}>
+                  {toolSteps().map((s) => (
+                    <li key={s.key} style={{ display: "flex", alignItems: "flex-start", gap: 7, margin: "5px 0" }}>
+                      <input type="checkbox" checked={selSteps.has(s.key)}
+                        disabled={s.togglable === false}
+                        onChange={() => toggleStep(s.key)} style={{ marginTop: 3 }} />
+                      <span>
+                        {s.label}
+                        {s.togglable === false &&
+                          <span className="muted" style={{ fontSize: 11 }}> · sempre</span>}
+                        {s.desc && <div className="muted" style={{ fontSize: 11 }}>{s.desc}</div>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <span className="muted" style={{ fontSize: 11 }}>
+                  Passos marcados “sempre” são o núcleo da capacidade e não podem ser desligados.
+                </span>
               </div>
             )}
           </>

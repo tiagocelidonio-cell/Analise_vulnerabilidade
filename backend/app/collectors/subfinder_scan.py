@@ -34,6 +34,9 @@ class SubfinderCollector:
     async def run(self, targets: list[str], **kwargs) -> list[CollectedFact]:
         cancel_check = kwargs.get("cancel_check")
         on_tick = kwargs.get("on_tick")
+        steps = kwargs.get("steps")  # None = roda tudo
+        want_amass = steps is None or "subdomain_enum:source2" in steps
+        want_resolve = steps is None or "subdomain_enum:resolve" in steps
         if not shutil.which("subfinder") and not shutil.which("amass"):
             from app.collectors.subdomain_enum import SubdomainEnumCollector
             return await SubdomainEnumCollector().run(targets)
@@ -50,11 +53,23 @@ class SubfinderCollector:
             if not _is_domain(domain):
                 continue
             # Une as duas fontes e deduplica (com sub-fases visiveis no painel).
-            await phase(f"subfinder: {domain}")
+            await phase(f"enumeração passiva: {domain}")
             found = set(await self._subfinder(domain, cancel_check, on_tick))
-            await phase(f"amass (passivo): {domain}")
-            found |= set(await self._amass(domain, cancel_check, on_tick))
+            if want_amass:  # segunda fonte (passo opcional)
+                await phase(f"segunda fonte (passiva): {domain}")
+                found |= set(await self._amass(domain, cancel_check, on_tick))
             found.add(domain)
+
+            if not want_resolve:  # sem resolução DNS: só registra os encontrados
+                for host in found:
+                    facts.append(CollectedFact(
+                        target=host, service="subdomain",
+                        title=f"Subdominio encontrado: {host}",
+                        raw="enumerado (sem resolução DNS)",
+                        data={"severity_hint": "info", "ips": [],
+                              "alive": None, "parent": domain}))
+                continue
+
             await phase(f"resolvendo {len(found)} subdomínios de {domain}")
             sem = asyncio.Semaphore(50)
 

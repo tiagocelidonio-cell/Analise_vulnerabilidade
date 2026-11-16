@@ -123,14 +123,21 @@ class NmapCollector:
         # por isso ganha um host-timeout maior. Basico foca em portas/servicos.
         profile = kwargs.get("profile") or "full"
         full = profile != "basic"
-        host_timeout = "120s" if full else "45s"
+        # Passos (checkbox na UI). None = segue o perfil (back-compat).
+        steps = kwargs.get("steps")
+        if steps is None:
+            want_version, want_cve = True, full
+        else:
+            want_version = "port_scan:version" in steps
+            want_cve = "port_scan:cve_local" in steps
+        host_timeout = "120s" if want_cve else ("90s" if want_version else "45s")
 
-        # -sV com limites para nao travar em hosts que nao respondem direito.
         # --host-timeout curto mantem o lote agil e o "Parar" responsivo.
-        args = ["nmap", "-Pn", "-sT", "-sV", "--version-intensity", "2",
-                "--open", "-T4", "--max-retries", "1",
+        args = ["nmap", "-Pn", "-sT", "--open", "-T4", "--max-retries", "1",
                 "--host-timeout", host_timeout, "-oX", "-"]
-        if full:
+        if want_version:  # deteccao de versao (passo opcional)
+            args += ["-sV", "--version-intensity", "2"]
+        if want_cve:
             # vulners (online, vulners.com) + vulscan (OFFLINE, base CSV local).
             # Usa os dois quando disponiveis: assim acha CVE com ou sem internet.
             import os

@@ -84,6 +84,8 @@ class ScanCreate(BaseModel):
     ports: list[int] = Field(default_factory=list)
     collectors: list[str] = Field(default_factory=list)  # vazio = todos os padrao
     profile: str = "full"  # basic | full
+    # Sub-passos selecionados ("<collector>:<passo>"). Vazio = roda tudo.
+    steps: list[str] = Field(default_factory=list)
 
 
 class ScanOut(BaseModel):

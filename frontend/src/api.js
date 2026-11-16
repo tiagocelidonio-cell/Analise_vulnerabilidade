@@ -64,6 +64,7 @@ export const api = {
   overview: () => req("/overview"),
   getIntegrations: () => req("/integrations"),
   updateIntegrations: (updates) => req("/integrations", { method: "PUT", body: JSON.stringify({ updates }) }),
+  scanSteps: () => req("/scan/steps"),
   intelRelevant: () => req("/intel/relevant"),
   engagementRelevantCves: (id) => req(`/engagements/${id}/relevant-cves`),
   cveStatus: () => req("/cve/status"),

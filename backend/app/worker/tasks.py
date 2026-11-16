@@ -21,6 +21,7 @@ from app.collectors import (
     WEB_PORTS,
     WEB_STAGES,
 )
+from app.collectors.steps import collector_enabled_steps
 from app.config import settings
 from app.db import SessionLocal, init_db
 from app.enrichment.cve_match import correlate
@@ -294,6 +295,9 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     stage_keys.append(k)
             nstages = max(len(stage_keys), 1)
 
+            # Sub-passos selecionados (checkbox na UI). Vazio = roda tudo.
+            sel_steps = set(scan.substeps or []) or None
+
             stage_log: list[dict] = []      # status por etapa -> scan.stages
             live_hosts: set | None = None   # setado pela descoberta de hosts
             web_hosts: set | None = None    # setado pelo port_scan (hosts c/ web)
@@ -345,6 +349,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 
                 # Host collectors em LOTES (cancelar/heartbeat/matar processo no
                 # meio). Falha de UMA etapa é registrada e o scan segue.
+                steps = collector_enabled_steps(name, sel_steps)
                 facts: list = []
                 try:
                     if name in HOST_COLLECTORS and len(tlist) > 16:
@@ -354,7 +359,8 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                             batch = tlist[j:j + 16]
                             facts.extend(await collector.run(
                                 batch, ports=scan.ports or None, profile=prof,
-                                cancel_check=_abort_check, on_tick=_beat))
+                                cancel_check=_abort_check, on_tick=_beat,
+                                steps=steps))
                             frac = (j + len(batch)) / len(tlist)
                             scan.phase = (f"Etapa {i + 1}/{nstages}: {label} "
                                           f"({int(frac * 100)}%)")
@@ -363,7 +369,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     else:
                         facts = await collector.run(
                             tlist, ports=scan.ports or None, profile=prof,
-                            cancel_check=_abort_check, on_tick=_beat)
+                            cancel_check=_abort_check, on_tick=_beat, steps=steps)
                 except Exception as exc:  # noqa: BLE001  etapa falha, scan segue
                     entry["status"] = "failed"
                     entry["error"] = str(exc)[:300]

@@ -17,6 +17,15 @@ from app.targets import host_count
 router = APIRouter(tags=["scans"])
 
 
+@router.get("/scan/steps")
+async def scan_steps() -> dict:
+    """Catálogo de sub-passos por capacidade (o 'o que será executado').
+
+    A UI usa para montar o checklist por ferramenta. Nomes funcionais."""
+    from app.collectors.steps import COLLECTOR_STEPS
+    return COLLECTOR_STEPS
+
+
 @router.post("/engagements/{engagement_id}/scans", response_model=ScanOut, status_code=201)
 async def create_scan(
     body: ScanCreate,
@@ -47,6 +56,7 @@ async def create_scan(
         ports=body.ports,
         collectors=body.collectors,
         profile=body.profile if body.profile in ("basic", "full") else "full",
+        substeps=body.steps or [],
         status=ScanStatus.queued,
     )
     session.add(scan)

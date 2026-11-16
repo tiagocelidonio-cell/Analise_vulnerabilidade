@@ -94,7 +94,8 @@ async def _tls_cert_once(host: str, port: int, timeout: float) -> CollectedFact 
     )
 
 
-async def _probe_url(host: str, port: int, timeout: float) -> list[CollectedFact]:
+async def _probe_url(host: str, port: int, timeout: float,
+                     want_headers: bool = True) -> list[CollectedFact]:
     scheme = _scheme_for(port)
     url = f"{scheme}://{host}:{port}/"
     facts: list[CollectedFact] = []
@@ -118,27 +119,28 @@ async def _probe_url(host: str, port: int, timeout: float) -> list[CollectedFact
         )
     )
 
-    # Um fato por security header ausente.
-    for header, risk in _SECURITY_HEADERS.items():
-        if header not in headers:
+    # Um fato por security header ausente (passo opcional).
+    if want_headers:
+        for header, risk in _SECURITY_HEADERS.items():
+            if header not in headers:
+                facts.append(
+                    CollectedFact(
+                        target=host, port=port, service=scheme,
+                        title=f"{header} ausente em {host}:{port}",
+                        raw=risk,
+                        data={"severity_hint": "low", "weakness": header},
+                    )
+                )
+        # HSTS so faz sentido em https.
+        if scheme == "https" and "strict-transport-security" not in headers:
             facts.append(
                 CollectedFact(
                     target=host, port=port, service=scheme,
-                    title=f"{header} ausente em {host}:{port}",
-                    raw=risk,
-                    data={"severity_hint": "low", "weakness": header},
+                    title=f"HSTS ausente em {host}:{port}",
+                    raw="Strict-Transport-Security ausente (downgrade/MITM).",
+                    data={"severity_hint": "low", "weakness": "hsts"},
                 )
             )
-    # HSTS so faz sentido em https.
-    if scheme == "https" and "strict-transport-security" not in headers:
-        facts.append(
-            CollectedFact(
-                target=host, port=port, service=scheme,
-                title=f"HSTS ausente em {host}:{port}",
-                raw="Strict-Transport-Security ausente (downgrade/MITM).",
-                data={"severity_hint": "low", "weakness": "hsts"},
-            )
-        )
     return facts
 
 
@@ -150,6 +152,9 @@ class HttpProbeCollector:
     ) -> list[CollectedFact]:
         cancel_check = kwargs.get("cancel_check")
         on_tick = kwargs.get("on_tick")
+        steps = kwargs.get("steps")  # None = roda tudo
+        want_headers = steps is None or "http_probe:security_headers" in steps
+        want_tls = steps is None or "http_probe:tls_cert" in steps
         ports = ports or sorted(_HTTP_PORTS | _HTTPS_PORTS)
         timeout = settings.scan_connect_timeout * 2
         conc = max(1, settings.scan_max_concurrency)
@@ -158,8 +163,8 @@ class HttpProbeCollector:
 
         async def guarded(host: str, port: int) -> None:
             async with sem:
-                out.extend(await _probe_url(host, port, timeout))
-                if port in _HTTPS_PORTS:
+                out.extend(await _probe_url(host, port, timeout, want_headers))
+                if want_tls and port in _HTTPS_PORTS:
                     cert = await _tls_cert_fact(host, port, timeout)
                     if cert:
                         out.append(cert)

@@ -122,6 +122,8 @@ class ScanJob(Base):
     # Status por ETAPA do pipeline: [{key,label,status,found,created,error}].
     # Permite mostrar no painel o andamento etapa a etapa e as falhas.
     stages: Mapped[list] = mapped_column(JSON, default=list)
+    # Sub-passos selecionados ("<collector>:<passo>"). Vazio = roda tudo.
+    substeps: Mapped[list] = mapped_column(JSON, default=list)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     pause_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     # Batimento: atualizado enquanto o scan trabalha (inclusive durante um
