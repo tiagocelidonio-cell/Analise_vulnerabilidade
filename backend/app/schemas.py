@@ -125,6 +125,7 @@ class FindingOut(BaseModel):
     in_kev: bool
     cve_ids: list[str]
     ai_assessment: dict | None
+    data: dict = Field(default_factory=dict)
     confidence: float
     status: str = "open"
     assignee: str | None = None

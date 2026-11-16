@@ -19,6 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN git clone --depth 1 https://github.com/scipag/vulscan \
     /usr/share/nmap/scripts/vulscan 2>/dev/null || true
 
+# Exploit-DB (searchsploit): base LOCAL para dizer se ha exploit publico por CVE.
+RUN git clone --depth 1 https://gitlab.com/exploit-database/exploitdb.git \
+    /opt/exploitdb 2>/dev/null \
+    && ln -sf /opt/exploitdb/searchsploit /usr/local/bin/searchsploit || true
+
 # Ferramentas: nuclei (vulns), subfinder + amass (subdominios).
 ARG NUCLEI_VERSION=3.3.5
 ARG SUBFINDER_VERSION=2.6.6

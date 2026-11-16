@@ -233,6 +233,9 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
         <td>{f.title}
           {f.times_seen > 1 && <span className="persist" title="encontrado em múltiplos scans">
             persiste ×{f.times_seen}</span>}
+          {f.ai_assessment?.exploit_available && <span className="persist"
+            title="existe exploit público conhecido" style={{ background: "#7f1d1d", color: "#fecaca", borderColor: "#7f1d1d" }}>
+            exploit público</span>}
         </td>
         <td>{f.cvss?.toFixed(1) ?? "-"}</td>
         <td>{f.epss?.toFixed(2) ?? "-"}</td>
@@ -277,6 +280,16 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
                     style={{ color: "var(--accent)", display: "block", wordBreak: "break-all" }}>{r}</a>
                 ))}
               </p>
+            )}
+            {f.data?.exploits?.length > 0 && (
+              <div style={{ margin: "6px 0" }}>
+                <b style={{ color: "#fca5a5" }}>⚠ Exploit(s) público(s) conhecido(s):</b>
+                <ul style={{ margin: "4px 0", paddingLeft: 18 }}>
+                  {f.data.exploits.map((ex, i) => (
+                    <li key={i} style={{ fontSize: 12 }}>{ex.title}{ex.type ? ` (${ex.type})` : ""}</li>
+                  ))}
+                </ul>
+              </div>
             )}
             <p className="muted">Avaliado por: {a.model || "stub"}</p>
             {f.evidences?.map((ev) => (

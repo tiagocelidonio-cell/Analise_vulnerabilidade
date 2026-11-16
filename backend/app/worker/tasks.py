@@ -16,6 +16,7 @@ from app.collectors import COLLECTORS, DEFAULT_COLLECTORS, HOST_COLLECTORS
 from app.config import settings
 from app.db import SessionLocal, init_db
 from app.enrichment.cve_match import correlate
+from app.enrichment.exploits import exploits_for_cve
 from app.enrichment.remediation import get_remediation
 from app.enrichment.sources import enrich_cves
 from app.models import Evidence, Finding, ScanJob, ScanStatus, Severity
@@ -202,6 +203,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             await session.commit()
 
             created = 0
+            _exploit_cache: dict[str, list] = {}  # CVE -> exploits (por scan)
             for n, fact in enumerate(facts):
                 if n % 20 == 0 and await _halted():
                     return {"halted": True}
@@ -244,6 +246,20 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                         assess_dict["references"] = rem.get("references") or []
                         if rem.get("description"):
                             assess_dict["cve_description"] = rem["description"]
+
+                # 3c) Exploit publico conhecido (Exploit-DB) para o CVE principal.
+                exploits = []
+                if cve_ids:
+                    cid = cve_ids[0]
+                    if cid not in _exploit_cache:
+                        try:
+                            _exploit_cache[cid] = await exploits_for_cve(cid)
+                        except Exception:  # noqa: BLE001
+                            _exploit_cache[cid] = []
+                    exploits = _exploit_cache[cid]
+                    if exploits:
+                        fdata["exploits"] = exploits
+                        assess_dict["exploit_available"] = True
 
                 # Dedup: ja existe esse achado neste cliente? Entao so atualiza
                 # (persiste apos rescan), sem duplicar.
