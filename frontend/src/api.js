@@ -87,6 +87,7 @@ export const api = {
   resumeScan: (sid) => req(`/scans/${sid}/resume`, { method: "POST" }),
   deleteScan: (sid, delFindings = false) => req(`/scans/${sid}?delete_findings=${delFindings}`, { method: "DELETE" }),
   deleteFindings: (id, ids) => req(`/engagements/${id}/findings/delete`, { method: "POST", body: JSON.stringify({ ids }) }),
+  updateFinding: (fid, body) => req(`/findings/${fid}`, { method: "PATCH", body: JSON.stringify(body) }),
   listFindings: (id) => req(`/engagements/${id}/findings`),
   risk: (id) => req(`/engagements/${id}/risk`),
   assets: (id) => req(`/engagements/${id}/assets`),

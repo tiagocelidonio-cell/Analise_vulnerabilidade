@@ -126,7 +126,21 @@ class FindingOut(BaseModel):
     cve_ids: list[str]
     ai_assessment: dict | None
     confidence: float
+    status: str = "open"
+    assignee: str | None = None
+    notes: str | None = None
     times_seen: int
     last_seen: datetime | None
     created_at: datetime
     evidences: list[EvidenceOut] = Field(default_factory=list)
+
+
+FINDING_STATUSES = {
+    "open", "confirmed", "in_progress", "fixed", "accepted", "false_positive",
+}
+
+
+class FindingUpdate(BaseModel):
+    status: str | None = None
+    assignee: str | None = None
+    notes: str | None = None

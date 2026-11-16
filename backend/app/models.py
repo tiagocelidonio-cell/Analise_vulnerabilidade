@@ -157,6 +157,12 @@ class Finding(Base):
     # Confianca 0..1 do achado, para o analista filtrar ruido.
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
 
+    # Ciclo de vida (texto, nao enum nativo):
+    # open|confirmed|in_progress|fixed|accepted|false_positive
+    status: Mapped[str] = mapped_column(String, default="open")
+    assignee: Mapped[str | None] = mapped_column(String, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Deduplicacao/persistencia entre scans.
     signature: Mapped[str] = mapped_column(String, index=True, default="")
     times_seen: Mapped[int] = mapped_column(Integer, default=1)

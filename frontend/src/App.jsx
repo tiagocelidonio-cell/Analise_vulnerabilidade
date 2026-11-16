@@ -25,6 +25,15 @@ const ENGAGEMENT_TYPES = [
   { v: "red_team", l: "Red Team" },
 ];
 const ENG_TYPE_LABEL = Object.fromEntries(ENGAGEMENT_TYPES.map((t) => [t.v, t.l]));
+const FINDING_STATUS = [
+  { v: "open", l: "Aberto", c: "#334155" },
+  { v: "confirmed", l: "Confirmado", c: "#b45309" },
+  { v: "in_progress", l: "Em correção", c: "#1c476b" },
+  { v: "fixed", l: "Corrigido", c: "#15803d" },
+  { v: "accepted", l: "Risco aceito", c: "#6b7280" },
+  { v: "false_positive", l: "Falso-positivo", c: "#475569" },
+];
+const FSTATUS = Object.fromEntries(FINDING_STATUS.map((s) => [s.v, s]));
 const STATUS_PT = {
   queued: "na fila", running: "em andamento", completed: "concluído",
   failed: "falhou", cancelled: "cancelado", paused: "pausado",
@@ -196,9 +205,22 @@ function NewScan({ engagement, onStarted }) {
   );
 }
 
-function FindingRow({ f, selected, onToggle }) {
+function FindingRow({ f, selected, onToggle, onUpdated }) {
   const [open, setOpen] = useState(false);
+  const [assignee, setAssignee] = useState(f.assignee || "");
+  const [notes, setNotes] = useState(f.notes || "");
   const a = f.ai_assessment || {};
+  const st = FSTATUS[f.status] || FSTATUS.open;
+
+  async function setStatus(status) {
+    try { await api.updateFinding(f.id, { status }); onUpdated && onUpdated(); }
+    catch (e) { window.alert(e.message); }
+  }
+  async function saveMeta() {
+    try { await api.updateFinding(f.id, { assignee, notes }); onUpdated && onUpdated(); }
+    catch (e) { window.alert(e.message); }
+  }
+
   return (
     <>
       <tr className="click" onClick={() => setOpen(!open)}>
@@ -206,6 +228,7 @@ function FindingRow({ f, selected, onToggle }) {
           <input type="checkbox" checked={selected} onChange={() => onToggle(f)} />
         </td>
         <td><Pill sev={f.severity} /></td>
+        <td><span className="pill" style={{ background: st.c, fontSize: 10 }}>{st.l}</span></td>
         <td>{f.target}{f.port ? `:${f.port}` : ""}</td>
         <td>{f.title}
           {f.times_seen > 1 && <span className="persist" title="encontrado em múltiplos scans">
@@ -220,7 +243,23 @@ function FindingRow({ f, selected, onToggle }) {
       </tr>
       {open && (
         <tr className="detail">
-          <td colSpan={9}>
+          <td colSpan={10}>
+            <div className="card" style={{ margin: "0 0 10px", background: "var(--bg)" }}>
+              <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <b style={{ fontSize: 13 }}>Status:</b>
+                {FINDING_STATUS.map((s) => (
+                  <button key={s.v} className={`chip ${f.status === s.v ? "active" : ""}`}
+                    onClick={() => setStatus(s.v)}>{s.l}</button>
+                ))}
+              </div>
+              <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input placeholder="Responsável" value={assignee} style={{ maxWidth: 200 }}
+                  onChange={(e) => setAssignee(e.target.value)} />
+                <input placeholder="Notas" value={notes}
+                  onChange={(e) => setNotes(e.target.value)} />
+                <button className="btn" onClick={saveMeta}>Salvar</button>
+              </div>
+            </div>
             <p className="muted">
               Visto {f.times_seen || 1}x
               {f.last_seen && ` · última vez ${new Date(f.last_seen).toLocaleString()}`}
@@ -610,12 +649,12 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         <table className="t">
           <thead><tr>
             <th><input type="checkbox" checked={allSel} onChange={toggleAll} /></th>
-            <th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th><th>Data</th>
+            <th>Sev</th><th>Status</th><th>Alvo</th><th>Achado</th><th>CVSS</th><th>EPSS</th><th>KEV</th><th>Conf.</th><th>Data</th>
           </tr></thead>
           <tbody>
             {sorted.map((f) => <FindingRow key={f.id} f={f}
-              selected={sel.has(f.id)} onToggle={toggleSel} />)}
-            {findings.length === 0 && <tr><td colSpan={9} className="muted">
+              selected={sel.has(f.id)} onToggle={toggleSel} onUpdated={refresh} />)}
+            {findings.length === 0 && <tr><td colSpan={10} className="muted">
               Sem achados ainda. Vá em <b>Nova varredura</b> e rode uma ferramenta.</td></tr>}
           </tbody>
         </table>

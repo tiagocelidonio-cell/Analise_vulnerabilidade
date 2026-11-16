@@ -10,9 +10,38 @@ from sqlalchemy.orm import selectinload
 from app.auth import can_access, get_current_user, require_engagement_access
 from app.db import get_session
 from app.models import Engagement, Evidence, Finding, User
-from app.schemas import FindingOut
+from app.schemas import FINDING_STATUSES, FindingOut, FindingUpdate
 
 router = APIRouter(tags=["findings"])
+
+
+@router.patch("/findings/{finding_id}", response_model=FindingOut)
+async def update_finding(
+    finding_id: str,
+    body: FindingUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Finding:
+    """Atualiza o ciclo de vida do achado (status/responsavel/notas)."""
+    stmt = (
+        select(Finding).where(Finding.id == finding_id)
+        .options(selectinload(Finding.evidences))
+    )
+    f = await session.scalar(stmt)
+    if f is None:
+        raise HTTPException(404, "Achado nao encontrado")
+    eng = await session.get(Engagement, f.engagement_id)
+    if eng is None or not can_access(user, eng):
+        raise HTTPException(403, "Sem acesso a este achado")
+    if body.status is not None and body.status in FINDING_STATUSES:
+        f.status = body.status
+    if body.assignee is not None:
+        f.assignee = body.assignee.strip() or None
+    if body.notes is not None:
+        f.notes = body.notes or None
+    await session.commit()
+    await session.refresh(f)
+    return f
 
 
 class DeleteFindingsBody(BaseModel):
