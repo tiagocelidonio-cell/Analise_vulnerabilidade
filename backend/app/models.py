@@ -124,6 +124,8 @@ class ScanJob(Base):
     stages: Mapped[list] = mapped_column(JSON, default=list)
     # Sub-passos selecionados ("<collector>:<passo>"). Vazio = roda tudo.
     substeps: Mapped[list] = mapped_column(JSON, default=list)
+    # Log de execução ao vivo (terminal): [{ts, level, msg}]. Ultimas ~500.
+    log: Mapped[list] = mapped_column(JSON, default=list)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     pause_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     # Batimento: atualizado enquanto o scan trabalha (inclusive durante um

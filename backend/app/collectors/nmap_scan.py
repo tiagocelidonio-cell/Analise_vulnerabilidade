@@ -132,6 +132,7 @@ class NmapCollector:
             want_cve = "port_scan:cve_local" in steps
         cancel_check = kwargs.get("cancel_check")
         on_tick = kwargs.get("on_tick")
+        on_log = kwargs.get("on_log")
         from app.collectors.proc import run_killable
 
         port_sel = (["-p", ",".join(str(p) for p in ports)] if ports
@@ -144,7 +145,7 @@ class NmapCollector:
         p1 = (["nmap", "-Pn", "-sT", "--open", "-T4", "--max-retries", "1",
                "--host-timeout", "60s", "-oX", "-"] + port_sel + list(targets))
         out1 = await run_killable(p1, cancel_check=cancel_check, on_tick=on_tick,
-                                  max_seconds=180)
+                                  max_seconds=180, on_log=on_log)
         facts = _parse_nmap_xml(out1) if out1 else []
         if not facts or not (want_version or want_cve):
             return facts  # so' portas (ou nada aberto)
@@ -169,7 +170,7 @@ class NmapCollector:
             p2 += ["--script", ",".join(scripts), "--script-args", ",".join(sargs)]
         p2 += list(targets)
         out2 = await run_killable(p2, cancel_check=cancel_check, on_tick=on_tick,
-                                  max_seconds=600)
+                                  max_seconds=600, on_log=on_log)
         facts2 = _parse_nmap_xml(out2) if out2 else []
 
         # Merge: o enriquecido (Fase 2) substitui o basico (Fase 1) por host:porta.

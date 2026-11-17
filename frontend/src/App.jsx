@@ -10,6 +10,7 @@ import ToolForm from "./ToolForm.jsx";
 import { FLAT_TOOLS } from "./tools.js";
 import { downloadCsv } from "./csv.js";
 import Overview from "./Overview.jsx";
+import ScanConsole from "./ScanConsole.jsx";
 import Admin from "./Admin.jsx";
 import Reports from "./Reports.jsx";
 import Profile from "./Profile.jsx";
@@ -485,6 +486,10 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
   const [sortBy, setSortBy] = useState("sev");
   const [groupByType, setGroupByType] = useState(true);
   const [collapsedTypes, setCollapsedTypes] = useState(() => new Set());
+  const [consoles, setConsoles] = useState(() => new Set());  // scans c/ terminal aberto
+  const toggleConsole = (id) => setConsoles((prev) => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
 
   function toggleSel(f) {
     setSel((prev) => {
@@ -645,9 +650,16 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         const Row = (s) => {
           const running = s.status === "queued" || s.status === "running";
           const paused = s.status === "paused";
+          const consoleOpen = consoles.has(s.id);
           return (
-            <tr key={s.id}>
-              <td><span className={`status ${s.status}`}>{STATUS_PT[s.status] || s.status}</span></td>
+            <React.Fragment key={s.id}>
+            <tr>
+              <td>
+                <span className={`status ${s.status}`}>{STATUS_PT[s.status] || s.status}</span>
+                <div><button className="btn" title="Ver execução ao vivo (terminal)"
+                  style={{ padding: "1px 8px", marginTop: 5, fontSize: 12 }}
+                  onClick={() => toggleConsole(s.id)}>{consoleOpen ? "− log" : "+ log"}</button></div>
+              </td>
               <td className="muted" style={{ fontSize: 12 }}>
                 {scanTypeLabel(s.collectors)}
                 {s.auto_level > 0 && <span className="persist" style={{ background: "#1c476b", color: "#dbeafe", borderColor: "#1c476b" }}>auto</span>}
@@ -719,6 +731,12 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                 </div>
               </td>
             </tr>
+            {consoleOpen && (
+              <tr><td colSpan={7} style={{ padding: 0 }}>
+                <ScanConsole scanId={s.id} />
+              </td></tr>
+            )}
+            </React.Fragment>
           );
         };
         return (

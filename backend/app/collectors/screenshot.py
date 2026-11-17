@@ -94,7 +94,7 @@ class ScreenshotCollector:
             try:
                 # Teto de 25s por captura: pagina ruim nunca pendura o scan.
                 await run_killable(args, cancel_check=cancel_check, on_tick=on_tick,
-                                   max_seconds=25)
+                                   max_seconds=25, on_log=kwargs.get("on_log"))
                 if os.path.exists(tmp) and os.path.getsize(tmp) > 0:
                     with open(tmp, "rb") as fh:
                         b64 = base64.b64encode(fh.read()).decode("ascii")

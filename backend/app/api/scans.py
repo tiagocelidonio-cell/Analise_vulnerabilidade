@@ -86,6 +86,23 @@ async def get_scan(
     return scan
 
 
+@router.get("/scans/{scan_id}/log")
+async def scan_log(
+    scan_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Log de execução ao vivo do scan (terminal) — para transparência total."""
+    scan = await session.get(ScanJob, scan_id)
+    if scan is None:
+        raise HTTPException(404, "Scan nao encontrado")
+    eng = await session.get(Engagement, scan.engagement_id)
+    if eng is None or not can_access(user, eng):
+        raise HTTPException(403, "Sem acesso a este scan")
+    return {"log": scan.log or [], "status": scan.status, "phase": scan.phase,
+            "progress": scan.progress}
+
+
 @router.post("/scans/{scan_id}/cancel", response_model=ScanOut)
 async def cancel_scan(
     scan_id: str,

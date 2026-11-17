@@ -34,6 +34,7 @@ class SubfinderCollector:
     async def run(self, targets: list[str], **kwargs) -> list[CollectedFact]:
         cancel_check = kwargs.get("cancel_check")
         on_tick = kwargs.get("on_tick")
+        on_log = kwargs.get("on_log")
         steps = kwargs.get("steps")  # None = roda tudo
         want_amass = steps is None or "subdomain_enum:source2" in steps
         want_resolve = steps is None or "subdomain_enum:resolve" in steps
@@ -54,10 +55,10 @@ class SubfinderCollector:
                 continue
             # Une as duas fontes e deduplica (com sub-fases visiveis no painel).
             await phase(f"enumeração passiva: {domain}")
-            found = set(await self._subfinder(domain, cancel_check, on_tick))
+            found = set(await self._subfinder(domain, cancel_check, on_tick, on_log))
             if want_amass:  # segunda fonte (passo opcional)
                 await phase(f"segunda fonte (passiva): {domain}")
-                found |= set(await self._amass(domain, cancel_check, on_tick))
+                found |= set(await self._amass(domain, cancel_check, on_tick, on_log))
             found.add(domain)
 
             if not want_resolve:  # sem resolução DNS: só registra os encontrados
@@ -88,18 +89,20 @@ class SubfinderCollector:
             await asyncio.gather(*(resolve_one(h) for h in found))
         return facts
 
-    async def _subfinder(self, domain: str, cancel_check=None, on_tick=None) -> list[str]:
+    async def _subfinder(self, domain: str, cancel_check=None, on_tick=None,
+                         on_log=None) -> list[str]:
         if not shutil.which("subfinder"):
             return []
         out = await run_killable(
             ["subfinder", "-d", domain, "-silent", "-all", "-timeout", "30"],
-            cancel_check=cancel_check, on_tick=on_tick)
+            cancel_check=cancel_check, on_tick=on_tick, on_log=on_log)
         if not out:
             return []
         return [ln.strip() for ln in out.decode("utf-8", "replace").splitlines()
                 if ln.strip()]
 
-    async def _amass(self, domain: str, cancel_check=None, on_tick=None) -> list[str]:
+    async def _amass(self, domain: str, cancel_check=None, on_tick=None,
+                     on_log=None) -> list[str]:
         """amass em modo passivo, com teto de ~3 min (interrompivel)."""
         if not shutil.which("amass"):
             return []
@@ -112,7 +115,7 @@ class SubfinderCollector:
 
         out = await run_killable(
             ["amass", "enum", "-passive", "-d", domain, "-silent", "-timeout", "3"],
-            cancel_check=stop, on_tick=on_tick)
+            cancel_check=stop, on_tick=on_tick, on_log=on_log)
         if not out:
             return []
         dot_domain = domain.lower().lstrip(".")

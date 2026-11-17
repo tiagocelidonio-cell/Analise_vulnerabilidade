@@ -17,6 +17,7 @@ async def run_killable(
     poll: float = 1.0,
     on_tick=None,
     max_seconds: float | None = None,
+    on_log=None,
 ) -> bytes | None:
     """Roda `args`, devolvendo o stdout em bytes.
 
@@ -26,6 +27,11 @@ async def run_killable(
     - max_seconds: TETO de parede. Se o processo passar disso, e morto (evita
       um binario travado — ex.: chromium numa pagina ruim — pendurar o scan).
     """
+    if on_log is not None:
+        try:
+            on_log("$ " + " ".join(str(a) for a in args))
+        except Exception:  # noqa: BLE001
+            pass
     try:
         proc = await asyncio.create_subprocess_exec(
             *args,
@@ -33,6 +39,11 @@ async def run_killable(
             stderr=asyncio.subprocess.PIPE,
         )
     except OSError:
+        if on_log is not None:
+            try:
+                on_log(f"[erro] não foi possível iniciar: {args[0]}", "error")
+            except Exception:  # noqa: BLE001
+                pass
         return None
 
     loop = asyncio.get_event_loop()

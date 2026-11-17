@@ -182,6 +182,28 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
         import time as _time
         _beat_state = {"t": 0.0}
 
+        # ---- Log de execução ao vivo (terminal) ----
+        _logbuf: list[dict] = []
+
+        def _log(msg: str, level: str = "info") -> None:
+            """Acrescenta uma linha ao log (em memória; NÃO comita -> seguro de
+            chamar de qualquer lugar, inclusive corrotinas concorrentes)."""
+            _logbuf.append({
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "level": level, "msg": str(msg)[:600]})
+
+        async def _flush_log() -> None:
+            """Grava o buffer no banco (mantém as últimas 500 linhas)."""
+            if not _logbuf:
+                return
+            try:
+                scan.log = ((scan.log or []) + _logbuf)[-500:]
+                _logbuf.clear()
+                scan.heartbeat = datetime.now(timezone.utc)
+                await session.commit()
+            except Exception:  # noqa: BLE001  log nunca derruba o scan
+                _logbuf.clear()
+
         async def _beat(phase: str | None = None) -> None:
             """Batimento: marca que o scan esta VIVO (mesmo em processo longo).
             Throttle de 4s para nao martelar o banco."""
@@ -300,6 +322,12 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     stage_keys.append(k)
             nstages = max(len(stage_keys), 1)
 
+            _log(f"Iniciando scan — perfil {prof}, {nstages} etapa(s): "
+                 f"{', '.join(STAGE_LABELS.get(k, k) for k in stage_keys)}")
+            _log(f"Alvos: {', '.join(scan.targets)} "
+                 f"({len(host_targets)} host(s) após expansão)")
+            await _flush_log()
+
             # Sub-passos selecionados (checkbox na UI). Vazio = roda tudo.
             sel_steps = set(scan.substeps or []) or None
 
@@ -342,8 +370,9 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 if collector is None:
                     entry["status"] = "skipped"
                     entry["error"] = "coletor indisponível"
+                    _log(f"⊘ Etapa {i + 1}/{nstages} pulada: {label} — coletor indisponível", "warn")
                     scan.stages = list(stage_log)
-                    await session.commit()
+                    await _flush_log()
                     continue
                 # GATE de exploração: só com autorização explícita no engagement.
                 if name in EXPLOIT_COLLECTORS and not (
@@ -351,15 +380,20 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                         or getattr(eng, "allow_intrusive", False)):
                     entry["status"] = "skipped"
                     entry["error"] = "requer autorização de exploração no engagement"
+                    _log(f"⊘ Etapa {i + 1}/{nstages} pulada: {label} — requer autorização de exploração", "warn")
                     scan.stages = list(stage_log)
-                    await session.commit()
+                    await _flush_log()
                     continue
                 if not tlist:
                     entry["status"] = "skipped"
                     entry["error"] = "sem alvos (etapa anterior não achou hosts)"
+                    _log(f"⊘ Etapa {i + 1}/{nstages} pulada: {label} — sem alvos (etapa anterior não achou hosts)", "warn")
                     scan.stages = list(stage_log)
-                    await session.commit()
+                    await _flush_log()
                     continue
+
+                _log(f"▶ Etapa {i + 1}/{nstages}: {label} — {len(tlist)} alvo(s)")
+                await _flush_log()
 
                 # Host collectors em LOTES (cancelar/heartbeat/matar processo no
                 # meio). Falha de UMA etapa é registrada e o scan segue.
@@ -371,26 +405,29 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                             if await _halted():
                                 return {"halted": True}
                             batch = tlist[j:j + 16]
+                            _log(f"  lote {j // 16 + 1}: {len(batch)} alvo(s) "
+                                 f"({j + len(batch)}/{len(tlist)})")
                             facts.extend(await collector.run(
                                 batch, ports=scan.ports or None, profile=prof,
                                 cancel_check=_abort_check, on_tick=_beat,
-                                steps=steps))
+                                steps=steps, on_log=_log))
                             frac = (j + len(batch)) / len(tlist)
                             scan.phase = (f"Etapa {i + 1}/{nstages}: {label} "
                                           f"({int(frac * 100)}%)")
-                            scan.heartbeat = datetime.now(timezone.utc)
-                            await session.commit()
+                            await _flush_log()
                     else:
                         facts = await collector.run(
                             tlist, ports=scan.ports or None, profile=prof,
-                            cancel_check=_abort_check, on_tick=_beat, steps=steps)
+                            cancel_check=_abort_check, on_tick=_beat, steps=steps,
+                            on_log=_log)
                 except Exception as exc:  # noqa: BLE001  etapa falha, scan segue
                     entry["status"] = "failed"
                     entry["error"] = str(exc)[:300]
+                    _log(f"✕ Etapa falhou: {label} — {exc}", "error")
                     scan.stages = list(stage_log)
-                    scan.heartbeat = datetime.now(timezone.utc)
-                    await session.commit()
+                    await _flush_log()
                     continue
+                _log(f"  coletou {len(facts)} fato(s) em {label}")
 
                 # Feed-forward: resultado desta etapa alimenta as próximas.
                 if name == "host_discovery":
@@ -419,13 +456,16 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 entry["found"] = len(facts)
                 entry["created"] = delta
                 entry["status"] = "ok"
+                _log(f"✓ {label}: {len(facts)} coletado(s), {delta} novo(s) gravado(s)")
                 scan.stages = list(stage_log)
                 scan.progress = 5 + int(85 * (i + 1) / nstages)
                 scan.findings_count = created_total
                 scan.heartbeat = datetime.now(timezone.utc)
-                await session.commit()
+                await _flush_log()
 
             created = created_total
+            _log(f"★ Scan concluído: {created} achado(s) no total.")
+            await _flush_log()
             if await _halted():
                 return {"halted": True}
 
@@ -465,6 +505,11 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
             return {"findings": created}
 
         except Exception as exc:  # noqa: BLE001
+            try:
+                _log(f"✕ ERRO FATAL: {exc}", "error")
+                scan.log = ((scan.log or []) + _logbuf)[-500:]
+            except Exception:  # noqa: BLE001
+                pass
             scan.status = ScanStatus.failed
             scan.error = str(exc)
             await session.commit()
