@@ -513,6 +513,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
   const [groupByType, setGroupByType] = useState(true);
   const [collapsedTypes, setCollapsedTypes] = useState(() => new Set());
   const [consoles, setConsoles] = useState(() => new Set());  // scans c/ terminal aberto
+  const [reenriching, setReenriching] = useState(false);
   const toggleConsole = (id) => setConsoles((prev) => {
     const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
   });
@@ -601,6 +602,17 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     setScans(s);
     setFindings(f);
   }, [engagement.id]);
+
+  async function reenrichCves() {
+    setReenriching(true);
+    try {
+      const r = await api.reenrichCves(engagement.id);
+      window.alert(`Re-associação concluída: ${r.confirmed} achado(s) com CVE confirmado, `
+        + `${r.potential} com CVEs potenciais (de ${r.total} achados).`);
+      await refresh();
+    } catch (e) { window.alert(`Falha: ${e.message}`); }
+    finally { setReenriching(false); }
+  }
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -811,6 +823,9 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
             <option value="cvss">Ordenar: CVSS</option>
             <option value="target">Ordenar: alvo (A-Z)</option>
           </select>
+          <button className="btn" style={{ padding: "4px 10px" }} disabled={reenriching}
+            title="Associa CVEs da base local aos achados existentes (produto/versão já detectados), sem re-escanear"
+            onClick={reenrichCves}>{reenriching ? "Associando…" : "⟳ Re-associar CVEs"}</button>
           <button className="btn" style={{ padding: "4px 10px" }} title="Exportar achados (CSV)"
             onClick={() => exportFindings()}>⬇ CSV</button>
         </div>

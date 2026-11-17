@@ -134,9 +134,13 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
             existing.last_seen = now
             existing.scan_id = scan.id
             existing.severity = Severity(assessment.severity)
-            existing.cvss = correlation.get("max_cvss")
-            existing.epss = enrichment.get("max_epss") or None
-            existing.in_kev = enrichment.get("any_kev", False)
+            # BUG CORRIGIDO: o re-scan agora ATUALIZA os CVEs do achado existente.
+            # Antes nao gravava cve_ids -> re-escanear nunca associava CVE.
+            if cve_ids:
+                existing.cve_ids = cve_ids
+            existing.cvss = correlation.get("max_cvss") or existing.cvss
+            existing.epss = enrichment.get("max_epss") or existing.epss
+            existing.in_kev = enrichment.get("any_kev", False) or existing.in_kev
             existing.ai_assessment = {**(existing.ai_assessment or {}), **assess_dict}
             if fdata:
                 existing.data = {**(existing.data or {}), **fdata}

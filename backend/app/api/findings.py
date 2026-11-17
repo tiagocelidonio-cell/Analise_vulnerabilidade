@@ -15,6 +15,81 @@ from app.schemas import FINDING_STATUSES, FindingOut, FindingUpdate
 router = APIRouter(tags=["findings"])
 
 
+def _sev_from_cvss(cvss):
+    if cvss is None:
+        return None
+    if cvss >= 9.0:
+        return "critical"
+    if cvss >= 7.0:
+        return "high"
+    if cvss >= 4.0:
+        return "medium"
+    return "low"
+
+
+@router.post("/engagements/{engagement_id}/reenrich-cves")
+async def reenrich_cves(
+    engagement_id: str,
+    eng: Engagement = Depends(require_engagement_access),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Re-associa CVEs da BASE LOCAL aos achados JA EXISTENTES (sem re-escanear).
+
+    Usa o produto/versao ja detectado em cada achado. Confirma (cve_ids) quando
+    ha versao; senao anexa CVEs potenciais do produto. Agrupa por produto para
+    fazer poucas consultas (rapido)."""
+    from app.enrichment.local_cve import (
+        cves_for_product, cves_for_service, extract_pv)
+    from app.models import Severity
+
+    findings = list(await session.scalars(
+        select(Finding).where(Finding.engagement_id == engagement_id)))
+    conf_cache: dict = {}
+    pot_cache: dict = {}
+    updated = confirmed = potential = 0
+
+    for f in findings:
+        prod, ver = extract_pv(f.data or {}, f.title or "")
+        if not prod:
+            continue
+        cves = []
+        if ver:
+            key = (prod.lower(), ver)
+            if key not in conf_cache:
+                conf_cache[key] = await cves_for_service(session, prod, ver)
+            cves = conf_cache[key]
+        if cves:  # CONFIRMADO (produto + versao)
+            f.cve_ids = [c["cve_id"] for c in cves]
+            mx = max((c["cvss"] for c in cves if c["cvss"] is not None), default=None)
+            if mx is not None:
+                f.cvss = mx
+                sv = _sev_from_cvss(mx)
+                if sv:
+                    f.severity = Severity(sv)
+            d = dict(f.data or {})
+            d["cve_source"] = "base local (versão)"
+            d.pop("potential_cves", None)
+            f.data = d
+            confirmed += 1
+            updated += 1
+            continue
+        # Sem versao / sem match confirmado -> CVEs POTENCIAIS do produto.
+        pk = prod.lower()
+        if pk not in pot_cache:
+            pot_cache[pk] = await cves_for_product(session, prod)
+        pot = pot_cache[pk]
+        if pot and not (f.cve_ids or []):
+            d = dict(f.data or {})
+            d["potential_cves"] = pot
+            f.data = d
+            potential += 1
+            updated += 1
+
+    await session.commit()
+    return {"total": len(findings), "updated": updated,
+            "confirmed": confirmed, "potential": potential}
+
+
 @router.patch("/findings/{finding_id}", response_model=FindingOut)
 async def update_finding(
     finding_id: str,
