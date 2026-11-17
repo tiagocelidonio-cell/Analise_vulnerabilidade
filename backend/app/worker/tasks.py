@@ -515,16 +515,34 @@ async def _auto_recon(ctx, session, eng, scan) -> None:
         pass
 
 
+async def _reenqueue_cve(ctx: dict) -> None:
+    """Re-enfileira a continuação do download completo (lote resumível)."""
+    try:
+        redis = ctx.get("redis")
+        if redis is None:
+            from arq import create_pool
+            redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+        await redis.enqueue_job("update_cve_base", True, True)  # full, resume
+    except Exception:  # noqa: BLE001  o watchdog retoma se isto falhar
+        pass
+
+
 async def update_cve_base(ctx: dict, full: bool = False, resume: bool = False) -> dict:
     """Atualiza a base local de CVE.
-    full=True: baixa a base completa pela NVD (paginada + monitorada).
-    resume=True: retoma o download completo de onde parou (apos reinicio)."""
+    full=True: baixa a base completa pela NVD, em LOTES resumíveis.
+    resume=True: retoma de onde parou.
+
+    Robusto: cada invocação processa um lote curto; se ainda falta, re-enfileira
+    a continuação (o watchdog retoma caso a cadeia quebre)."""
     from app.api.integrations import apply_db_keys
     from app.enrichment.cve_import import import_full_nvd, refresh_seen
     async with SessionLocal() as session:
         await apply_db_keys(session)  # pega NVD_API_KEY salva no painel
         if full:
-            return await import_full_nvd(session, resume=resume)
+            res = await import_full_nvd(session, resume=resume)
+            if res.get("incomplete"):
+                await _reenqueue_cve(ctx)  # continua no próximo lote
+            return res
         return await refresh_seen(session)
 
 
@@ -549,10 +567,13 @@ async def scheduled_cve_update(ctx: dict) -> None:
             if age_h < max(1, cfg.interval_hours):
                 return
         # Venceu: roda conforme o modo escolhido.
+        incomplete = False
         try:
             if cfg.full:
                 res = await import_full_nvd(session)
-                cfg.last_result = f"completa: {res.get('imported', 0)} CVEs"
+                incomplete = bool(res.get("incomplete"))
+                cfg.last_result = (f"completa: {res.get('imported', 0)} CVEs"
+                                   + (" (continuando…)" if incomplete else ""))
             else:
                 res = await refresh_seen(session)
                 cfg.last_result = f"vistos: {res.get('updated', 0)} atualizados"
@@ -560,6 +581,33 @@ async def scheduled_cve_update(ctx: dict) -> None:
             cfg.last_result = f"erro: {exc}"
         cfg.last_run = datetime.now(timezone.utc)
         await session.commit()
+    if incomplete:
+        await _reenqueue_cve(ctx)  # continua em lotes até concluir
+
+
+async def cve_watchdog(ctx: dict) -> None:
+    """Rede de segurança: se o download de CVE está 'baixando/conectando' mas
+    SEM avanço há > 90s (updated_at é atualizado a cada página, então isso só
+    acontece se travou/worker morreu), re-enfileira a continuação. Garante que
+    o download SEMPRE retoma, mesmo se a cadeia de re-enfileiramento quebrar."""
+    from datetime import datetime, timezone
+
+    from app.enrichment.cve_import import get_import_status
+    async with SessionLocal() as session:
+        st = await get_import_status(session)
+        if st.state not in ("connecting", "downloading") or st.cancel_requested:
+            return
+        upd = st.updated_at
+        if upd is None:
+            return
+        if upd.tzinfo is None:
+            upd = upd.replace(tzinfo=timezone.utc)
+        if (datetime.now(timezone.utc) - upd).total_seconds() < 90:
+            return  # avançando normalmente
+        st.phase = "retomando (watchdog)…"
+        st.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+    await _reenqueue_cve(ctx)
 
 
 async def _startup(ctx: dict) -> None:
@@ -599,10 +647,13 @@ async def _startup(ctx: dict) -> None:
 
 
 def _cron_jobs():
-    # Roda a cada 15 min; a propria task le a config no banco e decide se e hora
-    # de atualizar. Fica SEMPRE registrado para a agenda do painel funcionar.
     from arq import cron
-    return [cron(scheduled_cve_update, minute={0, 15, 30, 45}, run_at_startup=False)]
+    return [
+        # Agenda da base (le a config no banco e decide se e hora de atualizar).
+        cron(scheduled_cve_update, minute={0, 15, 30, 45}, run_at_startup=False),
+        # Watchdog: a cada minuto, retoma um download de CVE travado.
+        cron(cve_watchdog, minute=set(range(60)), run_at_startup=True),
+    ]
 
 
 class WorkerSettings:

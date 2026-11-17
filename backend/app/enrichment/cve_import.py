@@ -136,13 +136,16 @@ def _parse_nvd_vuln(item: dict) -> dict | None:
             "published": _parse_dt(cve.get("published"))}
 
 
-async def import_full_nvd(session: AsyncSession, resume: bool = False) -> dict:
-    """Baixa a base completa de CVE pela API oficial da NVD, PAGINADA e
-    MONITORADA. Atualiza CveImportStatus a cada pagina (progresso, conexao,
-    erro) e respeita cancelamento. Resiliente a rate-limit (429/403).
+async def import_full_nvd(session: AsyncSession, resume: bool = False,
+                          max_pages: int = 12) -> dict:
+    """Baixa a base de CVE da NVD 2.0 em LOTES pequenos e resumíveis.
 
-    resume=True: RETOMA de onde o download anterior parou (borda de pagina;
-    o upsert e idempotente). Usado quando o worker reinicia no meio."""
+    Em vez de um job gigante (frágil a reinício), processa no máximo `max_pages`
+    páginas por invocação e retorna {"incomplete": True} quando ainda há mais —
+    o worker re-enfileira a continuação. Assim cada execução é curta (<~2 min),
+    o progresso é salvo a cada página, e um reinício perde no máximo um lote.
+
+    resume=True: RETOMA de onde parou (borda de página; upsert idempotente)."""
     st = await get_import_status(session)
     now0 = datetime.now(timezone.utc)
     if resume and st.processed and st.total:
@@ -196,6 +199,7 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False) -> dict:
     start = resume_start
     imported = base_imported
     processed = resume_start
+    pages_done = 0
     async with httpx.AsyncClient(timeout=60, headers=headers) as client:
         while True:
             if await _cancelled():
@@ -257,6 +261,16 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False) -> dict:
             start += _PAGE
             if start >= total or not vulns:
                 break
+            pages_done += 1
+            if pages_done >= max_pages:
+                # Lote cheio: salva e devolve o controle p/ o worker re-enfileirar
+                # a continuação. Mantém o estado "baixando" (não é fim nem erro).
+                st.phase = (f"baixando {processed}/{total} "
+                            f"({int(100 * processed / total) if total else 0}%)")
+                st.updated_at = datetime.now(timezone.utc)
+                await session.commit()
+                return {"incomplete": True, "imported": imported,
+                        "processed": processed, "total": total}
             await asyncio.sleep(delay)  # respeita o limite da NVD
 
     st.state = "done"
