@@ -14,7 +14,7 @@ import re
 import ssl
 from datetime import datetime, timezone
 
-from app.collectors.base import CollectedFact, http_fetch
+from app.collectors.base import CollectedFact, host_only, http_fetch
 from app.config import settings
 
 _HTTP_PORTS = {80, 8000, 8080, 3000, 9000}
@@ -169,7 +169,8 @@ class HttpProbeCollector:
                     if cert:
                         out.append(cert)
 
-        pairs = [(h, p) for h in targets for p in ports]
+        hosts = sorted({host_only(t) for t in targets if host_only(t)})
+        pairs = [(h, p) for h in hosts for p in ports]
         # Processa em BLOCOS: cancelamento e heartbeat acontecem ENTRE blocos
         # (nunca de dentro das corrotinas concorrentes -> a sessao async do
         # worker nao aceita commits simultaneos). Cada probe ja tem teto de

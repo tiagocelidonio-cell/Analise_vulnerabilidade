@@ -231,18 +231,25 @@ const TYPE_ICON = {
   vuln: "🛡️", ports: "🔌", web: "🌐", tech: "🧩", assets: "🗂️",
   emails: "✉️", exposure: "⚠️", ot: "🏭", leaks: "💧", other: "ℹ️",
 };
+const EMAIL_RE = /[^@\s]+@[^@\s]+\.[^@\s]+/; // endereço real (com @) — não casa hostname
 function findingType(f) {
   const svc = (f.service || "").toLowerCase();
   const d = f.data || {};
+  const title = f.title || "";
   if (d.ot) return "ot";
   if ((f.cve_ids || []).length > 0) return "vuln";
   if (d.source === "leaks" || svc === "leak" || svc === "leaks" || d.breach) return "leaks";
-  // E-mail so pelo DADO (data.email/emails) — NUNCA pelo hostname (ex.: um host
-  // chamado "email.cliente.com" NAO e' um achado de e-mail).
-  if (d.email || (Array.isArray(d.emails) && d.emails.length)) return "emails";
+  // E-mail: pelo DADO (data.email/emails) OU por um ENDEREÇO real no título
+  // (tem @). Um host chamado "email.cliente.com" NAO casa (não tem @) — foi o
+  // que antes jogava headers no grupo errado; e achados antigos sem data.email
+  // agora caem certo pelo endereço no título "E-mail público: x@y.com".
+  if (d.email || (Array.isArray(d.emails) && d.emails.length) || EMAIL_RE.test(title)) return "emails";
   if (svc === "tech") return "tech";
   if (svc === "subdomain" || svc === "host") return "assets";
-  if (svc === "osint") return "assets";              // domínios/IPs da pegada pública
+  if (svc === "osint") {
+    // OSINT de domínio/IP -> ativos; e-mail já foi tratado acima.
+    return "assets";
+  }
   if (svc === "tls" || d.weakness || d.path || d.listing) return "exposure";
   if (svc === "http" || svc === "https") return "web";
   if (f.port) return "ports";

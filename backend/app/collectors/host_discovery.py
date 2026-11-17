@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 
-from app.collectors.base import CollectedFact
+from app.collectors.base import CollectedFact, host_only
 from app.config import settings
 
 # Portas de sondagem (espalhadas: web, SSH, RDP, SMB, DB, mail...).
@@ -50,6 +50,7 @@ class HostDiscoveryCollector:
         conc = max(1, settings.scan_max_concurrency)
         sem = asyncio.Semaphore(conc)
         facts: list[CollectedFact] = []
+        targets = sorted({host_only(t) for t in targets if host_only(t)})
 
         async def one(host: str) -> None:
             async with sem:

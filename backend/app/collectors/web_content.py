@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-from app.collectors.base import CollectedFact, http_fetch
+from app.collectors.base import CollectedFact, host_only, http_fetch
 from app.config import settings
 
 _HTTP_PORTS = {80, 8000, 8080, 3000, 9000}
@@ -98,7 +98,7 @@ class WebContentCollector:
         # Monta todos os probes (host x base x path) e roda em BLOCOS, com
         # cancelamento e heartbeat ENTRE blocos.
         probes = []
-        for host in targets:
+        for host in sorted({host_only(t) for t in targets if host_only(t)}):
             for base in _base_urls(host, ports):
                 for path, hint in _PATHS.items():
                     probes.append((base, path, hint))

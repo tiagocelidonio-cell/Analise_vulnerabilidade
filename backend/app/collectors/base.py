@@ -13,6 +13,19 @@ from typing import Protocol
 import httpx
 
 
+def host_only(target: str) -> str:
+    """Normaliza um alvo para o HOST puro: tira esquema, caminho e porta.
+
+    'http://owasp-juice.shop:80/x' -> 'owasp-juice.shop'. Evita montar URLs
+    invalidas quando o alvo ja vem com porta (ex.: 'host:80' + porta do coletor
+    = 'host:80:80', que o httpx rejeita e derrubava a etapa)."""
+    h = (target or "").split("://")[-1].split("/")[0].strip()
+    # IPv6 literal entre colchetes: mantem como esta.
+    if h.startswith("["):
+        return h
+    return h.split(":")[0] or h
+
+
 async def http_fetch(
     url: str,
     timeout: float,
@@ -49,8 +62,10 @@ async def http_fetch(
 
     try:
         return await asyncio.wait_for(_go(), timeout=timeout * 3 + 2)
-    except (httpx.HTTPError, OSError, asyncio.TimeoutError, ssl.SSLError,
-            UnicodeError):
+    except (httpx.HTTPError, httpx.InvalidURL, OSError, asyncio.TimeoutError,
+            ssl.SSLError, UnicodeError, ValueError):
+        # NUNCA propaga: um probe ruim (ex.: URL malformada) nao pode derrubar
+        # a etapa inteira do scan.
         return None
 
 
