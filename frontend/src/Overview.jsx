@@ -19,6 +19,8 @@ export default function Overview() {
   const [cveSt, setCveSt] = useState(null);
   const [recent, setRecent] = useState([]);
   const [rel, setRel] = useState(null);
+  const [relAll, setRelAll] = useState(false);
+  const [recentAll, setRecentAll] = useState(false);
 
   const load = useCallback(async () => {
     try { setD(await api.overview()); } catch (e) { setErr(e.message); }
@@ -70,20 +72,34 @@ export default function Overview() {
               {" "}Rode varreduras com <b>Tecnologias</b> e baixe a <b>base completa de CVEs</b>
               {" "}(captura os produtos afetados) para ativar os alertas.
             </p>
-          ) : (
+          ) : (() => {
+            const counts = SEV.reduce((a, s) => {
+              a[s.key] = rel.matches.filter((m) => m.severity === s.key).length; return a;
+            }, {});
+            const shown = relAll ? rel.matches : rel.matches.slice(0, 12);
+            return (
             <>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-                <b style={{ color: "#b91c1c" }}>{rel.counts.matches}</b> CVEs recentes afetam
-                {" "}<b>{rel.counts.clients}</b> cliente(s) · cruzados com
-                {" "}{rel.counts.technologies} tecnologias detectadas
+              <div className="info" style={{ fontSize: 12, marginBottom: 8 }}>
+                <b>Exposição potencial</b> — {rel.counts.matches} CVE(s) recente(s) afetam
+                uma tecnologia detectada em <b>{rel.counts.clients}</b> cliente(s).
+                Isto <b>não é um achado confirmado</b>: indica que o produto tem CVE novo;
+                confirme a <b>versão</b> do ativo para saber se está vulnerável.
+              </div>
+              {/* resumo por severidade */}
+              <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                {SEV.filter((s) => counts[s.key]).map((s) => (
+                  <span key={s.key} className="pill" style={{ background: s.color, fontSize: 11 }}>
+                    {s.label}: {counts[s.key]}
+                  </span>
+                ))}
               </div>
               <table className="t">
                 <thead><tr>
                   <th>Publicado</th><th>CVE</th><th>Sev</th><th>CVSS</th>
-                  <th>Cliente(s)</th><th>Tecnologia</th><th>Conf.</th>
+                  <th>Cliente(s)</th><th>Tecnologia</th><th>Match</th>
                 </tr></thead>
                 <tbody>
-                  {rel.matches.slice(0, 40).map((m) => (
+                  {shown.map((m) => (
                     <tr key={m.cve_id}>
                       <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{m.published ? fmtDateTime(m.published) : "—"}</td>
                       <td><a href={`https://nvd.nist.gov/vuln/detail/${m.cve_id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{m.cve_id}</a></td>
@@ -91,16 +107,24 @@ export default function Overview() {
                       <td>{m.cvss != null ? m.cvss.toFixed(1) : "—"}</td>
                       <td style={{ fontSize: 12 }}>{m.clients.join(", ") || "—"}</td>
                       <td style={{ fontSize: 12 }}>{m.technologies.join(", ")}</td>
-                      <td><span className="pill" style={{ background: m.confidence === "alta" ? "#15803d" : "#a16207", fontSize: 10 }}>{m.confidence}</span></td>
+                      <td><span className="pill" style={{ background: m.confidence === "alta" ? "#15803d" : "#a16207", fontSize: 10 }}>{m.confidence === "alta" ? "produto" : "descrição"}</span></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {rel.matches.length > 12 && (
+                <button className="btn" style={{ marginTop: 6, padding: "3px 10px" }}
+                  onClick={() => setRelAll((v) => !v)}>
+                  {relAll ? "▲ Mostrar só os 12 principais" : `▼ Mostrar todos (${rel.matches.length})`}
+                </button>
+              )}
               <p className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-                <b>alta</b> = produto afetado bate com o CPE do CVE · <b>média</b> = citado na descrição.
+                <b>produto</b> = o produto afetado bate com o CPE do CVE · <b>descrição</b> =
+                citado só na descrição. Ordenado por força do match e CVSS.
               </p>
             </>
-          )
+            );
+          })()
       ),
     },
     {
@@ -155,25 +179,36 @@ export default function Overview() {
       ),
     },
     {
-      id: "cverecent", title: "CVEs recentes (feed)", wide: true, node: (
+      id: "cverecent", title: "📰 CVEs recentes (feed de notícias)", wide: true, node: (
         recent.length === 0
           ? <p className="muted">Sem CVEs recentes. Baixe a base completa em <b>Administração › Base de CVEs</b> (captura a data de publicação).</p>
-          : (
-            <table className="t">
-              <thead><tr><th>Publicado</th><th>CVE</th><th>Sev</th><th>CVSS</th><th>Descrição</th></tr></thead>
-              <tbody>
-                {recent.map((c) => (
-                  <tr key={c.cve_id}>
-                    <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{c.published ? fmtDateTime(c.published) : "—"}</td>
-                    <td><a href={`https://nvd.nist.gov/vuln/detail/${c.cve_id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{c.cve_id}</a></td>
-                    <td><span className="pill" style={{ background: SEV_COLOR[c.severity] || "#334155", fontSize: 10 }}>{c.severity.toUpperCase()}</span></td>
-                    <td>{c.cvss != null ? c.cvss.toFixed(1) : "—"}</td>
-                    <td style={{ fontSize: 12 }}>{(c.description || "").slice(0, 140)}{(c.description || "").length > 140 ? "…" : ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
+          : (() => {
+            const shown = recentAll ? recent : recent.slice(0, 8);
+            return (
+            <>
+              <table className="t">
+                <thead><tr><th>Publicado</th><th>CVE</th><th>Sev</th><th>CVSS</th><th>Descrição</th></tr></thead>
+                <tbody>
+                  {shown.map((c) => (
+                    <tr key={c.cve_id}>
+                      <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{c.published ? fmtDateTime(c.published) : "—"}</td>
+                      <td><a href={`https://nvd.nist.gov/vuln/detail/${c.cve_id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{c.cve_id}</a></td>
+                      <td><span className="pill" style={{ background: SEV_COLOR[c.severity] || "#334155", fontSize: 10 }}>{c.severity.toUpperCase()}</span></td>
+                      <td>{c.cvss != null ? c.cvss.toFixed(1) : "—"}</td>
+                      <td style={{ fontSize: 12 }}>{(c.description || "").slice(0, 140)}{(c.description || "").length > 140 ? "…" : ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {recent.length > 8 && (
+                <button className="btn" style={{ marginTop: 6, padding: "3px 10px" }}
+                  onClick={() => setRecentAll((v) => !v)}>
+                  {recentAll ? "▲ Mostrar menos" : `▼ Mostrar todos (${recent.length})`}
+                </button>
+              )}
+            </>
+            );
+          })()
       ),
     },
     {

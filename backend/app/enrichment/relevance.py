@@ -31,9 +31,16 @@ _VOCAB = sorted(
 # Termos genericos demais: so casam se vierem do CPE (produtos), nunca por
 # descricao, para nao gerar falso-positivo (ex.: "linux" aparece em tudo).
 _WEAK_ONLY_IN_PRODUCTS = {
-    "linux", "windows", "unix", "java", "python", "node", "php", ".net",
-    "ruby", "cdn", "react", "vue", "angular", "express", "spring", "oracle",
-    "amazon", "google cloud", "gcp", "aws", "azure",
+    "java", "python", "node", "php", ".net", "ruby", "react", "vue", "angular",
+    "express", "spring", "oracle", "amazon", "google cloud", "gcp", "aws", "azure",
+}
+
+# NUNCA entram no cruzamento de relevancia: sem versao, um "e' Linux/Windows"
+# casaria com MILHARES de CVEs de kernel/OS -> puro ruido. Relevancia so' faz
+# sentido para PRODUTOS especificos (nginx, apache, wordpress, ...).
+_NEVER_MATCH = {
+    "windows", "linux", "ubuntu", "debian", "centos", "red hat", "rhel",
+    "freebsd", "openbsd", "unix", "cdn",
 }
 
 
@@ -41,14 +48,15 @@ def tech_keywords(tech: str) -> set[str]:
     """Extrai as palavras-chave de produto de uma tecnologia detectada.
 
     Ex.: "nginx 1.18.0" -> {"nginx"}; "Apache Tomcat" -> {"apache", "tomcat"}.
-    Se nada do vocabulario casar, usa o 1o token alfabetico (>=4 chars)."""
+    Se nada do vocabulario casar, usa o 1o token alfabetico (>=4 chars).
+    Tokens de SO genericos sao descartados (ruido na relevancia de CVE)."""
     t = tech.lower()
     out = {kw for kw in _VOCAB if kw in t}
     if not out:
         toks = re.findall(r"[a-z][a-z0-9.+-]{3,}", t)
         if toks:
             out.add(toks[0])
-    return out
+    return {kw for kw in out if kw not in _NEVER_MATCH}
 
 
 def _word_in(kw: str, text: str) -> bool:
