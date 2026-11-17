@@ -56,7 +56,9 @@ async def reenrich_cves(
             continue
         diag["com_produto"] += 1
         from app.enrichment.local_cve import product_to_cpe
-        cpe_key = product_to_cpe(prod) or "(sem mapeamento)"
+        mapped = product_to_cpe(prod)
+        # Mostra o NOME REAL quando nao mapeia, para sabermos o que adicionar.
+        cpe_key = mapped or f"(sem mapeamento) «{(prod or '')[:50]}» ver={ver or '-'}"
         diag["produtos"][cpe_key] = diag["produtos"].get(cpe_key, 0) + 1
         cves = []
         if ver:

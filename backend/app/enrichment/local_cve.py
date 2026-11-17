@@ -120,44 +120,67 @@ def _rule_prod_matches(rule: dict, token: str) -> bool:
     return _prod_token(rule.get("prod") or "") == token
 
 
-async def cves_for_service(session: AsyncSession, product: str, version: str,
-                           limit: int = 25) -> list[dict]:
-    """CVEs da BASE LOCAL que afetam (produto, versao). Vazio se nao mapear."""
+# Palavras genericas que NAO servem de token de produto (ruido).
+_NOISE_TOK = {"framework", "server", "httpd", "daemon", "service", "http",
+              "https", "web", "app", "software", "the", "for", "and", "version",
+              "httpd.", "ftp", "ftpd", "smtp", "smtpd", "ssh", "sshd", "api"}
+
+
+def product_tokens(product: str) -> list[str]:
+    """Tokens de PRODUTO CPE a tentar casar na base.
+
+    1) Se o nome e' conhecido (mapa), usa o token do CPE. 2) Senao, deriva
+    tokens do proprio nome (ex.: 'Node.js Express framework' -> ['node.js',
+    'express']) e casa pelo produto na base. Robusto sem hardcodar tudo."""
     cpe = product_to_cpe(product)
-    if not cpe or not version:
-        return []
-    if _vtuple(version) == (0,):
-        return []
-    token = _prod_token(cpe)
-    # Candidatos: CVEs cujas regras CPE mencionam o PRODUTO (ignora vendor).
-    rows = list(await session.scalars(
+    if cpe:
+        return [_prod_token(cpe)]
+    toks = re.findall(r"[a-z][a-z0-9.+_-]{2,}", (product or "").lower())
+    seen, out = set(), []
+    for t in toks:
+        t = t.strip(".-_")
+        if t and t not in _NOISE_TOK and t not in seen and len(t) >= 3:
+            seen.add(t)
+            out.append(t)
+    return out[:4]
+
+
+async def _candidates(session: AsyncSession, token: str) -> list:
+    return list(await session.scalars(
         select(CveRemediation)
         .where(cast(CveRemediation.cpe, String).ilike(f"%{token}%"))
         .limit(5000)))
-    hits = []
-    for r in rows:
-        for rule in (r.cpe or []):
-            if _rule_prod_matches(rule, token) and _rule_matches(version, rule):
-                hits.append(r)
-                break
-    hits.sort(key=lambda r: -(r.cvss or 0))
-    return [{"cve_id": r.cve_id, "cvss": r.cvss,
-             "description": r.description, "cpe": cpe} for r in hits[:limit]]
+
+
+async def cves_for_service(session: AsyncSession, product: str, version: str,
+                           limit: int = 25) -> list[dict]:
+    """CVEs da BASE LOCAL que afetam (produto, versao). Vazio se nada casar."""
+    if not version or _vtuple(version) == (0,):
+        return []
+    for token in product_tokens(product):
+        rows = await _candidates(session, token)
+        hits = []
+        for r in rows:
+            for rule in (r.cpe or []):
+                if _rule_prod_matches(rule, token) and _rule_matches(version, rule):
+                    hits.append(r)
+                    break
+        if hits:
+            hits.sort(key=lambda r: -(r.cvss or 0))
+            return [{"cve_id": r.cve_id, "cvss": r.cvss,
+                     "description": r.description, "cpe": token} for r in hits[:limit]]
+    return []
 
 
 async def cves_for_product(session: AsyncSession, product: str,
                            limit: int = 12) -> list[dict]:
     """CVEs conhecidos do PRODUTO (sem versao) — os mais severos. POTENCIAIS."""
-    cpe = product_to_cpe(product)
-    if not cpe:
-        return []
-    token = _prod_token(cpe)
-    rows = list(await session.scalars(
-        select(CveRemediation)
-        .where(cast(CveRemediation.cpe, String).ilike(f"%{token}%"))
-        .limit(5000)))
-    hits = [r for r in rows
-            if any(_rule_prod_matches(rule, token) for rule in (r.cpe or []))]
-    hits.sort(key=lambda r: -(r.cvss or 0))
-    return [{"cve_id": r.cve_id, "cvss": r.cvss, "description": r.description}
-            for r in hits[:limit]]
+    for token in product_tokens(product):
+        rows = await _candidates(session, token)
+        hits = [r for r in rows
+                if any(_rule_prod_matches(rule, token) for rule in (r.cpe or []))]
+        if hits:
+            hits.sort(key=lambda r: -(r.cvss or 0))
+            return [{"cve_id": r.cve_id, "cvss": r.cvss, "description": r.description}
+                    for r in hits[:limit]]
+    return []
