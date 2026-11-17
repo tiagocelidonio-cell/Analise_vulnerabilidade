@@ -237,6 +237,7 @@ function findingType(f) {
   const d = f.data || {};
   const title = f.title || "";
   if (d.ot) return "ot";
+  if (svc === "exploit" || d.vuln) return "vuln";   // XSS/SQLi confirmados
   if ((f.cve_ids || []).length > 0) return "vuln";
   if (d.source === "leaks" || svc === "leak" || svc === "leaks" || d.breach) return "leaks";
   // E-mail: pelo DADO (data.email/emails) OU por um ENDEREÇO real no título

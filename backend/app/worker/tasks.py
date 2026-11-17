@@ -15,6 +15,7 @@ from app.ai.agent import analyst
 from app.collectors import (
     COLLECTORS,
     DEFAULT_COLLECTORS,
+    EXPLOIT_COLLECTORS,
     HOST_COLLECTORS,
     STAGE_LABELS,
     STAGE_ORDER,
@@ -341,6 +342,15 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 if collector is None:
                     entry["status"] = "skipped"
                     entry["error"] = "coletor indisponível"
+                    scan.stages = list(stage_log)
+                    await session.commit()
+                    continue
+                # GATE de exploração: só com autorização explícita no engagement.
+                if name in EXPLOIT_COLLECTORS and not (
+                        getattr(eng, "allow_exploitation", False)
+                        or getattr(eng, "allow_intrusive", False)):
+                    entry["status"] = "skipped"
+                    entry["error"] = "requer autorização de exploração no engagement"
                     scan.stages = list(stage_log)
                     await session.commit()
                     continue

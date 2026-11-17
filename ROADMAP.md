@@ -220,6 +220,11 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 
 ### Onda 4 — Exploração assistida & pós-exploração (gated)
 > Só habilita em Pentest + autorização + NDA. Operador confirma cada passo.
+- [~] **Exploração web ativa (DAST)**: capacidade **Exploração Web (XSS/SQLi)**
+  — rastreia a app, descobre pontos de injeção (parâmetros de URL + campos de
+  formulário) e **confirma XSS refletido e SQL injection (erro + booleano)** com
+  evidência. Não-destrutivo (só leitura lógica, pula formulários de senha, sem
+  blind time-based, rate-limit). Gated por `allow_exploitation` no engagement.
 - [ ] **Biblioteca de módulos de exploração** (CVEs conhecidos, defaults,
   exposições) — roda contra alvos **no escopo**, com evidência e rollback quando
   aplicável. Nada de exploração em massa automática.

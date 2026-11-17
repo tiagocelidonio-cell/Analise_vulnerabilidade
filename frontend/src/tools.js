@@ -33,6 +33,7 @@ export const CATEGORIES = [
   },
   {
     cat: "Exploração", items: [
+      { name: "Exploração Web (XSS/SQLi)", icon: "💥", kind: "url", desc: "Rastreia a aplicação, acha pontos de injeção e CONFIRMA XSS e SQL injection (não-destrutivo, com evidência). Requer autorização de exploração.", collectors: ["web_exploit"], needsExploit: true },
       { name: "Validação (SAFE)", icon: "🛡️", desc: "Prova não-destrutiva das falhas encontradas.", exploit: false },
       { name: "Validação avançada", icon: "⚔️", desc: "SQLi/XSS/LFI (não-destrutivo). Requer opt-in.", exploit: true, needsIntrusive: true },
     ],

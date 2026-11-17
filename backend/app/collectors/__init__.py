@@ -10,6 +10,7 @@ from app.collectors.subfinder_scan import SubfinderCollector
 from app.collectors.tech_detect import TechDetectCollector
 from app.collectors.wayback import WaybackCollector
 from app.collectors.web_content import WebContentCollector
+from app.collectors.web_exploit import WebExploitCollector
 
 # Registro de coletores disponiveis. Ferramentas consagradas com fallback Python:
 #   port_scan     -> nmap   (fallback: scanner TCP proprio)
@@ -28,17 +29,21 @@ COLLECTORS = {
     "osint": OsintCollector(),
     "screenshot": ScreenshotCollector(),
     "leaks": LeaksCollector(),
+    "web_exploit": WebExploitCollector(),
 }
 # Coletores de host (recebem IPs expandidos e rodam em lote).
 HOST_COLLECTORS = {"host_discovery", "port_scan", "http_probe", "web_content",
-                   "web_vuln", "tech_detect", "screenshot"}
+                   "web_vuln", "tech_detect", "screenshot", "web_exploit"}
+
+# Coletores de EXPLORACAO (gated): so' rodam com autorizacao de exploracao.
+EXPLOIT_COLLECTORS = {"web_exploit"}
 
 # Ordem canonica das ETAPAS do pipeline (quando varias sao selecionadas).
 # Cada etapa usa o resultado da anterior (hosts vivos -> portas -> web...).
 STAGE_ORDER = [
     "subdomain_enum", "osint", "host_discovery", "port_scan", "http_probe",
-    "tech_detect", "web_content", "web_vuln", "screenshot", "wayback",
-    "google_dorks", "leaks",
+    "tech_detect", "web_content", "web_vuln", "web_exploit", "screenshot",
+    "wayback", "google_dorks", "leaks",
 ]
 
 # Rotulo funcional (UI nunca ve o nome do binario).
@@ -51,6 +56,7 @@ STAGE_LABELS = {
     "tech_detect": "Detecção de tecnologias",
     "web_content": "Conteúdo exposto",
     "web_vuln": "Verificação de vulnerabilidades",
+    "web_exploit": "Exploração web (XSS/SQLi)",
     "screenshot": "Captura de tela",
     "wayback": "Histórico (Wayback)",
     "google_dorks": "Google Dorks",
@@ -59,7 +65,8 @@ STAGE_LABELS = {
 
 # Etapas que consomem a lista de HOSTS WEB (hosts com porta web aberta no
 # port_scan). Se o port_scan nao rodou neste scan, caem para hosts vivos / todos.
-WEB_STAGES = {"http_probe", "tech_detect", "web_content", "web_vuln", "screenshot"}
+WEB_STAGES = {"http_probe", "tech_detect", "web_content", "web_vuln",
+              "web_exploit", "screenshot"}
 
 # Portas consideradas "web" para decidir quais hosts seguem para as etapas web.
 WEB_PORTS = {80, 443, 8080, 8443, 8000, 3000, 9000, 8081, 8888, 5000}

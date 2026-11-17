@@ -20,7 +20,10 @@ export default function ToolCatalog({ engagement, onRan, onUpdated }) {
           <h3>{c.cat}</h3>
           <div className="toolGrid">
             {c.items.map((t) => {
-              const locked = t.needsIntrusive && !engagement.allow_intrusive;
+              const lockInt = t.needsIntrusive && !engagement.allow_intrusive;
+              const lockExp = t.needsExploit
+                && !(engagement.allow_exploitation || engagement.allow_intrusive);
+              const locked = lockInt || lockExp;
               return (
                 <button key={t.name} className="toolCard" disabled={locked}
                   onClick={() => setOpenTool(t)}>
@@ -28,9 +31,14 @@ export default function ToolCatalog({ engagement, onRan, onUpdated }) {
                   <div style={{ flex: 1 }}>
                     <div className="toolName">{t.name}</div>
                     <div className="muted" style={{ fontSize: 12 }}>{t.desc}</div>
-                    {locked && (
+                    {lockInt && (
                       <div style={{ fontSize: 11, color: "#a16207" }}>
                         ative "sondas intrusivas" no cliente
+                      </div>
+                    )}
+                    {lockExp && !lockInt && (
+                      <div style={{ fontSize: 11, color: "#a16207" }}>
+                        ative "exploração" no cliente (Editar escopo)
                       </div>
                     )}
                   </div>

@@ -49,6 +49,16 @@ COLLECTOR_STEPS: dict[str, list[dict]] = {
         {"key": "web_vuln:templates", "togglable": False, "default": True,
          "label": "Verificações por template (CVEs, misconfig, exposições)"},
     ],
+    "web_exploit": [
+        {"key": "web_exploit:crawl", "togglable": False, "default": True,
+         "label": "Rastreio da aplicação (descobre pontos de injeção)"},
+        {"key": "web_exploit:xss", "togglable": True, "default": True,
+         "label": "XSS refletido",
+         "desc": "Injeta marcador único e confirma reflexão sem escape."},
+        {"key": "web_exploit:sqli", "togglable": True, "default": True,
+         "label": "SQL injection (erro + booleano)",
+         "desc": "Não-destrutivo: só leitura lógica, nunca apaga/edita dados."},
+    ],
     "port_scan": [
         {"key": "port_scan:ports", "togglable": False, "default": True,
          "label": "Portas e serviços abertos (acha host sem ping)"},
