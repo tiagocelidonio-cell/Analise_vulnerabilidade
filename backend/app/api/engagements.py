@@ -2,12 +2,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, require_engagement_access
 from app.db import get_session
-from app.models import Engagement, User
+from app.models import (
+    Engagement,
+    EngagementDocument,
+    Evidence,
+    Finding,
+    ScanJob,
+    User,
+)
 from app.schemas import EngagementCreate, EngagementOut, EngagementUpdate
 
 router = APIRouter(prefix="/engagements", tags=["engagements"])
@@ -77,5 +84,19 @@ async def delete_engagement(
     eng: Engagement = Depends(require_engagement_access),
     session: AsyncSession = Depends(get_session),
 ):
-    await session.delete(eng)
+    """Exclui o cliente e TUDO que depende dele, na ordem das chaves estrangeiras
+    (evidências → achados → scans → documentos → engagement). Sem isso o Postgres
+    recusa a exclusão (FK violada em engagement_documents, findings, etc.)."""
+    # 1) Evidências dos achados deste engagement.
+    fids = list(await session.scalars(
+        select(Finding.id).where(Finding.engagement_id == eng.id)))
+    if fids:
+        await session.execute(delete(Evidence).where(Evidence.finding_id.in_(fids)))
+    # 2) Achados, scans e documentos.
+    await session.execute(delete(Finding).where(Finding.engagement_id == eng.id))
+    await session.execute(delete(ScanJob).where(ScanJob.engagement_id == eng.id))
+    await session.execute(
+        delete(EngagementDocument).where(EngagementDocument.engagement_id == eng.id))
+    # 3) O próprio engagement.
+    await session.execute(delete(Engagement).where(Engagement.id == eng.id))
     await session.commit()
