@@ -130,35 +130,51 @@ class NmapCollector:
         else:
             want_version = "port_scan:version" in steps
             want_cve = "port_scan:cve_local" in steps
-        host_timeout = "120s" if want_cve else ("90s" if want_version else "45s")
+        cancel_check = kwargs.get("cancel_check")
+        on_tick = kwargs.get("on_tick")
+        from app.collectors.proc import run_killable
 
-        # --host-timeout curto mantem o lote agil e o "Parar" responsivo.
-        args = ["nmap", "-Pn", "-sT", "--open", "-T4", "--max-retries", "1",
-                "--host-timeout", host_timeout, "-oX", "-"]
-        if want_version:  # deteccao de versao (passo opcional)
-            args += ["-sV", "--version-intensity", "2"]
+        port_sel = (["-p", ",".join(str(p) for p in ports)] if ports
+                    else ["--top-ports", "1000"])
+
+        # ===== FASE 1: descoberta RAPIDA de portas (sem -sV/scripts) =====
+        # Sempre reporta as portas abertas, mesmo que a Fase 2 (lenta) estoure o
+        # tempo. Antes era um comando so': se o -sV/script travava, o nmap
+        # descartava o HOST INTEIRO -> "0 portas" num host que tinha portas.
+        p1 = (["nmap", "-Pn", "-sT", "--open", "-T4", "--max-retries", "1",
+               "--host-timeout", "60s", "-oX", "-"] + port_sel + list(targets))
+        out1 = await run_killable(p1, cancel_check=cancel_check, on_tick=on_tick,
+                                  max_seconds=180)
+        facts = _parse_nmap_xml(out1) if out1 else []
+        if not facts or not (want_version or want_cve):
+            return facts  # so' portas (ou nada aberto)
+
+        # ===== FASE 2: versao/CVE SO' nas portas abertas encontradas =====
+        open_ports = sorted({f.port for f in facts if f.port})
+        if not open_ports:
+            return facts
+        p2 = ["nmap", "-Pn", "-sT", "--open", "-T4", "--max-retries", "1",
+              "--host-timeout", "180s", "-oX", "-",
+              "-p", ",".join(str(p) for p in open_ports)]
+        if want_version:
+            p2 += ["-sV", "--version-intensity", "4"]  # mais preciso: so' nas abertas
         if want_cve:
-            # vulners (online, vulners.com) + vulscan (OFFLINE, base CSV local).
-            # Usa os dois quando disponiveis: assim acha CVE com ou sem internet.
+            # vulners (online) + vulscan (OFFLINE, base CSV local).
             import os
             scripts = ["vulners"]
             sargs = ["mincvss=0.0"]
-            vulscan_dir = "/usr/share/nmap/scripts/vulscan"
-            if os.path.isdir(vulscan_dir):
+            if os.path.isdir("/usr/share/nmap/scripts/vulscan"):
                 scripts.append("vulscan")
-                # So a base cve.csv (derivada da NVD) p/ saida limpa e parseavel.
                 sargs.append("vulscandb=cve.csv")
-            args += ["--script", ",".join(scripts),
-                     "--script-args", ",".join(sargs)]
-        if ports:
-            args += ["-p", ",".join(str(p) for p in ports)]
-        else:
-            args += ["--top-ports", "200"]
-        args += list(targets)  # nmap expande CIDR/range nativamente
+            p2 += ["--script", ",".join(scripts), "--script-args", ",".join(sargs)]
+        p2 += list(targets)
+        out2 = await run_killable(p2, cancel_check=cancel_check, on_tick=on_tick,
+                                  max_seconds=600)
+        facts2 = _parse_nmap_xml(out2) if out2 else []
 
-        from app.collectors.proc import run_killable
-        out = await run_killable(args, cancel_check=kwargs.get("cancel_check"),
-                                 on_tick=kwargs.get("on_tick"))
-        if not out:  # None (nao iniciou) ou b"" (abortado) -> sem resultados
-            return []
-        return _parse_nmap_xml(out)
+        # Merge: o enriquecido (Fase 2) substitui o basico (Fase 1) por host:porta.
+        # Se a Fase 2 falhou/estourou, ficam as portas da Fase 1 (nunca "0").
+        by_key = {(f.target, f.port): f for f in facts}
+        for f in facts2:
+            by_key[(f.target, f.port)] = f
+        return list(by_key.values())
