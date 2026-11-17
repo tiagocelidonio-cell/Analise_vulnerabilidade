@@ -126,12 +126,26 @@ _NOISE_TOK = {"framework", "server", "httpd", "daemon", "service", "http",
               "httpd.", "ftp", "ftpd", "smtp", "smtpd", "ssh", "sshd", "api"}
 
 
+# Hospedagem/CDN estatica: NAO e' software versionado -> nao ha CVE de versao
+# para associar (ex.: owasp-juice.shop serve a landing no GitHub Pages).
+_HOSTING = ("github.com", "cloudflare", "netlify", "vercel", "amazons3",
+            "fastly", "akamai", "google frontend", "cloudfront", "pages.dev",
+            "jekyll", "gitbook", "read the docs", "surge")
+
+
+def is_hosting(product: str) -> bool:
+    n = (product or "").lower()
+    return any(h in n for h in _HOSTING)
+
+
 def product_tokens(product: str) -> list[str]:
     """Tokens de PRODUTO CPE a tentar casar na base.
 
     1) Se o nome e' conhecido (mapa), usa o token do CPE. 2) Senao, deriva
-    tokens do proprio nome (ex.: 'Node.js Express framework' -> ['node.js',
-    'express']) e casa pelo produto na base. Robusto sem hardcodar tudo."""
+    tokens do proprio nome e casa pelo produto na base. Hospedagem estatica
+    (GitHub Pages, Netlify...) retorna [] -> nao e' software versionado."""
+    if is_hosting(product):
+        return []
     cpe = product_to_cpe(product)
     if cpe:
         return [_prod_token(cpe)]

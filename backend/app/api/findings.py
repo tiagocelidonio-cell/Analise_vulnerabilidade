@@ -55,10 +55,12 @@ async def reenrich_cves(
             diag["sem_produto"] += 1
             continue
         diag["com_produto"] += 1
-        from app.enrichment.local_cve import product_to_cpe
+        from app.enrichment.local_cve import is_hosting, product_to_cpe
         mapped = product_to_cpe(prod)
-        # Mostra o NOME REAL quando nao mapeia, para sabermos o que adicionar.
-        cpe_key = mapped or f"(sem mapeamento) «{(prod or '')[:50]}» ver={ver or '-'}"
+        if is_hosting(prod):
+            cpe_key = f"«{(prod or '')[:40]}» = hospedagem estática (sem software versionado → sem CVE)"
+        else:
+            cpe_key = mapped or f"(sem mapeamento) «{(prod or '')[:50]}» ver={ver or '-'}"
         diag["produtos"][cpe_key] = diag["produtos"].get(cpe_key, 0) + 1
         cves = []
         if ver:
