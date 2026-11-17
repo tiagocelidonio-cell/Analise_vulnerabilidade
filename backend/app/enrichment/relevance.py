@@ -109,15 +109,10 @@ async def match_recent(
     matches: list[dict] = []
     for r in rows:
         prod_text = " ".join(r.products or []).lower()
-        desc = (r.description or "").lower()
         hit_kws: list[str] = []
-        strong = False
+        strong = True  # match SO' por PRODUTO (CPE) -> confiavel; sem ruido de descricao
         for kw, e in index.items():
-            in_prod = _word_in(kw, prod_text)
-            if in_prod:
-                hit_kws.append(kw)
-                strong = True
-            elif kw not in _WEAK_ONLY_IN_PRODUCTS and _word_in(kw, desc):
+            if _word_in(kw, prod_text):
                 hit_kws.append(kw)
         if not hit_kws:
             continue

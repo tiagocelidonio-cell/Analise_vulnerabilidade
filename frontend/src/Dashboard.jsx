@@ -99,6 +99,7 @@ function ReportConfig({ engagement, onClose }) {
 export default function Dashboard({ engagement }) {
   const [data, setData] = useState(null);
   const [surf, setSurf] = useState(null);
+  const [rel, setRel] = useState(null);
   const [msg, setMsg] = useState("");
   const [cfgOpen, setCfgOpen] = useState(false);
 
@@ -106,6 +107,7 @@ export default function Dashboard({ engagement }) {
     try { setData(await api.risk(engagement.id)); }
     catch (e) { setMsg(e.message); }
     try { setSurf(await api.surface(engagement.id)); } catch { /* ignore */ }
+    try { setRel(await api.engagementRelevantCves(engagement.id)); } catch { /* ignore */ }
   }, [engagement.id]);
 
   useEffect(() => { load(); }, [load]);
@@ -145,6 +147,46 @@ export default function Dashboard({ engagement }) {
                 ))}
               </tbody>
             </table>
+          )
+      ),
+    },
+    {
+      id: "potential", title: "⚡ CVEs potenciais (por tecnologia)", wide: true, node: (
+        !rel ? <p className="muted">Carregando…</p>
+          : (rel.matches || []).length === 0 ? (
+            <p className="muted">
+              Nenhum CVE recente casou com as tecnologias detectadas deste cliente.
+              {" "}(Baixe a base completa de CVEs e rode <b>Tecnologias</b>.)
+            </p>
+          ) : (
+            <>
+              <div className="info" style={{ fontSize: 12, marginBottom: 8 }}>
+                <b>Exposição potencial</b> — {rel.matches.length} CVE(s) recente(s) afetam uma
+                tecnologia deste cliente. <b>Não é achado confirmado</b>: o produto tem CVE novo,
+                mas falta confirmar a <b>versão</b> do ativo (por isso não aparece nos Achados).
+              </div>
+              <table className="t">
+                <thead><tr><th>Publicado</th><th>CVE</th><th>Sev</th><th>CVSS</th><th>Tecnologia</th><th>Match</th></tr></thead>
+                <tbody>
+                  {rel.matches.slice(0, 15).map((m) => {
+                    const col = { critical: "#7f1d1d", high: "#b91c1c", medium: "#c2410c", low: "#a16207", info: "#334155" }[m.severity] || "#334155";
+                    return (
+                      <tr key={m.cve_id}>
+                        <td className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{m.published ? m.published.slice(0, 10) : "—"}</td>
+                        <td><a href={`https://nvd.nist.gov/vuln/detail/${m.cve_id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{m.cve_id}</a></td>
+                        <td><span className="pill" style={{ background: col, fontSize: 10 }}>{m.severity.toUpperCase()}</span></td>
+                        <td>{m.cvss != null ? m.cvss.toFixed(1) : "—"}</td>
+                        <td style={{ fontSize: 12 }}>{(m.technologies || []).join(", ")}</td>
+                        <td><span className="pill" style={{ background: m.confidence === "alta" ? "#15803d" : "#a16207", fontSize: 10 }}>{m.confidence === "alta" ? "produto" : "descrição"}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {rel.matches.length > 15 && (
+                <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>+{rel.matches.length - 15} outros.</p>
+              )}
+            </>
           )
       ),
     },
