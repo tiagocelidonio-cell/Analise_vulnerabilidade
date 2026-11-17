@@ -47,6 +47,31 @@ _PRODUCT_CPE = {
 }
 
 
+# "Produto/versao" ou "Produto versao" no banner/server (ex.: Apache/2.4.49).
+_PV_RE = re.compile(r"([A-Za-z][A-Za-z0-9 ._+-]*?)[\s/_-]+v?(\d+\.\d[\w.\-]*)")
+
+
+def extract_pv(data: dict, title: str = "") -> tuple[str | None, str | None]:
+    """Extrai (produto, versao) de um achado, de VARIOS campos:
+    product/version (nmap -sV), senao do Server header / banner / titulo."""
+    data = data or {}
+    p = (data.get("product") or "").strip()
+    v = (data.get("version") or "").strip()
+    if p:
+        return p, (v or None)
+    for src in (data.get("server"), data.get("banner"), title):
+        if not src:
+            continue
+        m = _PV_RE.search(str(src))
+        if m and product_to_cpe(m.group(1)):
+            return m.group(1).strip(), m.group(2)
+    # Produto SEM versao (ex.: Server: Apache; "(mysql)" no titulo).
+    for src in (data.get("server"), data.get("banner"), title):
+        if src and product_to_cpe(str(src)):
+            return str(src), None
+    return None, None
+
+
 def product_to_cpe(name: str) -> str | None:
     """Mapeia o nome do produto detectado para o 'vendor:product' do CPE."""
     n = (name or "").strip().lower()

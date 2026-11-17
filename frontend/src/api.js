@@ -76,6 +76,8 @@ export const api = {
   cveRecent: (limit = 30) => req(`/cve/recent?limit=${limit}`),
   cveUpdate: (full = false, resume = false) =>
     req(`/cve/update?full=${full}&resume=${resume}`, { method: "POST" }),
+  cveIncremental: () => req(`/cve/update?incremental=true`, { method: "POST" }),
+  cveSearch: (params) => req(`/cve/search?${new URLSearchParams(params).toString()}`),
   cveImportCancel: () => req("/cve/import/cancel", { method: "POST" }),
   cveSchedule: () => req("/cve/schedule"),
   cveScheduleSet: (body) => req("/cve/schedule", { method: "PUT", body: JSON.stringify(body) }),

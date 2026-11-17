@@ -47,6 +47,14 @@ export default function CveBase() {
       setTimeout(load, 1200);
     } catch (e) { setMsg(`Falha: ${e.message}`); }
   }
+  async function doIncremental() {
+    setMsg("Verificando atualizações na NVD…");
+    try {
+      const r = await api.cveIncremental();
+      setMsg(r.mensagem || "Atualização incremental iniciada.");
+      setTimeout(load, 1200);
+    } catch (e) { setMsg(`Falha: ${e.message}`); }
+  }
   async function cancelImport() {
     try { await api.cveImportCancel(); setMsg("Cancelamento solicitado…"); setTimeout(load, 1000); }
     catch (e) { setMsg(`Falha: ${e.message}`); }
@@ -73,10 +81,25 @@ export default function CveBase() {
   return (
     <div className="card" style={{ maxWidth: 680 }}>
       <h3>Base de CVEs</h3>
-      <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
+      <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>
         Local: <b>{st.count}</b> CVEs
         {" · "}última atualização: <b>{st.last_updated ? fmtDateTime(st.last_updated) : "nunca"}</b>
       </div>
+      {/* Prontidão para ASSOCIAR aos achados (precisa dos dados de versão/CPE) */}
+      {st.count > 0 && (
+        st.with_cpe > 0 ? (
+          <div style={{ fontSize: 12, marginBottom: 10, color: "#15803d" }}>
+            ✓ Pronta para associar aos achados — <b>{st.with_cpe}</b> CVE(s) com dados de
+            produto/versão ({st.cpe_pct}%).
+          </div>
+        ) : (
+          <div className="err" style={{ fontSize: 12, marginBottom: 10 }}>
+            ⚠ A base <b>não tem os dados de produto/versão</b> (0 CVEs com CPE) — ela foi
+            baixada antes dessa função. <b>Re-baixe a base completa</b> para habilitar a
+            associação de CVE aos achados.
+          </div>
+        )
+      )}
 
       {/* ---- Monitor do download ---- */}
       <div className="cveopt">
@@ -161,10 +184,15 @@ export default function CveBase() {
             title="Baixa a base completa pela API oficial da NVD (paginada, com progresso).">
             {stale ? "⬇ Retomar download (de onde parou)" : "⬇ Baixar base completa (NVD)"}
           </button>
+          <button className="btn" onClick={doIncremental} disabled={(running && !stale) || st.count === 0}
+            title="Baixa só os CVEs modificados na NVD desde a última atualização (rápido).">
+            ⟳ Verificar atualizações (incremental)
+          </button>
         </div>
         <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-          Sem chave da NVD o download é lento (limite de 5 req/30s). Configure
-          <b> NVD_API_KEY</b> no .env para acelerar (gratuita).
+          O <b>incremental</b> pega só o que mudou na NVD desde a última atualização — use no
+          dia a dia depois da base completa. Sem <b>NVD_API_KEY</b> o download é lento
+          (5 req/30s); configure no .env para acelerar (gratuita).
         </p>
       </div>
 

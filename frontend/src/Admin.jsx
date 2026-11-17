@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
 import { applyConfig, branding, fmtDateTime } from "./branding.js";
 import CveBase from "./CveBase.jsx";
+import CveBrowser from "./CveBrowser.jsx";
 import Integrations from "./Integrations.jsx";
 
 const METHOD_COLOR = { POST: "#15803d", PUT: "#1c476b", PATCH: "#b45309", DELETE: "#b91c1c" };
@@ -301,6 +302,7 @@ const SECTIONS = [
   { k: "users", label: "Usuários" },
   { k: "integrations", label: "Integrações / API Keys" },
   { k: "cve", label: "Base de CVEs" },
+  { k: "cvesearch", label: "Consultar CVEs" },
   { k: "platform", label: "Plataforma" },
   { k: "identity", label: "Identidade visual" },
   { k: "clock", label: "Data / hora" },
@@ -324,6 +326,7 @@ export default function Admin({ me }) {
       {sec === "users" && <Users me={me} />}
       {sec === "integrations" && <Integrations />}
       {sec === "cve" && <CveBase />}
+      {sec === "cvesearch" && <CveBrowser />}
       {sec === "platform" && <Platform />}
       {sec === "identity" && <Identity />}
       {sec === "clock" && <Clock />}

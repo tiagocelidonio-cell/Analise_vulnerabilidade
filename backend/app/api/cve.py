@@ -49,6 +49,19 @@ async def cve_status(
     return st
 
 
+@router.get("/cve/search")
+async def cve_search(
+    q: str = "", severity: str = "", product: str = "",
+    date_from: str = "", date_to: str = "", limit: int = 50, offset: int = 0,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    from app.enrichment.cve_import import search_cves
+    return await search_cves(session, q=q, severity=severity, product=product,
+                             date_from=date_from, date_to=date_to,
+                             limit=limit, offset=offset)
+
+
 @router.get("/cve/recent")
 async def cve_recent(
     limit: int = 30,
@@ -90,19 +103,37 @@ async def cve_update(
     request: Request,
     full: bool = False,
     resume: bool = False,
+    incremental: bool = False,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Dispara a atualizacao da base de CVE em background (worker).
 
-    Restrito ao admin (item de administracao).
-    - full=false (padrao): re-busca remediacao dos CVEs ja vistos (leve).
-    - full=true: baixa o bundle oficial e importa tudo (pesado).
-    - resume=true (com full): RETOMA um download travado de onde parou, sem
-      zerar o progresso (usado quando o worker morreu no meio).
+    - full=true: baixa a base completa (pesado, em lotes).
+    - resume=true (com full): retoma um download travado.
+    - incremental=true: baixa SO' os CVEs modificados desde a ultima atualizacao.
+    - (padrao): re-busca remediacao dos CVEs ja vistos (leve).
     """
     if user.role != "admin":
         raise HTTPException(403, "Apenas admin pode atualizar a base de CVE.")
+
+    if incremental:
+        from datetime import datetime, timezone
+        st = await get_import_status(session)
+        if st.state in ("connecting", "downloading") and not import_status_dict(st).get("stale"):
+            raise HTTPException(409, "Já existe uma atualização em andamento.")
+        st.state = "connecting"
+        st.phase = "na fila (incremental)…"
+        st.error = None
+        st.cancel_requested = False
+        st.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+        pool = getattr(request.app.state, "redis_pool", None)
+        if pool is None:
+            pool = await create_pool(RedisSettings.from_dsn(request.app.state.redis_url))
+        await pool.enqueue_job("update_cve_base", False, False, True)
+        return {"queued": True, "incremental": True,
+                "mensagem": "Verificando atualizações na NVD (modificados desde a última)…"}
 
     if full:
         from datetime import datetime, timezone

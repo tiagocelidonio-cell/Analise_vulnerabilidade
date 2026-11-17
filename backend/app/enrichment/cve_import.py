@@ -339,6 +339,115 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False,
     return {"imported": imported, "total": st.total}
 
 
+async def import_incremental_nvd(session: AsyncSession) -> dict:
+    """Atualização INCREMENTAL: baixa só os CVEs modificados na NVD desde a
+    última atualização (lastModStartDate..now). Rápido. Precisa da base já
+    baixada. NVD limita a janela a 120 dias -> se passar, pede full."""
+    from datetime import timedelta
+    st = await get_import_status(session)
+    now = datetime.now(timezone.utc)
+    last = await session.scalar(select(func.max(CveRemediation.updated_at)))
+    if last is None:
+        return {"error": "base vazia — baixe a base completa primeiro."}
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    since = max(last - timedelta(minutes=5), now - timedelta(days=119))
+
+    st.state = "downloading"
+    st.source = "NVD 2.0 — incremental"
+    st.phase = "verificando atualizações…"
+    st.error = None
+    st.cancel_requested = False
+    st.total = 0
+    st.processed = 0
+    st.imported = 0
+    st.started_at = now
+    st.updated_at = now
+    st.finished_at = None
+    st.log = [{"ts": now.isoformat(), "level": "info",
+               "msg": f"incremental: modificados desde {since.isoformat()}"}]
+    await session.commit()
+
+    headers = {"User-Agent": "VulnScope"}
+    if settings.nvd_api_key:
+        headers["apiKey"] = settings.nvd_api_key
+    delay = 0.8 if settings.nvd_api_key else 6.5
+
+    def _ilog(msg, level="info"):
+        st.log = ((st.log or []) + [{
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "level": level, "msg": str(msg)[:400]}])[-200:]
+
+    base_params = {
+        "lastModStartDate": since.strftime("%Y-%m-%dT%H:%M:%S.000"),
+        "lastModEndDate": now.strftime("%Y-%m-%dT%H:%M:%S.000"),
+    }
+    start = 0
+    imported = processed = 0
+    async with httpx.AsyncClient(timeout=60, headers=headers) as client:
+        while True:
+            params = {**base_params, "resultsPerPage": _PAGE, "startIndex": start}
+            _ilog(f"$ GET {NVD_URL}?lastModStartDate=…&startIndex={start}")
+            data = None
+            for attempt in range(4):
+                try:
+                    r = await client.get(NVD_URL, params=params)
+                except (httpx.HTTPError, OSError) as exc:
+                    if attempt == 3:
+                        st.state = "error"; st.error = f"conexão: {exc}"[:300]
+                        _ilog(f"falha de conexão: {exc}", "error")
+                        await session.commit()
+                        return {"error": str(exc)}
+                    await asyncio.sleep(delay * (attempt + 1)); continue
+                if r.status_code in (403, 429, 503):
+                    if attempt == 3:
+                        st.state = "error"; st.error = f"NVD HTTP {r.status_code}"
+                        await session.commit()
+                        return {"error": f"NVD HTTP {r.status_code}"}
+                    _ilog(f"rate-limit (HTTP {r.status_code}), aguardando…", "warn")
+                    await asyncio.sleep(delay * (attempt + 2)); continue
+                if r.status_code >= 400:
+                    st.state = "error"; st.error = f"NVD HTTP {r.status_code}"
+                    await session.commit()
+                    return {"error": f"NVD HTTP {r.status_code}"}
+                try:
+                    data = r.json()
+                except ValueError:
+                    st.state = "error"; st.error = "JSON inválido"
+                    await session.commit(); return {"error": "json"}
+                break
+            if data is None:
+                break
+            total = int(data.get("totalResults") or 0)
+            vulns = data.get("vulnerabilities") or []
+            st.total = total
+            for item in vulns:
+                rec = _parse_nvd_vuln(item)
+                processed += 1
+                if rec is None:
+                    continue
+                await _upsert(session, rec)
+                imported += 1
+            st.processed = processed
+            st.imported = imported
+            st.phase = f"incremental: {processed}/{total} modificados"
+            _ilog(f"  página: +{len(vulns)} modificado(s) → {processed}/{total}")
+            st.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            start += _PAGE
+            if start >= total or not vulns:
+                break
+            await asyncio.sleep(delay)
+
+    st.state = "done"
+    st.phase = f"atualização concluída: {imported} CVE(s) novos/alterados"
+    _ilog(f"★ incremental concluído: {imported} CVE(s).")
+    st.finished_at = datetime.now(timezone.utc)
+    st.updated_at = st.finished_at
+    await session.commit()
+    return {"imported": imported, "total": st.total, "incremental": True}
+
+
 async def get_schedule(session: AsyncSession) -> CveScheduleConfig:
     """Le a config de agenda (cria na 1a vez, semeando do env)."""
     cfg = await session.get(CveScheduleConfig, "cve")
@@ -528,8 +637,59 @@ async def recent_cves(session: AsyncSession, limit: int = 30) -> list[dict]:
     } for r in rows]
 
 
+async def search_cves(session: AsyncSession, q: str = "", severity: str = "",
+                      product: str = "", date_from: str = "", date_to: str = "",
+                      limit: int = 50, offset: int = 0) -> dict:
+    """Consulta a base local de CVE com filtros (texto, severidade, produto,
+    datas). Paginado. Severidade derivada do CVSS."""
+    from sqlalchemy import String, cast, or_
+    conds = []
+    if q:
+        like = f"%{q.strip()}%"
+        conds.append(or_(CveRemediation.cve_id.ilike(like),
+                         CveRemediation.description.ilike(like)))
+    if product:
+        conds.append(cast(CveRemediation.products, String).ilike(f"%{product.strip().lower()}%"))
+    if severity:
+        lo, hi = {"critical": (9.0, 10.1), "high": (7.0, 9.0),
+                  "medium": (4.0, 7.0), "low": (0.0, 4.0)}.get(severity, (None, None))
+        if lo is not None:
+            conds.append(CveRemediation.cvss >= lo)
+            conds.append(CveRemediation.cvss < hi)
+    if date_from:
+        conds.append(CveRemediation.published >= _parse_dt(date_from))
+    if date_to:
+        conds.append(CveRemediation.published <= _parse_dt(date_to + "T23:59:59"))
+
+    base = select(CveRemediation)
+    for c in conds:
+        base = base.where(c)
+    total = await session.scalar(
+        select(func.count()).select_from(base.subquery()))
+    rows = list(await session.scalars(
+        base.order_by(CveRemediation.published.desc().nullslast())
+        .limit(min(limit, 200)).offset(max(offset, 0))))
+    items = [{
+        "cve_id": r.cve_id, "cvss": r.cvss, "severity": _sev_from_cvss(r.cvss),
+        "description": r.description, "products": (r.products or [])[:6],
+        "published": r.published.isoformat() if r.published else None,
+    } for r in rows]
+    return {"total": int(total or 0), "items": items,
+            "limit": limit, "offset": offset}
+
+
 async def base_status(session: AsyncSession) -> dict:
+    from sqlalchemy import String, cast
     count = await session.scalar(select(func.count()).select_from(CveRemediation))
     last = await session.scalar(select(func.max(CveRemediation.updated_at)))
-    return {"count": int(count or 0),
+    # Quantos CVEs têm dados de PRODUTO/VERSÃO (coluna cpe não-vazia) -> indica
+    # se a base está pronta para ASSOCIAR aos achados. Se 0, precisa re-baixar.
+    with_cpe = await session.scalar(
+        select(func.count()).select_from(CveRemediation)
+        .where(func.length(cast(CveRemediation.cpe, String)) > 2))
+    c = int(count or 0)
+    wc = int(with_cpe or 0)
+    return {"count": c, "with_cpe": wc,
+            "ready_for_match": wc > 0,
+            "cpe_pct": round(100 * wc / c) if c else 0,
             "last_updated": last.isoformat() if last else None}

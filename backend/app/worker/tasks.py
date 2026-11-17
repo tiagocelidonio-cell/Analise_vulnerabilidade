@@ -58,9 +58,9 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
             correlation = {"cve_ids": cve_ids, "max_cvss": fact.data.get("cvss")}
         else:
             from app.enrichment.local_cve import (
-                cves_for_product, cves_for_service)
+                cves_for_product, cves_for_service, extract_pv)
             local = []
-            prod, ver = fact.data.get("product"), fact.data.get("version")
+            prod, ver = extract_pv(fact.data, fact.title or "")
             if prod and ver:
                 try:
                     local = await cves_for_service(session, prod, ver)
@@ -598,17 +598,19 @@ async def _reenqueue_cve(ctx: dict) -> None:
         pass
 
 
-async def update_cve_base(ctx: dict, full: bool = False, resume: bool = False) -> dict:
+async def update_cve_base(ctx: dict, full: bool = False, resume: bool = False,
+                          incremental: bool = False) -> dict:
     """Atualiza a base local de CVE.
     full=True: baixa a base completa pela NVD, em LOTES resumíveis.
     resume=True: retoma de onde parou.
-
-    Robusto: cada invocação processa um lote curto; se ainda falta, re-enfileira
-    a continuação (o watchdog retoma caso a cadeia quebre)."""
+    incremental=True: baixa só os CVEs modificados desde a última atualização."""
     from app.api.integrations import apply_db_keys
-    from app.enrichment.cve_import import import_full_nvd, refresh_seen
+    from app.enrichment.cve_import import (
+        import_full_nvd, import_incremental_nvd, refresh_seen)
     async with SessionLocal() as session:
         await apply_db_keys(session)  # pega NVD_API_KEY salva no painel
+        if incremental:
+            return await import_incremental_nvd(session)
         if full:
             res = await import_full_nvd(session, resume=resume)
             if res.get("incomplete"):
