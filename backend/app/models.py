@@ -289,6 +289,8 @@ class CveImportStatus(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Log de execução ao vivo (terminal): [{ts, level, msg}]. Ultimas ~200.
+    log: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class ApiCredential(Base):

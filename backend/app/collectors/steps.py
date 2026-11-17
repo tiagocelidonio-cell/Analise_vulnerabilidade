@@ -66,8 +66,9 @@ COLLECTOR_STEPS: dict[str, list[dict]] = {
          "label": "Detecção de versão do serviço",
          "desc": "Identifica produto/versão (alimenta a correlação de CVE). Mais lento."},
         {"key": "port_scan:cve_local", "togglable": True, "default": True,
-         "label": "CVE por versão (base local)",
-         "desc": "Correlaciona a versão achada com CVEs localmente. Usa a detecção de versão."},
+         "label": "Associação de CVE (base local, por versão)",
+         "desc": "Associa CVEs da SUA base baixada à versão do serviço (offline). "
+                 "Não usa CVE do nmap. Requer a detecção de versão."},
     ],
     "host_discovery": [
         {"key": "host_discovery:tcp", "togglable": False, "default": True,

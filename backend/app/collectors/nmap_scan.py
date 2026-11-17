@@ -157,17 +157,10 @@ class NmapCollector:
         p2 = ["nmap", "-Pn", "-sT", "--open", "-T4", "--max-retries", "1",
               "--host-timeout", "180s", "-oX", "-",
               "-p", ",".join(str(p) for p in open_ports)]
-        if want_version:
+        # So' DETECCAO DE VERSAO. Os CVEs NAO vem mais do nmap (vulners/vulscan):
+        # a associacao e' feita pela BASE LOCAL (produto+versao) em persist_facts.
+        if want_version or want_cve:
             p2 += ["-sV", "--version-intensity", "4"]  # mais preciso: so' nas abertas
-        if want_cve:
-            # vulners (online) + vulscan (OFFLINE, base CSV local).
-            import os
-            scripts = ["vulners"]
-            sargs = ["mincvss=0.0"]
-            if os.path.isdir("/usr/share/nmap/scripts/vulscan"):
-                scripts.append("vulscan")
-                sargs.append("vulscandb=cve.csv")
-            p2 += ["--script", ",".join(scripts), "--script-args", ",".join(sargs)]
         p2 += list(targets)
         out2 = await run_killable(p2, cancel_check=cancel_check, on_tick=on_tick,
                                   max_seconds=600, on_log=on_log)

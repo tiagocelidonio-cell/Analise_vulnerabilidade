@@ -15,7 +15,13 @@ export default function CveBase() {
   const [st, setSt] = useState(null);
   const [sched, setSched] = useState(null);
   const [msg, setMsg] = useState("");
+  const [showLog, setShowLog] = useState(false);
   const timer = useRef(null);
+  const logRef = useRef(null);
+  const logLen = st?.import?.log?.length || 0;
+  useEffect(() => {
+    if (showLog && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logLen, showLog]);
 
   const load = useCallback(async () => {
     try {
@@ -113,11 +119,35 @@ export default function CveBase() {
             (continua de onde parou).
           </div>
         )}
-        {running && (
-          <div className="row" style={{ marginTop: 8 }}>
+        <div className="row" style={{ marginTop: 8, gap: 8 }}>
+          {running && (
             <button className="btn danger" style={{ padding: "3px 12px" }} onClick={cancelImport}>
               {stale ? "⏹ Forçar parada (travado)" : "⏹ Parar download"}
             </button>
+          )}
+          {(imp.log || []).length > 0 && (
+            <button className="btn" style={{ padding: "3px 12px" }}
+              onClick={() => setShowLog((v) => !v)}>
+              {showLog ? "− log" : "+ log (execução ao vivo)"}
+            </button>
+          )}
+        </div>
+        {showLog && (imp.log || []).length > 0 && (
+          <div ref={logRef} style={{
+            background: "#0a0e14", border: "1px solid #1f2937", borderRadius: 6,
+            marginTop: 8, padding: "8px 10px", maxHeight: 280, overflow: "auto",
+            fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: 12,
+          }}>
+            {(imp.log || []).map((l, i) => (
+              <div key={i} style={{
+                color: l.level === "error" ? "#f87171" : l.level === "warn" ? "#fbbf24" : "#d1d5db",
+                whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.5,
+              }}>
+                <span style={{ color: "#4b5563" }}>
+                  {l.ts ? new Date(l.ts).toLocaleTimeString() : ""}{" "}
+                </span>{l.msg}
+              </div>
+            ))}
           </div>
         )}
       </div>

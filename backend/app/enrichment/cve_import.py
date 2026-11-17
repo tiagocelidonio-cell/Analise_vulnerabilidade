@@ -70,6 +70,7 @@ def import_status_dict(st: CveImportStatus) -> dict:
         "source": st.source, "error": st.error,
         "running": running,
         "stale": stale, "stale_seconds": stale_seconds,
+        "log": st.log or [],
         "started_at": st.started_at.isoformat() if st.started_at else None,
         "updated_at": st.updated_at.isoformat() if st.updated_at else None,
         "finished_at": st.finished_at.isoformat() if st.finished_at else None,
@@ -211,6 +212,7 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False,
         st.started_at = now0
         st.updated_at = now0
         st.finished_at = None
+        st.log = []  # novo download -> zera o console
         await session.commit()
 
     headers = {"User-Agent": "VulnScope"}
@@ -233,6 +235,14 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False,
         await session.commit()
         return {"error": msg, "imported": st.imported}
 
+    def _ilog(msg: str, level: str = "info") -> None:
+        st.log = ((st.log or []) + [{
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "level": level, "msg": str(msg)[:400]}])[-200:]
+
+    _ilog(f"{'retomando' if resume else 'iniciando'} download — "
+          f"{st.source}; página de {_PAGE} CVEs; a partir de startIndex={resume_start}")
+
     start = resume_start
     imported = base_imported
     processed = resume_start
@@ -248,6 +258,7 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False,
                 return {"cancelled": True, "imported": imported}
 
             params = {"resultsPerPage": _PAGE, "startIndex": start}
+            _ilog(f"$ GET {NVD_URL}?startIndex={start}&resultsPerPage={_PAGE}")
             data = None
             # Ate 4 tentativas por pagina (rate-limit/instabilidade).
             for attempt in range(4):
@@ -255,14 +266,19 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False,
                     r = await client.get(NVD_URL, params=params)
                 except (httpx.HTTPError, OSError) as exc:
                     if attempt == 3:
+                        _ilog(f"falha de conexão com a NVD: {exc}", "error")
                         return await _fail(f"Falha de conexão com a NVD: {exc}")
+                    _ilog(f"erro de rede (tentativa {attempt + 1}/4), aguardando…", "warn")
                     await asyncio.sleep(delay * (attempt + 1))
                     continue
                 if r.status_code in (403, 429, 503):  # rate-limit/indisponivel
                     if attempt == 3:
+                        _ilog(f"NVD recusou (HTTP {r.status_code})", "error")
                         return await _fail(
                             f"NVD recusou (HTTP {r.status_code}). Tente novamente mais "
                             f"tarde ou configure NVD_API_KEY.")
+                    _ilog(f"rate-limit (HTTP {r.status_code}), aguardando "
+                          f"{delay * (attempt + 2):.0f}s… (configure NVD_API_KEY p/ acelerar)", "warn")
                     await asyncio.sleep(delay * (attempt + 2))
                     continue
                 if r.status_code >= 400:
@@ -292,6 +308,8 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False,
             st.imported = imported
             st.phase = (f"baixando {processed}/{total} "
                         f"({int(100 * processed / total) if total else 0}%)")
+            _ilog(f"  página OK: +{len(vulns)} CVE(s) → {processed}/{total} "
+                  f"({int(100 * processed / total) if total else 0}%)")
             st.updated_at = datetime.now(timezone.utc)
             await session.commit()
 
@@ -304,6 +322,8 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False,
                 # a continuação. Mantém o estado "baixando" (não é fim nem erro).
                 st.phase = (f"baixando {processed}/{total} "
                             f"({int(100 * processed / total) if total else 0}%)")
+                _ilog(f"lote salvo em {processed}/{total} — re-enfileirando a "
+                      f"continuação (download robusto em lotes)")
                 st.updated_at = datetime.now(timezone.utc)
                 await session.commit()
                 return {"incomplete": True, "imported": imported,
@@ -312,6 +332,7 @@ async def import_full_nvd(session: AsyncSession, resume: bool = False,
 
     st.state = "done"
     st.phase = f"concluído: {imported} CVEs"
+    _ilog(f"★ concluído: {imported} CVE(s) importado(s).")
     st.finished_at = datetime.now(timezone.utc)
     st.updated_at = st.finished_at
     await session.commit()
