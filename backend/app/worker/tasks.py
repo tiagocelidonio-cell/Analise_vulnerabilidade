@@ -57,7 +57,8 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
             cve_ids = fact.data["cve_ids"]
             correlation = {"cve_ids": cve_ids, "max_cvss": fact.data.get("cvss")}
         else:
-            from app.enrichment.local_cve import cves_for_service
+            from app.enrichment.local_cve import (
+                cves_for_product, cves_for_service)
             local = []
             prod, ver = fact.data.get("product"), fact.data.get("version")
             if prod and ver:
@@ -75,9 +76,18 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
             else:
                 correlation = await correlate(fact.data.get("banner", "") or fact.raw)
                 cve_ids = correlation["cve_ids"]
-                # Consulta indisponivel (rede/limite) NAO e' "sem CVE".
                 if correlation.get("lookup_error") and correlation.get("product"):
                     fdata["cve_lookup_error"] = correlation.get("product")
+                # Sem CVE confirmado, mas produto conhecido SEM versao detectada
+                # -> CVEs POTENCIAIS do produto (nao confirmados; nao viram
+                # cve_ids, entao NAO inflam a severidade/risco).
+                if not cve_ids and prod and not ver:
+                    try:
+                        pot = await cves_for_product(session, prod)
+                    except Exception:  # noqa: BLE001
+                        pot = []
+                    if pot:
+                        fdata["potential_cves"] = pot
         fact_dict["correlation"] = correlation
 
         # 2) Enriquece com EPSS (probabilidade) e KEV (exploracao ativa).

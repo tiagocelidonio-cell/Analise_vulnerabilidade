@@ -160,7 +160,9 @@ class NmapCollector:
         # So' DETECCAO DE VERSAO. Os CVEs NAO vem mais do nmap (vulners/vulscan):
         # a associacao e' feita pela BASE LOCAL (produto+versao) em persist_facts.
         if want_version or want_cve:
-            p2 += ["-sV", "--version-intensity", "4"]  # mais preciso: so' nas abertas
+            # Intensidade alta p/ pegar a versao (SSH/FTP/MySQL quase sempre
+            # revelam). Roda so' nas portas abertas, entao o custo e' baixo.
+            p2 += ["-sV", "--version-intensity", "8"]
         p2 += list(targets)
         out2 = await run_killable(p2, cancel_check=cancel_check, on_tick=on_tick,
                                   max_seconds=600, on_log=on_log)

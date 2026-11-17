@@ -112,3 +112,21 @@ async def cves_for_service(session: AsyncSession, product: str, version: str,
         out.append({"cve_id": r.cve_id, "cvss": r.cvss,
                     "description": r.description, "cpe": cpe})
     return out
+
+
+async def cves_for_product(session: AsyncSession, product: str,
+                           limit: int = 12) -> list[dict]:
+    """CVEs conhecidos do PRODUTO (sem versao) — os mais severos. POTENCIAIS:
+    nao da' para confirmar sem a versao, mas mostra a exposicao do servico."""
+    cpe = product_to_cpe(product)
+    if not cpe:
+        return []
+    rows = list(await session.scalars(
+        select(CveRemediation)
+        .where(cast(CveRemediation.cpe, String).ilike(f"%{cpe}%"))
+        .limit(3000)))
+    hits = [r for r in rows
+            if any(rule.get("prod") == cpe for rule in (r.cpe or []))]
+    hits.sort(key=lambda r: -(r.cvss or 0))
+    return [{"cve_id": r.cve_id, "cvss": r.cvss, "description": r.description}
+            for r in hits[:limit]]

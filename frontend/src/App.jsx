@@ -289,6 +289,10 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
           {f.ai_assessment?.exploit_available && <span className="persist"
             title="existe exploit público conhecido" style={{ background: "#7f1d1d", color: "#fecaca", borderColor: "#7f1d1d" }}>
             exploit público</span>}
+          {(f.data?.potential_cves?.length > 0) && <span className="persist"
+            title="CVEs conhecidos do produto — versão não confirmada"
+            style={{ background: "#78350f", color: "#fde68a", borderColor: "#78350f" }}>
+            {f.data.potential_cves.length} CVE? potenciais</span>}
         </td>
         <td>{f.cvss?.toFixed(1) ?? "-"}</td>
         <td>{f.epss?.toFixed(2) ?? "-"}</td>
@@ -338,6 +342,27 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
                 inacessível ou limite de taxa) — pode haver CVE não detectado. Configure a
                 <b> NVD_API_KEY</b> em Administração e rode de novo.
               </p>
+            )}
+            {f.data?.potential_cves?.length > 0 && (
+              <div style={{ margin: "6px 0", padding: 8, border: "1px solid #78350f", borderRadius: 6 }}>
+                <b style={{ color: "#f59e0b" }}>CVEs potenciais do produto ({f.data.potential_cves.length})</b>
+                <div className="muted" style={{ fontSize: 11, margin: "2px 0 6px" }}>
+                  O serviço <b>não revelou a versão</b>, então não dá para confirmar quais se
+                  aplicam. Estes são os CVEs mais graves conhecidos do produto — rode o perfil
+                  <b> Completo</b> (detecção de versão) para confirmar quais afetam este ativo.
+                </div>
+                <table className="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Descrição</th></tr></thead>
+                  <tbody>
+                    {f.data.potential_cves.map((c) => (
+                      <tr key={c.cve_id}>
+                        <td><a href={`https://nvd.nist.gov/vuln/detail/${c.cve_id}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{c.cve_id}</a></td>
+                        <td>{c.cvss != null ? c.cvss.toFixed(1) : "—"}</td>
+                        <td style={{ fontSize: 12 }}>{(c.description || "").slice(0, 120)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
             {/* Detalhes técnicos estruturados (servem a qualquer tipo de achado). */}
             {(() => {
