@@ -226,6 +226,9 @@ class CveRemediation(Base):
     # Produtos afetados (vendor+product do CPE, normalizados) -> permite cruzar
     # CVE x tecnologias detectadas ("Relevantes para voce").
     products: Mapped[list] = mapped_column(JSON, default=list)
+    # Regras CPE com FAIXA DE VERSAO afetada [{prod, ver, vs, vsi, ve, vei}] ->
+    # permite associar CVE ao achado por produto+versao detectados (offline).
+    cpe: Mapped[list] = mapped_column(JSON, default=list)
     # Data de publicacao (NVD) -> permite o feed de "CVEs recentes".
     published: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True, nullable=True)

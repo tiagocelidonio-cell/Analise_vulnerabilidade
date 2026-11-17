@@ -51,17 +51,33 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
                  if k != "screenshot_b64"}
         signature = f"{fact.target}|{fact.port}|{fact.title}".lower()
 
-        # 1) CVEs: nuclei ja traz os CVEs; senao, correlaciona o banner (NVD).
+        # 1) CVEs: nuclei/nmap ja trazem; senao, BASE LOCAL por produto+versao
+        #    (offline, usa a base que voce baixou); por ultimo, correlacao NVD.
         if fact.data.get("cve_ids"):
             cve_ids = fact.data["cve_ids"]
             correlation = {"cve_ids": cve_ids, "max_cvss": fact.data.get("cvss")}
         else:
-            correlation = await correlate(fact.data.get("banner", "") or fact.raw)
-            cve_ids = correlation["cve_ids"]
-            # Consulta de CVE indisponivel (rede/limite) NAO e' "sem CVE":
-            # marca para o painel nao dar falsa sensacao de seguranca.
-            if correlation.get("lookup_error") and correlation.get("product"):
-                fdata["cve_lookup_error"] = correlation.get("product")
+            from app.enrichment.local_cve import cves_for_service
+            local = []
+            prod, ver = fact.data.get("product"), fact.data.get("version")
+            if prod and ver:
+                try:
+                    local = await cves_for_service(session, prod, ver)
+                except Exception:  # noqa: BLE001  nunca derruba o scan
+                    local = []
+            if local:
+                cve_ids = [c["cve_id"] for c in local]
+                cvsses = [c["cvss"] for c in local if c["cvss"] is not None]
+                correlation = {"cve_ids": cve_ids,
+                               "max_cvss": max(cvsses, default=None),
+                               "source": "base_local"}
+                fdata["cve_source"] = "base local (versão)"
+            else:
+                correlation = await correlate(fact.data.get("banner", "") or fact.raw)
+                cve_ids = correlation["cve_ids"]
+                # Consulta indisponivel (rede/limite) NAO e' "sem CVE".
+                if correlation.get("lookup_error") and correlation.get("product"):
+                    fdata["cve_lookup_error"] = correlation.get("product")
         fact_dict["correlation"] = correlation
 
         # 2) Enriquece com EPSS (probabilidade) e KEV (exploracao ativa).

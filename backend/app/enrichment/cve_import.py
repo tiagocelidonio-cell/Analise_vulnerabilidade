@@ -112,6 +112,43 @@ def _cpe_products(cve: dict) -> list[str]:
     return out
 
 
+def _cpe_rules(cve: dict) -> list[dict]:
+    """Regras CPE com faixa de versao afetada, para match por produto+versao.
+
+    Cada regra: {prod:'vendor:product', ver:'<exata ou vazia>', vs,vsi,ve,vei}.
+    vs/ve = inicio/fim; vsi/vei = se o limite e' inclusivo."""
+    out: list[dict] = []
+    seen: set = set()
+    for conf in cve.get("configurations") or []:
+        nodes = conf.get("nodes") if isinstance(conf, dict) else None
+        for node in nodes or []:
+            for m in node.get("cpeMatch") or []:
+                if m.get("vulnerable") is False:
+                    continue
+                parts = (m.get("criteria") or "").replace("\\", "").split(":")
+                if len(parts) < 6:
+                    continue
+                vendor, product, ver = parts[3], parts[4], parts[5]
+                if product in ("*", "-", ""):
+                    continue
+                rule = {
+                    "prod": f"{vendor}:{product}".lower(),
+                    "ver": ver if ver not in ("*", "-") else "",
+                    "vs": m.get("versionStartIncluding") or m.get("versionStartExcluding") or "",
+                    "vsi": bool(m.get("versionStartIncluding")),
+                    "ve": m.get("versionEndIncluding") or m.get("versionEndExcluding") or "",
+                    "vei": bool(m.get("versionEndIncluding")),
+                }
+                key = (rule["prod"], rule["ver"], rule["vs"], rule["ve"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(rule)
+                if len(out) >= 30:
+                    return out
+    return out
+
+
 def _parse_nvd_vuln(item: dict) -> dict | None:
     cve = (item or {}).get("cve") or {}
     cid = cve.get("id")
@@ -132,7 +169,7 @@ def _parse_nvd_vuln(item: dict) -> dict | None:
                 continue
     return {"cve_id": cid, "description": (desc or "")[:400] or None,
             "references": refs, "cvss": cvss, "solution": _SOLUTION_BASE,
-            "products": _cpe_products(cve),
+            "products": _cpe_products(cve), "cpe": _cpe_rules(cve),
             "published": _parse_dt(cve.get("published"))}
 
 
@@ -363,6 +400,8 @@ async def _upsert(session: AsyncSession, rec: dict) -> None:
     row.description = rec["description"]
     if rec.get("products"):
         row.products = rec["products"]
+    if rec.get("cpe"):
+        row.cpe = rec["cpe"]
     if rec.get("published") is not None:
         row.published = rec["published"]
     row.updated_at = datetime.now(timezone.utc)

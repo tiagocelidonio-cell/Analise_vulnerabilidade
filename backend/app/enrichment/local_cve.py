@@ -1,0 +1,114 @@
+"""Associacao de CVE por PRODUTO + VERSAO usando a BASE LOCAL (offline).
+
+Faz o que faltava: usar os CVEs que voce baixou para associar aos achados do
+scan, com precisao de VERSAO (faixas do CPE). Sem internet, sem nmap vulners.
+
+Fluxo: achado traz (produto, versao) detectados (ex.: nmap -sV 'Apache httpd
+2.4.49') -> mapeia para o produto CPE (apache:http_server) -> busca na base os
+CVEs cujas regras CPE casam a versao -> anexa ao achado.
+"""
+from __future__ import annotations
+
+import re
+
+from sqlalchemy import String, cast, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import CveRemediation
+
+# Nome do servico/produto (nmap/banner) -> "vendor:product" do CPE.
+_PRODUCT_CPE = {
+    "apache tomcat": "apache:tomcat", "tomcat": "apache:tomcat",
+    "apache httpd": "apache:http_server", "apache http server": "apache:http_server",
+    "apache": "apache:http_server",
+    "nginx": "nginx:nginx",
+    "openssh": "openbsd:openssh",
+    "lighttpd": "lighttpd:lighttpd",
+    "microsoft iis httpd": "microsoft:internet_information_services",
+    "internet information services": "microsoft:internet_information_services",
+    "iis": "microsoft:internet_information_services",
+    "mariadb": "mariadb:mariadb_server",
+    "mysql": "oracle:mysql",
+    "postgresql": "postgresql:postgresql", "postgres": "postgresql:postgresql",
+    "openssl": "openssl:openssl",
+    "php": "php:php",
+    "exim": "exim:exim", "exim smtpd": "exim:exim",
+    "postfix": "postfix:postfix",
+    "vsftpd": "vsftpd:vsftpd", "proftpd": "proftpd:proftpd",
+    "pure-ftpd": "pureftpd:pure-ftpd",
+    "dovecot": "dovecot:dovecot",
+    "samba": "samba:samba", "samba smbd": "samba:samba",
+    "isc bind": "isc:bind", "bind": "isc:bind",
+    "redis": "redis:redis", "mongodb": "mongodb:mongodb",
+    "jenkins": "jenkins:jenkins", "grafana": "grafana:grafana",
+    "node.js": "nodejs:node.js", "jetty": "eclipse:jetty",
+    "wordpress": "wordpress:wordpress", "drupal": "drupal:drupal",
+    "joomla": "joomla:joomla",
+}
+
+
+def product_to_cpe(name: str) -> str | None:
+    """Mapeia o nome do produto detectado para o 'vendor:product' do CPE."""
+    n = (name or "").strip().lower()
+    if not n:
+        return None
+    if n in _PRODUCT_CPE:
+        return _PRODUCT_CPE[n]
+    # casa pela chave mais longa contida no nome (ex.: 'apache httpd 2.4' -> apache httpd)
+    for k in sorted(_PRODUCT_CPE, key=len, reverse=True):
+        if k in n:
+            return _PRODUCT_CPE[k]
+    return None
+
+
+def _vtuple(v: str) -> tuple:
+    nums = re.findall(r"\d+", v or "")
+    return tuple(int(x) for x in nums[:5]) if nums else (0,)
+
+
+def _rule_matches(version: str, rule: dict) -> bool:
+    vt = _vtuple(version)
+    exact = rule.get("ver") or ""
+    if exact:
+        return _vtuple(exact) == vt
+    vs, ve = rule.get("vs") or "", rule.get("ve") or ""
+    if not vs and not ve:
+        # Sem faixa e sem versao exata -> afeta QUALQUER versao do produto.
+        return True
+    ok = True
+    if vs:
+        b = _vtuple(vs)
+        ok = vt >= b if rule.get("vsi") else vt > b
+    if ok and ve:
+        b = _vtuple(ve)
+        ok = vt <= b if rule.get("vei") else vt < b
+    return ok
+
+
+async def cves_for_service(session: AsyncSession, product: str, version: str,
+                           limit: int = 25) -> list[dict]:
+    """CVEs da BASE LOCAL que afetam (produto, versao). Vazio se nao mapear."""
+    cpe = product_to_cpe(product)
+    if not cpe or not version:
+        return []
+    vt = _vtuple(version)
+    if vt == (0,):
+        return []
+    # Candidatos: CVEs cujas regras CPE mencionam o produto (filtro textual no
+    # JSON -> rapido o bastante; refinamos a versao em Python).
+    rows = list(await session.scalars(
+        select(CveRemediation)
+        .where(cast(CveRemediation.cpe, String).ilike(f"%{cpe}%"))
+        .limit(3000)))
+    hits = []
+    for r in rows:
+        for rule in (r.cpe or []):
+            if rule.get("prod") == cpe and _rule_matches(version, rule):
+                hits.append(r)
+                break
+    hits.sort(key=lambda r: -(r.cvss or 0))
+    out = []
+    for r in hits[:limit]:
+        out.append({"cve_id": r.cve_id, "cvss": r.cvss,
+                    "description": r.description, "cpe": cpe})
+    return out

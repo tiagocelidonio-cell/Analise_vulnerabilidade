@@ -355,6 +355,7 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
               if (Array.isArray(d.ips) && d.ips.length) rows.push(["IPs", d.ips.join(", ")]);
               if (Array.isArray(d.domains) && d.domains.length) rows.push(["Domínios", d.domains.slice(0, 30).join(", ")]);
               if (d.via_port) rows.push(["Porta de resposta", String(d.via_port)]);
+              if (d.cve_source) rows.push(["Fonte do CVE", d.cve_source]);
               if (!rows.length) return null;
               return (
                 <div style={{ margin: "6px 0" }}>
