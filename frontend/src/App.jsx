@@ -607,8 +607,18 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
     setReenriching(true);
     try {
       const r = await api.reenrichCves(engagement.id);
-      window.alert(`Re-associação concluída: ${r.confirmed} achado(s) com CVE confirmado, `
-        + `${r.potential} com CVEs potenciais (de ${r.total} achados).`);
+      const d = r.diag || {};
+      const prods = Object.entries(d.produtos || {}).map(([k, v]) => `${k}: ${v}`).join("\n  ") || "(nenhum)";
+      window.alert(
+        `Re-associação concluída (${r.total} achados):\n`
+        + `• ${r.confirmed} com CVE CONFIRMADO (produto+versão)\n`
+        + `• ${r.potential} com CVEs POTENCIAIS (produto sem versão)\n\n`
+        + `Achados com produto reconhecido: ${d.com_produto || 0}\n`
+        + `Achados sem produto (subdomínios, headers, etc.): ${d.sem_produto || 0}\n\n`
+        + `Produtos detectados:\n  ${prods}\n\n`
+        + (r.confirmed + r.potential === 0
+          ? "Se os produtos acima aparecem mas 0 associou, a base pode não ter CVEs desses produtos — me mande esta mensagem."
+          : "Abra os achados para ver os CVEs."));
       await refresh();
     } catch (e) { window.alert(`Falha: ${e.message}`); }
     finally { setReenriching(false); }

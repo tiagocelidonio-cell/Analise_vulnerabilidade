@@ -47,11 +47,17 @@ async def reenrich_cves(
     conf_cache: dict = {}
     pot_cache: dict = {}
     updated = confirmed = potential = 0
+    diag: dict = {"com_produto": 0, "sem_produto": 0, "produtos": {}}
 
     for f in findings:
         prod, ver = extract_pv(f.data or {}, f.title or "")
         if not prod:
+            diag["sem_produto"] += 1
             continue
+        diag["com_produto"] += 1
+        from app.enrichment.local_cve import product_to_cpe
+        cpe_key = product_to_cpe(prod) or "(sem mapeamento)"
+        diag["produtos"][cpe_key] = diag["produtos"].get(cpe_key, 0) + 1
         cves = []
         if ver:
             key = (prod.lower(), ver)
@@ -87,7 +93,7 @@ async def reenrich_cves(
 
     await session.commit()
     return {"total": len(findings), "updated": updated,
-            "confirmed": confirmed, "potential": potential}
+            "confirmed": confirmed, "potential": potential, "diag": diag}
 
 
 @router.patch("/findings/{finding_id}", response_model=FindingOut)

@@ -110,48 +110,54 @@ def _rule_matches(version: str, rule: dict) -> bool:
     return ok
 
 
+def _prod_token(cpe: str) -> str:
+    """Token do PRODUTO (parte apos o ':'). O vendor varia na NVD (ex.: mysql
+    aparece como 'oracle:mysql' e 'mysql:mysql'); casar pelo produto e' robusto."""
+    return (cpe or "").split(":")[-1]
+
+
+def _rule_prod_matches(rule: dict, token: str) -> bool:
+    return _prod_token(rule.get("prod") or "") == token
+
+
 async def cves_for_service(session: AsyncSession, product: str, version: str,
                            limit: int = 25) -> list[dict]:
     """CVEs da BASE LOCAL que afetam (produto, versao). Vazio se nao mapear."""
     cpe = product_to_cpe(product)
     if not cpe or not version:
         return []
-    vt = _vtuple(version)
-    if vt == (0,):
+    if _vtuple(version) == (0,):
         return []
-    # Candidatos: CVEs cujas regras CPE mencionam o produto (filtro textual no
-    # JSON -> rapido o bastante; refinamos a versao em Python).
+    token = _prod_token(cpe)
+    # Candidatos: CVEs cujas regras CPE mencionam o PRODUTO (ignora vendor).
     rows = list(await session.scalars(
         select(CveRemediation)
-        .where(cast(CveRemediation.cpe, String).ilike(f"%{cpe}%"))
-        .limit(3000)))
+        .where(cast(CveRemediation.cpe, String).ilike(f"%{token}%"))
+        .limit(5000)))
     hits = []
     for r in rows:
         for rule in (r.cpe or []):
-            if rule.get("prod") == cpe and _rule_matches(version, rule):
+            if _rule_prod_matches(rule, token) and _rule_matches(version, rule):
                 hits.append(r)
                 break
     hits.sort(key=lambda r: -(r.cvss or 0))
-    out = []
-    for r in hits[:limit]:
-        out.append({"cve_id": r.cve_id, "cvss": r.cvss,
-                    "description": r.description, "cpe": cpe})
-    return out
+    return [{"cve_id": r.cve_id, "cvss": r.cvss,
+             "description": r.description, "cpe": cpe} for r in hits[:limit]]
 
 
 async def cves_for_product(session: AsyncSession, product: str,
                            limit: int = 12) -> list[dict]:
-    """CVEs conhecidos do PRODUTO (sem versao) — os mais severos. POTENCIAIS:
-    nao da' para confirmar sem a versao, mas mostra a exposicao do servico."""
+    """CVEs conhecidos do PRODUTO (sem versao) — os mais severos. POTENCIAIS."""
     cpe = product_to_cpe(product)
     if not cpe:
         return []
+    token = _prod_token(cpe)
     rows = list(await session.scalars(
         select(CveRemediation)
-        .where(cast(CveRemediation.cpe, String).ilike(f"%{cpe}%"))
-        .limit(3000)))
+        .where(cast(CveRemediation.cpe, String).ilike(f"%{token}%"))
+        .limit(5000)))
     hits = [r for r in rows
-            if any(rule.get("prod") == cpe for rule in (r.cpe or []))]
+            if any(_rule_prod_matches(rule, token) for rule in (r.cpe or []))]
     hits.sort(key=lambda r: -(r.cvss or 0))
     return [{"cve_id": r.cve_id, "cvss": r.cvss, "description": r.description}
             for r in hits[:limit]]
