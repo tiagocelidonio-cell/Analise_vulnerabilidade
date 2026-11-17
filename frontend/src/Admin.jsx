@@ -9,18 +9,49 @@ const METHOD_COLOR = { POST: "#15803d", PUT: "#1c476b", PATCH: "#b45309", DELETE
 function Audit() {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState("");
+  const [cfg, setCfg] = useState(null);
+  const [msg, setMsg] = useState("");
   const load = useCallback(async () => {
     try { setRows(await api.getAudit()); } catch (e) { setErr(e.message); }
+    try { setCfg(await api.auditConfig()); } catch { /* ignore */ }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  async function toggle() {
+    try {
+      const r = await api.auditSetEnabled(!cfg.enabled);
+      setCfg({ ...cfg, enabled: r.enabled });
+      setMsg(r.enabled ? "Auditoria habilitada." : "Auditoria DESABILITADA — novas ações não serão registradas.");
+    } catch (e) { setMsg(`Falha: ${e.message}`); }
+  }
+  async function purge() {
+    if (!window.confirm("Expurgar TODA a trilha de auditoria? Esta ação não pode ser desfeita.")) return;
+    try {
+      const r = await api.auditPurge();
+      setMsg(`Expurgado: ${r.deleted} registro(s) removido(s).`);
+      load();
+    } catch (e) { setMsg(`Falha: ${e.message}`); }
+  }
+
   if (err) return <div className="err">{err}</div>;
   if (!rows) return <div className="muted">Carregando…</div>;
   return (
     <div>
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <p className="muted" style={{ marginTop: 0 }}>Últimas ações de alteração no sistema.</p>
-        <button className="btn" onClick={load}>Atualizar</button>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Últimas ações de alteração no sistema.
+          {cfg && <> · estado: <b style={{ color: cfg.enabled ? "#15803d" : "#b91c1c" }}>
+            {cfg.enabled ? "habilitada" : "desabilitada"}</b>
+            {typeof cfg.count === "number" && ` · ${cfg.count} registro(s)`}</>}
+        </p>
+        <div className="row" style={{ gap: 6 }}>
+          {cfg && <button className={`btn ${cfg.enabled ? "" : "primary"}`} onClick={toggle}>
+            {cfg.enabled ? "Desabilitar auditoria" : "Habilitar auditoria"}</button>}
+          <button className="btn danger" onClick={purge}>Expurgar log</button>
+          <button className="btn" onClick={load}>Atualizar</button>
+        </div>
       </div>
+      {msg && <div className="info" style={{ fontSize: 12, marginBottom: 8 }}>{msg}</div>}
       <table className="t">
         <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Recurso</th><th>Resultado</th></tr></thead>
         <tbody>

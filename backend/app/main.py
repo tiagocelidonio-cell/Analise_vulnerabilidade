@@ -79,11 +79,14 @@ async def _audit(request: Request, call_next):
                 sub = payload.get("sub") if payload else None
             # nao registra o proprio login (ruido) nem leituras
             if request.url.path != "/auth/login":
+                from app.models import PlatformConfig
                 async with SessionLocal() as session:
-                    session.add(AuditLog(
-                        user_id=sub, method=request.method,
-                        path=request.url.path, status=response.status_code))
-                    await session.commit()
+                    cfg = await session.get(PlatformConfig, "main")
+                    if cfg is None or cfg.audit_enabled:  # desligavel pelo admin
+                        session.add(AuditLog(
+                            user_id=sub, method=request.method,
+                            path=request.url.path, status=response.status_code))
+                        await session.commit()
         except Exception:  # noqa: BLE001  auditoria nunca quebra a requisicao
             pass
     return response

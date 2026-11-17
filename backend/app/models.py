@@ -267,6 +267,8 @@ class PlatformConfig(Base):
     font: Mapped[str | None] = mapped_column(String, nullable=True)
     heading_font: Mapped[str | None] = mapped_column(String, nullable=True)
     timezone: Mapped[str] = mapped_column(String, default="America/Sao_Paulo")
+    # Trilha de auditoria ligada? (admin pode desabilitar).
+    audit_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
