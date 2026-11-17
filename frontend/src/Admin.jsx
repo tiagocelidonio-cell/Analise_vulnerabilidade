@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
-import { applyConfig, branding, fmtDateTime } from "./branding.js";
+import { applyConfig, branding, fmtDateTime, SKINS } from "./branding.js";
 import CveBase from "./CveBase.jsx";
 import CveBrowser from "./CveBrowser.jsx";
 import Integrations from "./Integrations.jsx";
@@ -240,8 +240,30 @@ function Identity() {
   const setColor = (k, v) => setCfg({ ...cfg, colors: { ...(cfg.colors || {}), [k]: v } });
   // Pre-visualiza ao vivo.
   const preview = () => applyConfig({ ...cfg, colors });
+  const applySkin = (sk) => {
+    const next = { ...cfg, colors: { ...SKINS[sk].colors } };
+    setCfg(next);
+    applyConfig(next);  // pré-visualiza na hora
+  };
   return (
     <div className="card" style={{ maxWidth: 640 }}>
+      <h3>Tema (skin)</h3>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+        Escolha um tema pronto (contraste texto/fundo garantido) e, se quiser, ajuste as cores abaixo.
+      </p>
+      <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        {Object.entries(SKINS).map(([k, sk]) => (
+          <button key={k} className="btn" style={{ padding: "6px 10px", display: "flex", gap: 8, alignItems: "center" }}
+            onClick={() => applySkin(k)} title={sk.name}>
+            <span style={{ display: "flex", gap: 2 }}>
+              {["bg", "card", "text", "accent"].map((c) => (
+                <span key={c} style={{ width: 12, height: 12, borderRadius: 3, background: sk.colors[c], border: "1px solid rgba(128,128,128,.4)" }} />
+              ))}
+            </span>
+            {sk.name}
+          </button>
+        ))}
+      </div>
       <h3>Cores</h3>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         {COLOR_FIELDS.map(([k, label]) => (

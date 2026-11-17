@@ -13,6 +13,37 @@ const DEFAULTS = {
   timezone: "America/Sao_Paulo",
 };
 
+// Skins predefinidas — cada uma com o conjunto COMPLETO de cores, garantindo
+// contraste texto/fundo em TODAS as telas (texto claro em fundo escuro e
+// vice-versa). O usuario pode escolher uma e depois ajustar cores individuais.
+export const SKINS = {
+  dark: {
+    name: "Escuro (padrão)",
+    colors: { bg: "#000000", panel: "#0b0b0c", card: "#121214", line: "#26262b",
+      text: "#f2f2f2", muted: "#9aa3ad", accent: "#0fdb2b", accent2: "#1c476b" },
+  },
+  light: {
+    name: "Claro",
+    colors: { bg: "#f3f4f6", panel: "#ffffff", card: "#ffffff", line: "#d7dbe2",
+      text: "#14181f", muted: "#596270", accent: "#0a7d2b", accent2: "#1c476b" },
+  },
+  slate: {
+    name: "Azul-ardósia",
+    colors: { bg: "#0b1220", panel: "#0f1a2e", card: "#15223c", line: "#273449",
+      text: "#e8edf6", muted: "#94a3b8", accent: "#38bdf8", accent2: "#6366f1" },
+  },
+  midnight: {
+    name: "Meia-noite (roxo)",
+    colors: { bg: "#13111c", panel: "#1b1830", card: "#221d3a", line: "#352d53",
+      text: "#ece9f6", muted: "#a79fc4", accent: "#a855f7", accent2: "#22d3ee" },
+  },
+  contrast: {
+    name: "Alto contraste",
+    colors: { bg: "#000000", panel: "#000000", card: "#0a0a0a", line: "#ffffff",
+      text: "#ffffff", muted: "#d4d4d4", accent: "#00ff66", accent2: "#ffd400" },
+  },
+};
+
 // Estado "vivo" da marca (mutavel): a tela de admin atualiza e re-aplica.
 export const branding = {
   appName: DEFAULTS.appName, logo: DEFAULTS.logo,

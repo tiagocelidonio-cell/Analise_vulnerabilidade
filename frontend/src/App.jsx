@@ -775,7 +775,7 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                     onClick={() => deleteScan(s.id)}>🗑</button>}
                   {(running || paused) && <button className="btn danger" style={{ padding: "3px 10px" }}
                     disabled={busyScan.has(s.id)}
-                    onClick={() => cancelScan(s.id)}>{busyScan.has(s.id) ? "Parando…" : "⏹ Parar"}</button>}
+                    onClick={() => cancelScan(s.id)}>{busyScan.has(s.id) ? "Cancelando…" : "⏹ Cancelar"}</button>}
                 </div>
               </td>
             </tr>

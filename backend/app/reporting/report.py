@@ -189,7 +189,23 @@ _TEMPLATE = Template(
 </tbody></table>
 {% endif %}
 
-<h2 class="pb">4. Vulnerabilidades encontradas</h2>
+{% if topology %}
+<h2 class="pb">4. Topologia do ambiente</h2>
+<p>Mapa dos ativos descobertos, colorido por risco, com serviços e tecnologias
+identificados em cada host. (A versão interativa está no painel &gt; Topologia.)</p>
+<table><thead><tr><th>Host / IP</th><th>Risco</th><th>Serviços</th>
+  <th>Tecnologias</th><th>Achados</th></tr></thead><tbody>
+{% for h in topology %}
+<tr><td>{{ h.host }}</td>
+    <td><span class="pill" style="background:{{ sev_color[h.risk] }}">{{ sev_pt[h.risk]|upper }}</span></td>
+    <td>{{ h.services|join(', ') }}</td>
+    <td>{{ h.techs[:8]|join(', ') }}{{ '…' if h.techs|length > 8 else '' }}</td>
+    <td>{{ h.findings }}</td></tr>
+{% endfor %}
+</tbody></table>
+{% endif %}
+
+<h2 class="pb">5. Vulnerabilidades encontradas</h2>
 <h3>Resumo geral</h3>
 <table><thead><tr><th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th>
   <th>EPSS</th><th>KEV</th></tr></thead><tbody>
@@ -250,7 +266,7 @@ _TEMPLATE = Template(
 {% endfor %}
 {% if not findings %}<p class="muted">Nenhum achado no filtro selecionado.</p>{% endif %}
 
-<h2 class="pb">5. Conclusão e encerramento</h2>
+<h2 class="pb">6. Conclusão e encerramento</h2>
 <p>{{ exec_line }} Recomenda-se priorizar os achados de severidade crítica e alta, em especial os
    que possuem exploração ativa conhecida (KEV), seguidos pela correção dos itens de severidade
    média. A reavaliação após as correções (reteste) permite confirmar o fechamento das exposições.</p>
@@ -325,15 +341,36 @@ async def render_html(
 
     # Superficie usa TODOS os achados (nao o filtro de severidade do relatorio).
     from app.api.surface import build_surface
-    all_rows = await session.scalars(
-        select(Finding).where(Finding.engagement_id == engagement_id))
-    surface = build_surface(list(all_rows), eng.scope or [])
+    all_list = list(await session.scalars(
+        select(Finding).where(Finding.engagement_id == engagement_id)))
+    surface = build_surface(all_list, eng.scope or [])
+
+    # Topologia (mapa de ativos) para o relatorio: host -> risco, servicos, techs.
+    topo: dict[str, dict] = {}
+    for f in all_list:
+        tgt = f.target or ""
+        if not tgt:
+            continue
+        sv = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
+        h = topo.setdefault(tgt, {"host": tgt, "risk": "info", "findings": 0,
+                                  "services": set(), "techs": set()})
+        h["findings"] += 1
+        if _SEV_ORDER.index(sv) < _SEV_ORDER.index(h["risk"]):
+            h["risk"] = sv
+        if f.port:
+            h["services"].add(f"{f.port}/{f.service or 'tcp'}")
+        for t in (f.data or {}).get("technologies", []) or []:
+            h["techs"].add(t)
+    topology = sorted(
+        ({**v, "services": sorted(v["services"]), "techs": sorted(v["techs"])}
+         for v in topo.values()),
+        key=lambda x: (_SEV_ORDER.index(x["risk"]), -x["findings"]))[:80]
 
     return _TEMPLATE.render(
         eng=eng, findings=findings, counts=counts, total=len(findings),
         hosts=hosts, targets=targets, sev_order=_SEV_ORDER, sev_color=_SEV_COLOR,
         sev_pt=_SEV_PT, exec_line=_exec_line(counts), risk=risk, risk_rows=risk_rows,
-        opt=opt, surface=surface,
+        opt=opt, surface=surface, topology=topology,
         generated_at=datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC"),
     )
 

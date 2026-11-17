@@ -54,6 +54,20 @@ async def topology(
     for s in eng.scope or []:
         node(s, "ip" if _is_ip(s) else "domain")
 
+    def add_item(n, f, sev, d):
+        if n is None:
+            return
+        items = n.setdefault("items", [])
+        if len(items) < 60:
+            items.append({
+                "title": f.title, "severity": sev,
+                "cve_ids": (f.cve_ids or [])[:8], "cvss": f.cvss,
+                "port": f.port, "service": f.service})
+        techs = n.setdefault("techs", [])
+        for t in d.get("technologies", []) or []:
+            if t not in techs and len(techs) < 40:
+                techs.append(t)
+
     for f in findings:
         d = f.data or {}
         sev = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
@@ -62,6 +76,7 @@ async def topology(
         n = node(tgt, ttype, sev)
         if n:
             n["findings"] += 1
+            add_item(n, f, sev, d)
 
         parent = (d.get("parent") or "").lower()
         if parent:
@@ -75,6 +90,8 @@ async def topology(
             sn = node(sid, "service", sev)
             if sn:
                 sn["label"] = f"{f.port}/{f.service or 'tcp'}"
+                sn["findings"] = sn.get("findings", 0) + 1
+                add_item(sn, f, sev, d)
                 edges.add((tgt, sid))
 
     node_ids = set(nodes.keys())
