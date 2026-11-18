@@ -60,14 +60,22 @@ export async function captureTopologyPng(data) {
       ],
       layout: {
         name: "cose", animate: false, nodeDimensionsIncludeLabels: true,
-        padding: 18, componentSpacing: 85, nodeRepulsion: () => 7000,
-        idealEdgeLength: () => 65, edgeElasticity: () => 100, gravity: 1.2,
-        gravityRange: 4.0, nestingFactor: 1.1, numIter: 1600,
-        coolingFactor: 0.95, randomize: true,
+        padding: 30, componentSpacing: 160, nodeRepulsion: () => 14000,
+        idealEdgeLength: () => 95, edgeElasticity: () => 110, gravity: 0.25,
+        numIter: 2000, coolingFactor: 0.97, randomize: true,
       },
     });
-    cy.nodes().forEach((n) => { if (n.degree(false) === 0) n.addClass("orphan"); });
-    cy.fit(undefined, 30);
+    const orphanNodes = cy.nodes().filter((n) => n.degree(false) === 0);
+    const connected = cy.nodes().filter((n) => n.degree(false) > 0);
+    orphanNodes.forEach((n) => n.addClass("orphan"));
+    if (orphanNodes.length && connected.length) {
+      const bb = connected.boundingBox();
+      const x = bb.x2 + 160;
+      const gap = Math.max(90, bb.h / (orphanNodes.length + 1));
+      const y0 = bb.y1 + (bb.h - gap * (orphanNodes.length - 1)) / 2;
+      orphanNodes.forEach((n, i) => n.position({ x, y: y0 + gap * i }));
+    }
+    cy.fit(undefined, 40);
     const png = cy.png({ full: true, scale: 2, bg: "#0b0b0c" });
     cy.destroy();
     return png;

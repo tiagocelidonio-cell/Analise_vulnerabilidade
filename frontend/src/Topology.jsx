@@ -189,25 +189,32 @@ export default function Topology({ engagement }) {
         name: "cose",
         animate: false,
         nodeDimensionsIncludeLabels: true,
-        padding: 18,
-        componentSpacing: 85,        // agrupa os componentes mais próximos
-        nodeRepulsion: () => 7000,
-        idealEdgeLength: () => 65,
-        edgeElasticity: () => 100,
-        gravity: 1.2,                // puxa para o centro -> menos espaço vazio
-        gravityRange: 4.0,
-        nestingFactor: 1.1,
-        numIter: 1600,
-        coolingFactor: 0.95,
+        padding: 30,
+        componentSpacing: 160,       // separa bem os grupos (clusters legíveis)
+        nodeRepulsion: () => 14000,  // afasta os nós -> rótulos não colidem
+        idealEdgeLength: () => 95,
+        edgeElasticity: () => 110,
+        gravity: 0.25,               // pouca gravidade -> clusters espalhados
+        numIter: 2000,
+        coolingFactor: 0.97,
         randomize: true,
       },
       wheelSensitivity: 0.25,
     });
-    // Marca ativos sem nenhuma conexão (nós isolados) para destaque visual.
+    // Nós isolados (sem conexão): organiza numa COLUNA vertical à direita do
+    // grafo conectado — evita a sobreposição aleatória (deixa igual sempre).
     let orphans = 0;
-    cy.nodes().forEach((n) => {
-      if (n.degree(false) === 0) { n.addClass("orphan"); orphans++; }
-    });
+    const orphanNodes = cy.nodes().filter((n) => n.degree(false) === 0);
+    const connected = cy.nodes().filter((n) => n.degree(false) > 0);
+    orphanNodes.forEach((n) => { n.addClass("orphan"); orphans++; });
+    if (orphanNodes.length && connected.length) {
+      const bb = connected.boundingBox();
+      const x = bb.x2 + 160;
+      const gap = Math.max(90, bb.h / (orphanNodes.length + 1));
+      const y0 = bb.y1 + (bb.h - gap * (orphanNodes.length - 1)) / 2;
+      orphanNodes.forEach((n, i) => n.position({ x, y: y0 + gap * i }));
+    }
+    cy.fit(undefined, 40);
     setStats({ nodes: cy.nodes().length, edges: cy.edges().length, orphans });
     cy.on("tap", "node", (ev) => {
       const node = ev.target;
