@@ -11,39 +11,66 @@ const TYPE_SHAPE = {
   ip: "diamond", service: "hexagon",
 };
 
+const RISK_HEX = {
+  critical: "7f1d1d", high: "b91c1c", medium: "c2410c", low: "a16207", info: "475569",
+};
+
 export default function Topology({ engagement }) {
   const box = useRef(null);
+  const boxWrap = useRef(null);
   const cyRef = useRef(null);
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [sel, setSel] = useState(null);
   const [stats, setStats] = useState({ nodes: 0, edges: 0, orphans: 0 });
-
   const [busy, setBusy] = useState("");
+  const [fs, setFs] = useState(false);
 
   const load = useCallback(async () => {
     try { setData(await api.topology(engagement.id)); } catch (e) { setErr(e.message); }
   }, [engagement.id]);
   useEffect(() => { load(); }, [load]);
 
-  function _png(scale = 2) {
+  // Zoom / ajuste.
+  function zoomBy(f) {
     const cy = cyRef.current;
-    if (!cy || cy.nodes().length === 0) return null;
-    return cy.png({ full: true, scale, bg: "#0b0b0c" });
+    if (!cy) return;
+    cy.zoom({ level: cy.zoom() * f,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
   }
+  // Tela cheia (sobre o container do grafo).
+  function toggleFs() {
+    const el = boxWrap.current;
+    if (!el) return;
+    if (!document.fullscreenElement) el.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+  useEffect(() => {
+    function onFs() {
+      setFs(!!document.fullscreenElement);
+      const cy = cyRef.current;
+      if (cy) setTimeout(() => { cy.resize(); cy.fit(undefined, 30); }, 120);
+    }
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
   const _slug = (engagement.name || "ambiente").replace(/[^\w.-]+/g, "_").slice(0, 60);
 
   function exportPng() {
-    const png = _png(2);
-    if (!png) { setErr("Nada para exportar — rode varreduras primeiro."); return; }
+    const cy = cyRef.current;
+    if (!cy || cy.nodes().length === 0) { setErr("Nada para exportar — rode varreduras primeiro."); return; }
+    const png = cy.png({ full: true, scale: 2, bg: "#0b0b0c" });
     const a = document.createElement("a");
     a.href = png; a.download = `topologia-${_slug}.png`;
     document.body.appendChild(a); a.click(); a.remove();
   }
 
+  // PPT com ELEMENTOS NATIVOS editáveis (formas + conectores + rótulos), não
+  // uma imagem estática — o usuário pode mover/editar cada nó no PowerPoint.
   async function exportPpt() {
-    const png = _png(2);
-    if (!png) { setErr("Nada para exportar — rode varreduras primeiro."); return; }
+    const cy = cyRef.current;
+    if (!cy || cy.nodes().length === 0) { setErr("Nada para exportar — rode varreduras primeiro."); return; }
     setBusy("ppt");
     try {
       const PptxGenJS = (await import("pptxgenjs")).default;
@@ -52,16 +79,51 @@ export default function Topology({ engagement }) {
       const slide = p.addSlide();
       slide.background = { color: "FFFFFF" };
       slide.addText(`Topologia do ambiente — ${engagement.name || ""}`, {
-        x: 0.4, y: 0.25, w: 12.5, h: 0.5, fontSize: 22, bold: true, color: "052E16",
-      });
+        x: 0.4, y: 0.2, w: 12.5, h: 0.5, fontSize: 22, bold: true, color: "052E16" });
       slide.addText(
         `${stats.nodes} ativo(s) · ${stats.edges} conexão(ões)`
         + (stats.orphans ? ` · ${stats.orphans} sem conexão` : "")
-        + `  —  cor = risco; tamanho = nº de achados.`,
-        { x: 0.4, y: 0.75, w: 12.5, h: 0.35, fontSize: 12, color: "475569" });
-      slide.addImage({
-        data: png, x: 0.4, y: 1.2, w: 12.5, h: 5.9,
-        sizing: { type: "contain", w: 12.5, h: 5.9 },
+        + "  —  cor = risco; tamanho = nº de achados. (Formas editáveis.)",
+        { x: 0.4, y: 0.72, w: 12.5, h: 0.3, fontSize: 11, color: "475569" });
+
+      const S = p.ShapeType || PptxGenJS.ShapeType;
+      const shapeFor = (t) => ({ ip: S.diamond, service: S.hexagon,
+        domain: S.roundRect, host: S.ellipse, subdomain: S.ellipse }[t] || S.ellipse);
+
+      const bb = cy.elements().boundingBox();
+      const AX = 0.4, AY = 1.15, AW = 12.5, AH = 5.95;
+      const scale = Math.min(AW / (bb.w || 1), AH / (bb.h || 1));
+      const offX = AX + (AW - bb.w * scale) / 2;
+      const offY = AY + (AH - bb.h * scale) / 2;
+      const mx = (x) => offX + (x - bb.x1) * scale;
+      const my = (y) => offY + (y - bb.y1) * scale;
+
+      // Conectores (sob os nós).
+      cy.edges().forEach((e) => {
+        const s = e.source().position(), t = e.target().position();
+        const x1 = mx(s.x), y1 = my(s.y), x2 = mx(t.x), y2 = my(t.y);
+        slide.addShape(S.line, {
+          x: Math.min(x1, x2), y: Math.min(y1, y2),
+          w: Math.max(0.01, Math.abs(x2 - x1)), h: Math.max(0.01, Math.abs(y2 - y1)),
+          line: { color: "94A3B8", width: 1 },
+          flipV: (x2 - x1) * (y2 - y1) < 0,
+        });
+      });
+      // Nós (formas) + rótulos.
+      cy.nodes().forEach((n) => {
+        const d = n.data(); const pos = n.position();
+        const orphan = n.hasClass("orphan");
+        const sz = 0.34 + Math.min(0.3, (d.findings || 0) * 0.045);
+        const cx = mx(pos.x), cy2 = my(pos.y);
+        slide.addShape(shapeFor(d.type), {
+          x: cx - sz / 2, y: cy2 - sz / 2, w: sz, h: sz,
+          fill: { color: orphan ? "3B2F0A" : (RISK_HEX[d.risk] || "475569") },
+          line: orphan ? { color: "F59E0B", width: 1.5, dashType: "dash" }
+            : { color: "0B0B0C", width: 0.5 },
+        });
+        slide.addText(String(d.label || ""), {
+          x: cx - 1.0, y: cy2 + sz / 2, w: 2.0, h: 0.22, align: "center",
+          fontSize: 7, color: "334155" });
       });
       await p.writeFile({ fileName: `topologia-${_slug}.pptx` });
     } catch (e) { setErr(`Falha ao gerar PPT: ${e.message}`); }
@@ -159,12 +221,7 @@ export default function Topology({ engagement }) {
         <p className="muted">Nós coloridos por risco; tamanho = nº de achados. Clique para detalhes.</p>
       </div>
         <div className="row">
-          <button className="btn" onClick={() => cyRef.current && cyRef.current.fit()}>Ajustar</button>
           <button className="btn" onClick={load}>Atualizar</button>
-          <button className="btn" onClick={exportPng} title="Baixar a topologia como imagem PNG">🖼️ PNG</button>
-          <button className="btn" onClick={exportPpt} disabled={busy === "ppt"}
-            title="Baixar a topologia em PowerPoint (.pptx)">
-            {busy === "ppt" ? "Gerando…" : "📊 PPT"}</button>
         </div>
       </div>
 
@@ -186,7 +243,22 @@ export default function Topology({ engagement }) {
         </div>
       )}
 
-      <div ref={box} style={{ height: "62vh", background: "#0b0b0c", border: "1px solid var(--line)", borderRadius: 10 }} />
+      <div ref={boxWrap} style={{ position: "relative", background: "#0b0b0c",
+        border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden",
+        height: fs ? "100vh" : "62vh" }}>
+        <div ref={box} style={{ width: "100%", height: "100%" }} />
+        {/* Barra de ferramentas flutuante sobre o grafo (tela preta). */}
+        <div className="topoTools">
+          <button title="Aproximar" onClick={() => zoomBy(1.3)}>＋</button>
+          <button title="Afastar" onClick={() => zoomBy(1 / 1.3)}>－</button>
+          <button title="Ajustar à tela" onClick={() => cyRef.current && cyRef.current.fit(undefined, 30)}>⤢</button>
+          <button title={fs ? "Sair da tela cheia" : "Tela cheia"} onClick={toggleFs}>{fs ? "✕" : "⛶"}</button>
+          <span className="sep" />
+          <button title="Exportar imagem PNG" onClick={exportPng}>🖼️ PNG</button>
+          <button title="Exportar PowerPoint editável (.pptx)" onClick={exportPpt} disabled={busy === "ppt"}>
+            {busy === "ppt" ? "…" : "📊 PPT"}</button>
+        </div>
+      </div>
       {!data && <div className="muted" style={{ marginTop: 8 }}>Carregando…</div>}
       {data && data.nodes.length === 0 && <p className="muted" style={{ marginTop: 8 }}>
         Sem dados para o grafo. Rode varreduras (portas, subdomínios, web).</p>}
