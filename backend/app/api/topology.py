@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import ipaddress
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,33 @@ from app.db import get_session
 from app.models import Engagement, Finding
 
 router = APIRouter(tags=["topology"])
+
+_MAX_IMG = 6 * 1024 * 1024  # ~6 MB de data URI
+
+
+class TopologyImage(BaseModel):
+    image: str | None = None  # data URI PNG; None/"" limpa
+
+
+@router.put("/engagements/{engagement_id}/topology-image")
+async def save_topology_image(
+    body: TopologyImage,
+    eng: Engagement = Depends(require_engagement_access),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Salva (ou limpa) a imagem da topologia capturada no painel, para embutir
+    no relatório. Aceita apenas data URI PNG."""
+    img = (body.image or "").strip()
+    if img:
+        if not img.startswith("data:image/png;base64,"):
+            raise HTTPException(400, "Imagem deve ser um data URI PNG.")
+        if len(img) > _MAX_IMG:
+            raise HTTPException(413, "Imagem muito grande (máx. ~6 MB).")
+        eng.topology_png = img
+    else:
+        eng.topology_png = None
+    await session.commit()
+    return {"saved": bool(img), "bytes": len(img)}
 
 _RANK = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
 _MAX_NODES = 600

@@ -37,12 +37,14 @@ class ReportOptions:
     include_matrix: bool = True
     include_targets: bool = True
     include_evidence: bool = True
+    include_topology_image: bool = False
 
     @classmethod
     def from_query(cls, min_sev="info", methodology=True, matrix=True,
-                   targets=True, evidence=True) -> "ReportOptions":
+                   targets=True, evidence=True, topology_image=False) -> "ReportOptions":
         ms = min_sev if min_sev in _SEV_ORDER else "info"
-        return cls(ms, bool(methodology), bool(matrix), bool(targets), bool(evidence))
+        return cls(ms, bool(methodology), bool(matrix), bool(targets),
+                   bool(evidence), bool(topology_image))
 
 
 def _score_color(score: int) -> str:
@@ -195,6 +197,12 @@ _TEMPLATE = Template(
 <h2 class="pb">4. Topologia do ambiente</h2>
 <p>Mapa dos ativos descobertos, colorido por risco, com serviços e tecnologias
 identificados em cada host. (A versão interativa está no painel &gt; Topologia.)</p>
+{% if topo_png %}
+<div style="text-align:center; margin:10px 0;">
+  <img src="{{ topo_png }}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+  <p class="muted small">Desenho da topologia (cor = risco; tamanho = nº de achados; tracejado âmbar = sem conexão).</p>
+</div>
+{% endif %}
 <table><thead><tr><th>Host / IP</th><th>Risco</th><th>Serviços</th>
   <th>Tecnologias</th><th>Achados</th></tr></thead><tbody>
 {% for h in topology %}
@@ -620,6 +628,13 @@ async def render_html(
         by_host.append({"host": h, "findings": fs, "risk": risk, "count": len(fs)})
     by_host.sort(key=lambda g: (_SEV_ORDER.index(g["risk"]), -g["count"]))
 
+    # Imagem da topologia (capturada no painel) — carregada só se solicitada,
+    # pois a coluna é deferred (pode ser grande).
+    topo_png = None
+    if opt.include_topology_image:
+        topo_png = await session.scalar(
+            select(Engagement.topology_png).where(Engagement.id == engagement_id))
+
     # Conclusão estruturada (Fatos / Achados / Implicações).
     conclusion = _conclusion(findings, surface)
     # Implicações redigidas pela IA (se houver chave), seguindo as regras; senão
@@ -649,7 +664,7 @@ async def render_html(
         hosts=hosts, targets=targets, sev_order=_SEV_ORDER, sev_color=_SEV_COLOR,
         sev_pt=_SEV_PT, exec_line=_exec_line(counts), risk=risk, risk_rows=risk_rows,
         opt=opt, surface=surface, topology=topology, conclusion=conclusion,
-        anexos=anexos, premissas=_PREMISSAS, by_host=by_host,
+        anexos=anexos, premissas=_PREMISSAS, by_host=by_host, topo_png=topo_png,
         generated_at=datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC"),
     )
 

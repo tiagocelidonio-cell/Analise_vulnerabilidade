@@ -86,6 +86,10 @@ class Engagement(Base):
     # Opt-in para RECON RECURSIVO (nivel 1): apos descobrir subdominios, varre-os
     # automaticamente (portas+web+tecnologias). So subdominios no escopo; sem IPs.
     auto_recon: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Imagem (data URI PNG) da topologia capturada no painel, para o relatório.
+    # deferred: não carrega nas consultas comuns (pode ser grande).
+    topology_png: Mapped[str | None] = mapped_column(
+        Text, nullable=True, deferred=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     scans: Mapped[list[ScanJob]] = relationship(

@@ -14,6 +14,7 @@ function _reportQs(opt) {
   for (const k of ["methodology", "matrix", "targets", "evidence"]) {
     if (opt[k] === false) p.push(`${k}=false`);
   }
+  if (opt.topology_image) p.push("topology_image=true");
   return p.length ? "&" + p.join("&") : "";
 }
 
@@ -67,6 +68,8 @@ export const api = {
   deleteUser: (id) => req(`/auth/users/${id}`, { method: "DELETE" }),
   resetUserPassword: (id, new_password) => req(`/auth/users/${id}/reset-password`,
     { method: "POST", body: JSON.stringify({ new_password }) }),
+  saveTopologyImage: (id, image) => req(`/engagements/${id}/topology-image`,
+    { method: "PUT", body: JSON.stringify({ image }) }),
   overview: () => req("/overview"),
   getIntegrations: () => req("/integrations"),
   updateIntegrations: (updates) => req("/integrations", { method: "PUT", body: JSON.stringify({ updates }) }),

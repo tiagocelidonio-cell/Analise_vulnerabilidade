@@ -14,9 +14,11 @@ router = APIRouter(tags=["reports"])
 
 
 def _opts(min_sev: str = "info", methodology: bool = True, matrix: bool = True,
-          targets: bool = True, evidence: bool = True) -> ReportOptions:
+          targets: bool = True, evidence: bool = True,
+          topology_image: bool = False) -> ReportOptions:
     return ReportOptions.from_query(min_sev=min_sev, methodology=methodology,
-                                    matrix=matrix, targets=targets, evidence=evidence)
+                                    matrix=matrix, targets=targets, evidence=evidence,
+                                    topology_image=topology_image)
 
 
 @router.get("/engagements/{engagement_id}/report.html", response_class=HTMLResponse)

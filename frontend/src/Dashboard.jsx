@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "./api.js";
 import CustomDashboard from "./CustomDashboard.jsx";
+import { captureTopologyPng } from "./topoImage.js";
 
 // Cor da celula/nivel conforme o score (prob x impacto), 1..25.
 function scoreColor(score) {
@@ -64,12 +65,37 @@ const SEV_OPTS = [
 function ReportConfig({ engagement, onClose }) {
   const [opt, setOpt] = useState({
     min_sev: "info", methodology: true, matrix: true, targets: true, evidence: true,
+    topology_image: true,
   });
+  const [busy, setBusy] = useState("");
+  const [note, setNote] = useState("");
   const set = (k, v) => setOpt((o) => ({ ...o, [k]: v }));
   const chk = (k, label) => (
     <label className="check"><input type="checkbox" checked={opt[k]}
       onChange={(e) => set(k, e.target.checked)} /> {label}</label>
   );
+
+  // Se "incluir topologia" está marcado, captura o desenho e envia ao servidor
+  // antes de abrir o relatório; depois navega para a URL (preview ou PDF).
+  async function open(kind) {
+    setNote("");
+    try {
+      if (opt.topology_image) {
+        setBusy(kind);
+        const data = await api.topology(engagement.id);
+        const png = await captureTopologyPng(data);
+        await api.saveTopologyImage(engagement.id, png || "");
+        if (!png) setNote("Sem dados de topologia — o relatório sai sem o desenho.");
+      }
+      const url = kind === "pdf"
+        ? api.reportPdfUrl(engagement.id, opt)
+        : api.reportHtmlUrl(engagement.id, opt);
+      window.open(url, kind === "pdf" ? "_self" : "_blank");
+    } catch (e) {
+      setNote(`Falha: ${e.message}`);
+    } finally { setBusy(""); }
+  }
+
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -86,10 +112,14 @@ function ReportConfig({ engagement, onClose }) {
           {chk("matrix", "Incluir matriz de risco")}
           {chk("targets", "Incluir seção de alvos identificados")}
           {chk("evidence", "Incluir evidências (saída bruta)")}
+          {chk("topology_image", "Incluir desenho da topologia")}
         </div>
+        {note && <div className="info" style={{ marginTop: 8 }}>{note}</div>}
         <div className="modalFoot">
-          <a className="btn" href={api.reportHtmlUrl(engagement.id, opt)} target="_blank" rel="noreferrer">Preview</a>
-          <a className="btn primary" href={api.reportPdfUrl(engagement.id, opt)}>Baixar PDF</a>
+          <button className="btn" disabled={!!busy} onClick={() => open("html")}>
+            {busy === "html" ? "Preparando…" : "Preview"}</button>
+          <button className="btn primary" disabled={!!busy} onClick={() => open("pdf")}>
+            {busy === "pdf" ? "Preparando…" : "Baixar PDF"}</button>
         </div>
       </div>
     </div>
