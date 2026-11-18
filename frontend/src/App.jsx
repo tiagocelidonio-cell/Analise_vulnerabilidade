@@ -1035,10 +1035,16 @@ export default function App() {
   function logout() {
     api.logout();
     setUser(null); setSelected(null); setEngagements([]);
+    setView("overview");
   }
 
   if (!authChecked) return <div className="empty">Carregando…</div>;
-  if (!user) return <Login onLogin={setUser} />;
+  // Reseta a navegação ao entrar: evita que a tela do usuário anterior (ex.:
+  // Administração de um admin) persista para quem logar depois.
+  if (!user) return <Login onLogin={(u) => { setView("overview"); setSelected(null); setUser(u); }} />;
+  const isAdmin = user.role === "admin";
+  // Defesa: consultor nunca vê a tela de Administração (nem por estado residual).
+  const curView = (view === "admin" && !isAdmin) ? "overview" : view;
 
   const initials = ((user.name || user.email || "?").trim()[0] || "?").toUpperCase();
 
@@ -1154,16 +1160,16 @@ export default function App() {
         <div className="api muted">API: {api.base}</div>
       </aside>
       <main className="main">
-        {view === "overview" && <Overview />}
-        {view === "reports" && <Reports me={user} />}
-        {view === "netlookup" && <NetLookup />}
-        {view === "admin" && <Admin me={user} />}
-        {view === "client" && selected && (
+        {curView === "overview" && <Overview />}
+        {curView === "reports" && <Reports me={user} />}
+        {curView === "netlookup" && <NetLookup />}
+        {curView === "admin" && isAdmin && <Admin me={user} />}
+        {curView === "client" && selected && (
           <EngagementView key={selected.id} engagement={selected}
             onDeleted={() => { setSelected(null); setView("overview"); load(); }}
             onUpdated={(e) => { setSelected(e); load(); }} />
         )}
-        {view === "client" && !selected && <div className="empty">Selecione um cliente.</div>}
+        {curView === "client" && !selected && <div className="empty">Selecione um cliente.</div>}
       </main>
       </div>
 
