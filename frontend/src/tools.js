@@ -9,7 +9,7 @@ export const CATEGORIES = [
       { name: "Enumeração de Ativos", icon: "🌐", kind: "domain", desc: "Descobre subdomínios e hosts vivos de um domínio.", collectors: ["subdomain_enum"] },
       { name: "OSINT", icon: "🕵️", kind: "domain", desc: "Pegada pública: e-mails, domínios e IPs da empresa.", collectors: ["osint"] },
       { name: "Reconhecimento Web", icon: "🔎", kind: "url", desc: "Fingerprint do site: servidor, TLS, cabeçalhos de segurança e tecnologias.", collectors: ["http_probe", "tech_detect"] },
-      { name: "Mapeamento de Conteúdo", icon: "🗺️", kind: "url", desc: "Vira o site de ponta-cabeça: lê robots.txt/sitemap, rastreia e força-bruta caminhos. Acha logins, APIs, diretórios listáveis e arquivos sensíveis (.env, .git, backups). Não-destrutivo.", collectors: ["content_discovery"] },
+      { name: "Mapeamento de Conteúdo", icon: "🗺️", kind: "url", desc: "Enumeração abrangente da superfície web: análise de robots.txt e sitemap, rastreamento e descoberta de caminhos. Identifica páginas de autenticação, endpoints de API, diretórios listáveis e arquivos sensíveis (.env, .git, backups). Técnica não-destrutiva (somente GET).", collectors: ["content_discovery"] },
       { name: "Busca por Exposições", icon: "🧭", kind: "domain", desc: "Localiza exposições públicas (arquivos, logins, vazamentos indexados).", collectors: ["google_dorks"] },
       { name: "Arquivos Históricos", icon: "🕰️", kind: "domain", desc: "Arquivos sensíveis já publicados (.env, .sql, backups…).", collectors: ["wayback"] },
       { name: "Vazamentos", icon: "💧", kind: "domain", desc: "E-mails/domínios em vazamentos conhecidos. Requer integração.", collectors: ["leaks"] },
@@ -35,8 +35,8 @@ export const CATEGORIES = [
   {
     cat: "Exploração", items: [
       { name: "Exploração Web (XSS/SQLi)", icon: "💥", kind: "url", desc: "Rastreia a aplicação, acha pontos de injeção e CONFIRMA XSS e SQL injection (não-destrutivo, com evidência). Requer autorização de exploração.", collectors: ["web_exploit"], needsExploit: true },
-      { name: "Exploração de API", icon: "🧩", kind: "url", desc: "Testa endpoints da API: acesso sem autenticação (BOLA) e IDOR por ID sequencial. Só GET, não-destrutivo. Requer autorização de exploração.", collectors: ["api_exploit"], needsExploit: true },
-      { name: "Ataque de Credenciais", icon: "🔑", kind: "host", desc: "Testa senhas fracas/padrão em logins web, FTP e SSH. Anti-lockout (para no 1º acerto, limite de tentativas), não altera nada. Requer autorização de exploração.", collectors: ["cred_attack"], needsExploit: true },
+      { name: "Exploração de API", icon: "🧩", kind: "url", desc: "Avalia controles de autorização em endpoints de API: acesso não autenticado (Broken Object Level Authorization) e referência insegura a objetos por identificador sequencial (IDOR). Somente requisições GET, não-destrutivo. Requer autorização de exploração.", collectors: ["api_exploit"], needsExploit: true },
+      { name: "Ataque de Credenciais", icon: "🔑", kind: "host", desc: "Teste de credenciais fracas e padrão em serviços de autenticação (web, FTP e SSH). Proteção anti-bloqueio (interrompe no primeiro sucesso, com limite de tentativas); não-destrutivo. Requer autorização de exploração.", collectors: ["cred_attack"], needsExploit: true },
       { name: "Validação (SAFE)", icon: "🛡️", desc: "Prova não-destrutiva das falhas encontradas.", exploit: false },
       { name: "Validação avançada", icon: "⚔️", desc: "SQLi/XSS/LFI (não-destrutivo). Requer opt-in.", exploit: true, needsIntrusive: true },
     ],

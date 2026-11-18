@@ -132,7 +132,7 @@ export default function Topology({ engagement }) {
           {stats.nodes} ativo(s) · {stats.edges} conexão(ões)
           {stats.orphans > 0 && (
             <span style={{ color: "#f59e0b", fontWeight: 700 }}>
-              {" "}· ⚠ {stats.orphans} sem conexão (destacado(s) em âmbar)</span>
+              {" "}· ⚠ {stats.orphans} sem conexão</span>
           )}
           {" "}· clique num nó para isolar a vizinhança
         </div>

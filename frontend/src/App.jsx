@@ -332,8 +332,16 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
                     {i > 0 && ", "}
                     <a href={`https://nvd.nist.gov/vuln/detail/${c}`} target="_blank" rel="noreferrer"
                       style={{ color: "var(--accent)" }}>{c}</a>
+                    {f.data?.cve_rule === c && (
+                      <span className="pill" style={{ background: "#78350f", color: "#fde68a", fontSize: 9, marginLeft: 4 }} title={f.data?.cve_rule_reason || ""}>REGRA · versão não detectada</span>
+                    )}
                   </span>
                 ))}
+              </p>
+            )}
+            {f.data?.cve_rule_reason && (
+              <p className="warn" style={{ fontSize: 12 }}>
+                ⚠ <b>Associação por regra:</b> {f.data.cve_rule_reason}
               </p>
             )}
             {f.data?.cve_lookup_error && (
@@ -345,11 +353,12 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
             )}
             {f.data?.potential_cves?.length > 0 && (
               <div style={{ margin: "6px 0", padding: 8, border: "1px solid #78350f", borderRadius: 6 }}>
-                <b style={{ color: "#f59e0b" }}>CVEs potenciais do produto ({f.data.potential_cves.length})</b>
+                <b style={{ color: "#f59e0b" }}>CVEs possíveis do produto ({f.data.potential_cves.length})</b>
                 <div className="muted" style={{ fontSize: 11, margin: "2px 0 6px" }}>
-                  O serviço <b>não revelou a versão</b>, então não dá para confirmar quais se
-                  aplicam. Estes são os CVEs mais graves conhecidos do produto — rode o perfil
-                  <b> Completo</b> (detecção de versão) para confirmar quais afetam este ativo.
+                  O serviço <b>não revelou a versão</b>. O CVE de menor severidade foi associado
+                  como linha de base (regra); estes são os <b>demais CVEs possíveis</b> do produto,
+                  que só se confirmam com a versão exata. Rode o perfil <b>Completo</b> (detecção de
+                  versão) para confirmar quais afetam este ativo.
                 </div>
                 <table className="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Descrição</th></tr></thead>
                   <tbody>
@@ -732,9 +741,18 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
                     )}
                   </div>
                   );
-                })() : s.status === "failed" ? <span className="muted" title={s.error || ""}>falhou</span>
-                  : s.status === "cancelled" ? <span className="muted">cancelado</span>
-                  : <span className="muted">concluído</span>}
+                })() : s.status === "failed" ? (
+                    <div>
+                      <span style={{ color: "#f87171", fontWeight: 600 }}>falhou</span>
+                      {s.error && <div style={{ fontSize: 11, color: "#f87171", marginTop: 2, wordBreak: "break-word" }}>⚠ {s.error}</div>}
+                    </div>
+                  ) : s.status === "cancelled" ? <span className="muted">cancelado</span>
+                  : (
+                    <div>
+                      <span className="muted">concluído</span>
+                      {s.error && <div style={{ fontSize: 11, color: "#f59e0b", marginTop: 2, wordBreak: "break-word" }}>⚠ {s.error}</div>}
+                    </div>
+                  )}
                 {Array.isArray(s.stages) && s.stages.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
                     {s.stages.map((st, i) => {

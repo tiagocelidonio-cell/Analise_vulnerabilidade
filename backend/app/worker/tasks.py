@@ -5,6 +5,7 @@ A IA entra por ultimo e so raciocina sobre o que foi provado.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -78,16 +79,36 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
                 cve_ids = correlation["cve_ids"]
                 if correlation.get("lookup_error") and correlation.get("product"):
                     fdata["cve_lookup_error"] = correlation.get("product")
-                # Sem CVE confirmado, mas produto conhecido SEM versao detectada
-                # -> CVEs POTENCIAIS do produto (nao confirmados; nao viram
-                # cve_ids, entao NAO inflam a severidade/risco).
+                # Produto conhecido SEM versao detectada. REGRA conservadora:
+                # associa o CVE de MENOR severidade como linha de base (para que
+                # o achado nao fique sem CVE), e lista os demais como
+                # POSSIBILIDADES, sempre informando o motivo.
                 if not cve_ids and prod and not ver:
                     try:
                         pot = await cves_for_product(session, prod)
                     except Exception:  # noqa: BLE001
                         pot = []
                     if pot:
-                        fdata["potential_cves"] = pot
+                        with_cvss = [c for c in pot if c.get("cvss") is not None]
+                        rule_cve = (min(with_cvss, key=lambda c: c["cvss"])
+                                    if with_cvss else pot[0])
+                        cve_ids = [rule_cve["cve_id"]]
+                        correlation = {
+                            "cve_ids": cve_ids,
+                            "max_cvss": rule_cve.get("cvss"),
+                            "source": "regra_sem_versao"}
+                        fdata["cve_source"] = "regra: menor severidade (versão não detectada)"
+                        fdata["cve_rule"] = rule_cve["cve_id"]
+                        fdata["cve_rule_reason"] = (
+                            "A versão do serviço não foi identificada. Pela regra "
+                            "conservadora, associamos o CVE de MENOR severidade "
+                            "conhecido do produto como linha de base; os demais CVEs "
+                            "do produto ficam como POSSIBILIDADES e só se confirmam "
+                            "com a versão exata do serviço.")
+                        others = [c for c in pot
+                                  if c["cve_id"] != rule_cve["cve_id"]]
+                        if others:
+                            fdata["potential_cves"] = others
         fact_dict["correlation"] = correlation
 
         # 2) Enriquece com EPSS (probabilidade) e KEV (exploracao ativa).
@@ -356,6 +377,12 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                  f"{', '.join(STAGE_LABELS.get(k, k) for k in stage_keys)}")
             _log(f"Alvos: {', '.join(scan.targets)} "
                  f"({len(host_targets)} host(s) após expansão)")
+            # Orçamento de tempo: etapa e scan inteiro têm teto -> nada trava
+            # indefinidamente; estouro vira ERRO visível (não hang silencioso).
+            _scan_t0 = _time.monotonic()
+            _stage_to = max(60, int(settings.scan_stage_timeout))
+            _scan_budget = max(_stage_to, int(settings.scan_max_seconds))
+            _log(f"Orçamento: {_stage_to}s por etapa, {_scan_budget}s no total.")
             await _flush_log()
 
             # Sub-passos selecionados (checkbox na UI). Vazio = roda tudo.
@@ -385,9 +412,17 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     return host_targets
                 return host_targets
 
+            budget_exceeded = False
             for i, name in enumerate(stage_keys):
                 if await _halted():
                     return {"halted": True}
+                # Teto de tempo TOTAL: se estourou, encerra o resto como erro.
+                if (_time.monotonic() - _scan_t0) > _scan_budget:
+                    budget_exceeded = True
+                    _log(f"⏱ Orçamento total de {_scan_budget}s esgotado — "
+                         f"etapas restantes não executadas.", "error")
+                    await _flush_log()
+                    break
                 label = STAGE_LABELS.get(name, name)
                 entry = {"key": name, "label": label, "status": "running",
                          "found": 0, "created": 0, "error": None}
@@ -433,27 +468,44 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 # meio). Falha de UMA etapa é registrada e o scan segue.
                 steps = collector_enabled_steps(name, sel_steps)
                 facts: list = []
+                _stage_t0 = _time.monotonic()
                 try:
                     if name in HOST_COLLECTORS and len(tlist) > 16:
                         for j in range(0, len(tlist), 16):
                             if await _halted():
                                 return {"halted": True}
+                            # Teto por etapa: mesmo em lotes, o acumulado não
+                            # pode passar do limite (senão o scan "trava").
+                            left = _stage_to - (_time.monotonic() - _stage_t0)
+                            if left <= 0:
+                                raise asyncio.TimeoutError(
+                                    f"etapa excedeu {_stage_to}s")
                             batch = tlist[j:j + 16]
                             _log(f"  lote {j // 16 + 1}: {len(batch)} alvo(s) "
                                  f"({j + len(batch)}/{len(tlist)})")
-                            facts.extend(await collector.run(
+                            facts.extend(await asyncio.wait_for(collector.run(
                                 batch, ports=scan.ports or None, profile=prof,
                                 cancel_check=_abort_check, on_tick=_beat,
-                                steps=steps, on_log=_log))
+                                steps=steps, on_log=_log), timeout=left))
                             frac = (j + len(batch)) / len(tlist)
                             scan.phase = (f"Etapa {i + 1}/{nstages}: {label} "
                                           f"({int(frac * 100)}%)")
                             await _flush_log()
                     else:
-                        facts = await collector.run(
+                        facts = await asyncio.wait_for(collector.run(
                             tlist, ports=scan.ports or None, profile=prof,
                             cancel_check=_abort_check, on_tick=_beat, steps=steps,
-                            on_log=_log)
+                            on_log=_log), timeout=_stage_to)
+                except asyncio.TimeoutError:
+                    entry["status"] = "failed"
+                    entry["error"] = f"tempo esgotado (> {_stage_to}s) — etapa abortada"
+                    _log(f"⏱ Etapa abortada por tempo: {label} "
+                         f"(> {_stage_to}s). Scan segue para a próxima.", "error")
+                    scan.stages = list(stage_log)
+                    await _flush_log()
+                    # A etapa pode ter coletado fatos PARCIAIS antes do corte.
+                    if not facts:
+                        continue
                 except Exception as exc:  # noqa: BLE001  etapa falha, scan segue
                     entry["status"] = "failed"
                     entry["error"] = str(exc)[:300]
@@ -517,12 +569,20 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 parts.append(f"{counters['ot']} OT/IoT")
             failed = [e["label"] for e in stage_log if e["status"] == "failed"]
             scan.summary = ", ".join(parts) or f"{created} achados"
+            if budget_exceeded:
+                scan.summary += " · interrompido por tempo (orçamento esgotado)"
             if failed:
                 scan.summary += f" · falhas: {', '.join(failed)}"
 
             scan.status = ScanStatus.completed
-            scan.phase = ("concluído com falhas em " + ", ".join(failed)
-                          if failed else "concluído")
+            if budget_exceeded:
+                scan.error = (f"orçamento de tempo esgotado ({_scan_budget}s): "
+                              f"etapas restantes não executadas. Achados parciais "
+                              f"preservados.")
+                scan.phase = "interrompido por tempo (parcial)"
+            else:
+                scan.phase = ("concluído com falhas em " + ", ".join(failed)
+                              if failed else "concluído")
             scan.progress = 100
             scan.findings_count = created
             scan.finished_at = datetime.now(timezone.utc)
@@ -743,3 +803,8 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     on_startup = _startup
     max_jobs = 10
+    # ARQ mata o job se passar deste teto (defesa em profundidade: mesmo que uma
+    # etapa ignore o wait_for, o job não roda por horas). > scan_max_seconds.
+    job_timeout = int(settings.scan_job_timeout)
+    # Não re-enfileira automaticamente um scan que estourou (evita loop de 12h).
+    max_tries = 1

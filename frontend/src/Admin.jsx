@@ -213,9 +213,10 @@ function Platform() {
       <input value={cfg.platform_name || ""} onChange={(e) => setCfg({ ...cfg, platform_name: e.target.value })} />
       <label className="muted" style={{ fontSize: 12, marginTop: 10 }}>Logotipo</label>
       <div className="row" style={{ alignItems: "center", gap: 12 }}>
-        <div style={{ width: 120, height: 48, background: "#000", border: "1px solid var(--line)",
-          borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-          <img src={cfg.logo || "/logo.svg"} alt="logo" style={{ maxWidth: "100%", maxHeight: "100%" }} />
+        <div style={{ width: 280, height: 64, background: "var(--panel)", border: "1px solid var(--line)",
+          borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 6 }}>
+          <img src={cfg.logo || "/logo.svg"} alt="logo"
+            style={{ height: "100%", width: "auto", maxWidth: "100%", objectFit: "contain" }} />
         </div>
         <label className="btn" style={{ cursor: "pointer" }}>
           Enviar logo (PNG/SVG)
