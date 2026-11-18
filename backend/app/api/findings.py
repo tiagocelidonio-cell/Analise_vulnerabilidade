@@ -83,14 +83,34 @@ async def reenrich_cves(
             confirmed += 1
             updated += 1
             continue
-        # Sem versao / sem match confirmado -> CVEs POTENCIAIS do produto.
+        # Sem versao / sem match confirmado -> REGRA conservadora: associa o CVE
+        # de MENOR severidade como linha de base (severidade real, nao INFO) e
+        # lista os demais como POSSIBILIDADES, informando o motivo.
         pk = prod.lower()
         if pk not in pot_cache:
             pot_cache[pk] = await cves_for_product(session, prod)
         pot = pot_cache[pk]
         if pot and not (f.cve_ids or []):
+            with_cvss = [c for c in pot if c.get("cvss") is not None]
+            rule_cve = (min(with_cvss, key=lambda c: c["cvss"])
+                        if with_cvss else pot[0])
             d = dict(f.data or {})
-            d["potential_cves"] = pot
+            f.cve_ids = [rule_cve["cve_id"]]
+            cv = rule_cve.get("cvss")
+            if cv is not None:
+                f.cvss = cv
+            # Severidade conservadora = a do CVE de MENOR risco (nunca INFO:
+            # existe CVE conhecido do produto). Sem CVSS -> 'low'.
+            f.severity = Severity(_sev_from_cvss(cv) or "low")
+            d["cve_source"] = "regra: menor severidade (versão não detectada)"
+            d["cve_rule"] = rule_cve["cve_id"]
+            d["cve_rule_reason"] = (
+                "A versão do serviço não foi identificada. Pela regra "
+                "conservadora, associamos o CVE de MENOR severidade conhecido do "
+                "produto como linha de base; os demais CVEs do produto ficam como "
+                "POSSIBILIDADES e só se confirmam com a versão exata do serviço.")
+            others = [c for c in pot if c["cve_id"] != rule_cve["cve_id"]]
+            d["potential_cves"] = others
             f.data = d
             potential += 1
             updated += 1

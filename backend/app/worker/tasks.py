@@ -93,10 +93,18 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
                         rule_cve = (min(with_cvss, key=lambda c: c["cvss"])
                                     if with_cvss else pot[0])
                         cve_ids = [rule_cve["cve_id"]]
+                        _cv = rule_cve.get("cvss")
                         correlation = {
                             "cve_ids": cve_ids,
-                            "max_cvss": rule_cve.get("cvss"),
+                            "max_cvss": _cv,
                             "source": "regra_sem_versao"}
+                        # Severidade conservadora = a do CVE de MENOR risco (nunca
+                        # fica INFO quando há CVE conhecido). Injeta na avaliação.
+                        _band = ("critical" if _cv and _cv >= 9 else
+                                 "high" if _cv and _cv >= 7 else
+                                 "medium" if _cv and _cv >= 4 else "low")
+                        fdata["severity_hint"] = _band
+                        fact_dict["data"]["severity_hint"] = _band
                         fdata["cve_source"] = "regra: menor severidade (versão não detectada)"
                         fdata["cve_rule"] = rule_cve["cve_id"]
                         fdata["cve_rule_reason"] = (
