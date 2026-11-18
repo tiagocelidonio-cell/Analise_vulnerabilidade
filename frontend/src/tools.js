@@ -34,6 +34,8 @@ export const CATEGORIES = [
   {
     cat: "Exploração", items: [
       { name: "Exploração Web (XSS/SQLi)", icon: "💥", kind: "url", desc: "Rastreia a aplicação, acha pontos de injeção e CONFIRMA XSS e SQL injection (não-destrutivo, com evidência). Requer autorização de exploração.", collectors: ["web_exploit"], needsExploit: true },
+      { name: "Exploração de API", icon: "🧩", kind: "url", desc: "Testa endpoints da API: acesso sem autenticação (BOLA) e IDOR por ID sequencial. Só GET, não-destrutivo. Requer autorização de exploração.", collectors: ["api_exploit"], needsExploit: true },
+      { name: "Ataque de Credenciais", icon: "🔑", kind: "host", desc: "Testa senhas fracas/padrão em logins web, FTP e SSH. Anti-lockout (para no 1º acerto, limite de tentativas), não altera nada. Requer autorização de exploração.", collectors: ["cred_attack"], needsExploit: true },
       { name: "Validação (SAFE)", icon: "🛡️", desc: "Prova não-destrutiva das falhas encontradas.", exploit: false },
       { name: "Validação avançada", icon: "⚔️", desc: "SQLi/XSS/LFI (não-destrutivo). Requer opt-in.", exploit: true, needsIntrusive: true },
     ],

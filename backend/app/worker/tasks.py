@@ -379,6 +379,10 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     return host_targets
                 if nm == "port_scan" and live_hosts is not None:
                     return sorted(live_hosts)                 # só hosts vivos
+                if nm == "cred_attack":                       # web + ftp/ssh
+                    if web_hosts is not None or live_hosts is not None:
+                        return sorted((web_hosts or set()) | (live_hosts or set()))
+                    return host_targets
                 return host_targets
 
             for i, name in enumerate(stage_keys):
