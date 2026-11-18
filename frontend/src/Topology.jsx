@@ -17,6 +17,7 @@ export default function Topology({ engagement }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [sel, setSel] = useState(null);
+  const [stats, setStats] = useState({ nodes: 0, edges: 0, orphans: 0 });
 
   const load = useCallback(async () => {
     try { setData(await api.topology(engagement.id)); } catch (e) { setErr(e.message); }
@@ -41,25 +42,66 @@ export default function Topology({ engagement }) {
           style: {
             "background-color": (n) => RISK_COLOR[n.data("risk")] || "#475569",
             "shape": (n) => TYPE_SHAPE[n.data("type")] || "ellipse",
-            "label": "data(label)", "color": "#e2e8f0", "font-size": 9,
-            "text-valign": "bottom", "text-margin-y": 2,
-            "width": (n) => 14 + Math.min(20, (n.data("findings") || 0) * 3),
-            "height": (n) => 14 + Math.min(20, (n.data("findings") || 0) * 3),
+            "label": "data(label)", "color": "#e2e8f0", "font-size": 10,
+            "text-valign": "bottom", "text-margin-y": 3,
+            "text-background-color": "#0b0b0c", "text-background-opacity": 0.65,
+            "text-background-padding": 2, "text-background-shape": "roundrectangle",
+            "min-zoomed-font-size": 7,   // esconde rótulos quando afastado (menos poluição)
+            "width": (n) => 16 + Math.min(26, (n.data("findings") || 0) * 3),
+            "height": (n) => 16 + Math.min(26, (n.data("findings") || 0) * 3),
             "border-width": 1, "border-color": "#0b0b0c",
           },
         },
-        { selector: "edge", style: { "width": 1, "line-color": "#334155", "curve-style": "haystack", "opacity": 0.6 } },
-        { selector: "node:selected", style: { "border-width": 3, "border-color": "#0fdb2b" } },
+        { selector: "edge", style: { "width": 1.2, "line-color": "#334155", "curve-style": "bezier", "opacity": 0.55 } },
+        // Ativo SEM conexão: destaque (borda tracejada âmbar + halo).
+        {
+          selector: "node.orphan",
+          style: {
+            "border-width": 3, "border-color": "#f59e0b", "border-style": "dashed",
+            "background-color": "#3b2f0a",
+            "color": "#fde68a", "font-weight": "bold",
+          },
+        },
+        { selector: "node:selected", style: { "border-width": 4, "border-color": "#0fdb2b", "border-style": "solid" } },
+        { selector: "node.dim", style: { "opacity": 0.25 } },
+        { selector: "edge.dim", style: { "opacity": 0.1 } },
       ],
-      layout: { name: "concentric", concentric: (n) => ({ domain: 5, subdomain: 3, host: 3, ip: 2, service: 1 }[n.data("type")] || 1), minNodeSpacing: 18, levelWidth: () => 2 },
+      layout: {
+        name: "cose",
+        animate: false,
+        nodeDimensionsIncludeLabels: true,
+        padding: 24,
+        componentSpacing: 140,       // separa bem os grupos desconectados
+        nodeRepulsion: () => 9000,
+        idealEdgeLength: () => 90,
+        edgeElasticity: () => 120,
+        gravity: 0.3,
+        numIter: 1200,
+        randomize: true,
+      },
       wheelSensitivity: 0.25,
     });
-    cy.on("tap", "node", (ev) => {
-      const d = ev.target.data();
-      setSel({ id: d.id, type: d.type, risk: d.risk, findings: d.findings,
-        items: d.items || [], techs: d.techs || [] });
+    // Marca ativos sem nenhuma conexão (nós isolados) para destaque visual.
+    let orphans = 0;
+    cy.nodes().forEach((n) => {
+      if (n.degree(false) === 0) { n.addClass("orphan"); orphans++; }
     });
-    cy.on("tap", (ev) => { if (ev.target === cy) setSel(null); });
+    setStats({ nodes: cy.nodes().length, edges: cy.edges().length, orphans });
+    cy.on("tap", "node", (ev) => {
+      const node = ev.target;
+      const d = node.data();
+      // Realça o nó e a vizinhança; escurece o resto (leitura mais fácil).
+      cy.elements().addClass("dim");
+      node.removeClass("dim");
+      node.neighborhood().removeClass("dim");
+      node.connectedEdges().removeClass("dim");
+      setSel({ id: d.id, type: d.type, risk: d.risk, findings: d.findings,
+        items: d.items || [], techs: d.techs || [],
+        orphan: node.hasClass("orphan") });
+    });
+    cy.on("tap", (ev) => {
+      if (ev.target === cy) { setSel(null); cy.elements().removeClass("dim"); }
+    });
     cyRef.current = cy;
     return () => cy.destroy();
   }, [data]);
@@ -82,8 +124,19 @@ export default function Topology({ engagement }) {
         {Object.entries(RISK_COLOR).map(([k, c]) => (
           <span key={k}><i style={{ display: "inline-block", width: 10, height: 10, background: c, borderRadius: 2, marginRight: 4 }} />{k}</span>
         ))}
+        <span><i style={{ display: "inline-block", width: 10, height: 10, background: "#3b2f0a", border: "2px dashed #f59e0b", borderRadius: 2, marginRight: 4 }} />sem conexão</span>
         <span className="muted">· ◆ IP · ⬡ serviço · ▭ domínio · ○ host/subdomínio</span>
       </div>
+      {data && data.nodes.length > 0 && (
+        <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+          {stats.nodes} ativo(s) · {stats.edges} conexão(ões)
+          {stats.orphans > 0 && (
+            <span style={{ color: "#f59e0b", fontWeight: 700 }}>
+              {" "}· ⚠ {stats.orphans} sem conexão (destacado(s) em âmbar)</span>
+          )}
+          {" "}· clique num nó para isolar a vizinhança
+        </div>
+      )}
 
       <div ref={box} style={{ height: "62vh", background: "#0b0b0c", border: "1px solid var(--line)", borderRadius: 10 }} />
       {!data && <div className="muted" style={{ marginTop: 8 }}>Carregando…</div>}
@@ -97,6 +150,9 @@ export default function Topology({ engagement }) {
               <b style={{ fontSize: 15 }}>{sel.id}</b>
               <span className="muted" style={{ fontSize: 12 }}> · {sel.type}</span>
               {" "}<span className="pill" style={{ background: RISK_COLOR[sel.risk], fontSize: 10 }}>{(sel.risk || "info").toUpperCase()}</span>
+              {sel.orphan && (
+                <span className="pill" style={{ background: "#3b2f0a", color: "#fde68a", border: "1px dashed #f59e0b", fontSize: 10, marginLeft: 6 }}>⚠ SEM CONEXÃO</span>
+              )}
               <span className="muted" style={{ fontSize: 12 }}> · {sel.findings || 0} achado(s)</span>
             </div>
             <button className="btn" style={{ padding: "2px 10px" }} onClick={() => setSel(null)}>✕</button>

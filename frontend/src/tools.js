@@ -9,6 +9,7 @@ export const CATEGORIES = [
       { name: "Enumeração de Ativos", icon: "🌐", kind: "domain", desc: "Descobre subdomínios e hosts vivos de um domínio.", collectors: ["subdomain_enum"] },
       { name: "OSINT", icon: "🕵️", kind: "domain", desc: "Pegada pública: e-mails, domínios e IPs da empresa.", collectors: ["osint"] },
       { name: "Reconhecimento Web", icon: "🔎", kind: "url", desc: "Fingerprint do site: servidor, TLS, cabeçalhos de segurança e tecnologias.", collectors: ["http_probe", "tech_detect"] },
+      { name: "Mapeamento de Conteúdo", icon: "🗺️", kind: "url", desc: "Vira o site de ponta-cabeça: lê robots.txt/sitemap, rastreia e força-bruta caminhos. Acha logins, APIs, diretórios listáveis e arquivos sensíveis (.env, .git, backups). Não-destrutivo.", collectors: ["content_discovery"] },
       { name: "Busca por Exposições", icon: "🧭", kind: "domain", desc: "Localiza exposições públicas (arquivos, logins, vazamentos indexados).", collectors: ["google_dorks"] },
       { name: "Arquivos Históricos", icon: "🕰️", kind: "domain", desc: "Arquivos sensíveis já publicados (.env, .sql, backups…).", collectors: ["wayback"] },
       { name: "Vazamentos", icon: "💧", kind: "domain", desc: "E-mails/domínios em vazamentos conhecidos. Requer integração.", collectors: ["leaks"] },
@@ -18,7 +19,7 @@ export const CATEGORIES = [
     cat: "Varredura", items: [
       { name: "Descoberta de Portas", icon: "📡", kind: "host", desc: "Portas, serviços e versões (acha host sem ping). Completo = CVEs por versão.", collectors: ["port_scan"] },
       { name: "Varredura de Rede", icon: "🖧", kind: "host", desc: "Range completo + tecnologias + captura de tela. Acha todos os hosts ativos.", collectors: ["port_scan", "http_probe", "tech_detect", "screenshot"] },
-      { name: "Varredura Web", icon: "🕷️", kind: "url", desc: "Conteúdo exposto + tecnologias + captura de tela + verificação de vulnerabilidades.", collectors: ["http_probe", "web_content", "tech_detect", "screenshot", "web_vuln"] },
+      { name: "Varredura Web", icon: "🕷️", kind: "url", desc: "Mapeamento de conteúdo + tecnologias + captura de tela + verificação de vulnerabilidades.", collectors: ["http_probe", "web_content", "content_discovery", "tech_detect", "screenshot", "web_vuln"] },
     ],
   },
   {

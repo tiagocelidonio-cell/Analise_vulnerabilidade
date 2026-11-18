@@ -1,4 +1,5 @@
 from app.collectors.api_exploit import ApiExploitCollector
+from app.collectors.content_discovery import ContentDiscoveryCollector
 from app.collectors.cred_attack import CredAttackCollector
 from app.collectors.google_dorks import GoogleDorksCollector
 from app.collectors.host_discovery import HostDiscoveryCollector
@@ -23,6 +24,7 @@ COLLECTORS = {
     "port_scan": NmapCollector(),
     "http_probe": HttpProbeCollector(),
     "web_content": WebContentCollector(),
+    "content_discovery": ContentDiscoveryCollector(),
     "web_vuln": NucleiCollector(),
     "subdomain_enum": SubfinderCollector(),
     "wayback": WaybackCollector(),
@@ -37,8 +39,8 @@ COLLECTORS = {
 }
 # Coletores de host (recebem IPs expandidos e rodam em lote).
 HOST_COLLECTORS = {"host_discovery", "port_scan", "http_probe", "web_content",
-                   "web_vuln", "tech_detect", "screenshot", "web_exploit",
-                   "cred_attack", "api_exploit"}
+                   "content_discovery", "web_vuln", "tech_detect", "screenshot",
+                   "web_exploit", "cred_attack", "api_exploit"}
 
 # Coletores de EXPLORACAO (gated): so' rodam com autorizacao de exploracao.
 EXPLOIT_COLLECTORS = {"web_exploit", "cred_attack", "api_exploit"}
@@ -47,8 +49,9 @@ EXPLOIT_COLLECTORS = {"web_exploit", "cred_attack", "api_exploit"}
 # Cada etapa usa o resultado da anterior (hosts vivos -> portas -> web...).
 STAGE_ORDER = [
     "subdomain_enum", "osint", "host_discovery", "port_scan", "http_probe",
-    "tech_detect", "web_content", "web_vuln", "web_exploit", "api_exploit",
-    "cred_attack", "screenshot", "wayback", "google_dorks", "leaks",
+    "tech_detect", "web_content", "content_discovery", "web_vuln",
+    "web_exploit", "api_exploit", "cred_attack", "screenshot", "wayback",
+    "google_dorks", "leaks",
 ]
 
 # Rotulo funcional (UI nunca ve o nome do binario).
@@ -60,6 +63,7 @@ STAGE_LABELS = {
     "http_probe": "Reconhecimento web",
     "tech_detect": "Detecção de tecnologias",
     "web_content": "Conteúdo exposto",
+    "content_discovery": "Mapeamento de conteúdo (login/API/arquivos)",
     "web_vuln": "Verificação de vulnerabilidades",
     "web_exploit": "Exploração web (XSS/SQLi)",
     "api_exploit": "Exploração de API (autorização/IDOR)",
@@ -72,8 +76,8 @@ STAGE_LABELS = {
 
 # Etapas que consomem a lista de HOSTS WEB (hosts com porta web aberta no
 # port_scan). Se o port_scan nao rodou neste scan, caem para hosts vivos / todos.
-WEB_STAGES = {"http_probe", "tech_detect", "web_content", "web_vuln",
-              "web_exploit", "api_exploit", "screenshot"}
+WEB_STAGES = {"http_probe", "tech_detect", "web_content", "content_discovery",
+              "web_vuln", "web_exploit", "api_exploit", "screenshot"}
 
 # Portas consideradas "web" para decidir quais hosts seguem para as etapas web.
 WEB_PORTS = {80, 443, 8080, 8443, 8000, 3000, 9000, 8081, 8888, 5000}
