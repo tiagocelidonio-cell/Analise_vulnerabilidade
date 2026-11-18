@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api } from "./api.js";
 import { branding } from "./branding.js";
 
@@ -7,6 +7,15 @@ export default function Login({ onLogin }) {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [firstRun, setFirstRun] = useState(false);
+
+  // Só mostra o aviso de credencial padrão no PRIMEIRO acesso do sistema.
+  useEffect(() => {
+    let on = true;
+    api.getConfig().then((c) => { if (on) setFirstRun(!!c.first_run); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
 
   async function submit(e) {
     e.preventDefault();
@@ -19,12 +28,15 @@ export default function Login({ onLogin }) {
     finally { setBusy(false); }
   }
 
+  const name = (branding.appName || "").trim();
+  const showName = name.length > 1;
+
   return (
     <div className="loginWrap">
       <form className="loginCard" onSubmit={submit}>
-        <img src={branding.logo} alt="logo" className="loginLogo" />
-        <div className="brand" style={{ fontSize: 24, textAlign: "center" }}>{branding.appName}</div>
-        <p className="muted" style={{ textAlign: "center", marginTop: 0 }}>
+        <img src={branding.logo} alt={name || "logo"} className="loginLogo" />
+        {showName && <div className="loginName">{name}</div>}
+        <p className="muted" style={{ textAlign: "center", margin: "2px 0 14px" }}>
           Acesso restrito — faça login
         </p>
         <input type="email" placeholder="E-mail" value={email} autoFocus
@@ -35,9 +47,11 @@ export default function Login({ onLogin }) {
         <button className="btn primary block" type="submit" disabled={busy}>
           {busy ? "Entrando…" : "Entrar"}
         </button>
-        <p className="muted" style={{ fontSize: 11, textAlign: "center" }}>
-          Padrão inicial: admin@vulnscope.local / changeme — altere após o 1º acesso.
-        </p>
+        {firstRun && (
+          <p className="muted" style={{ fontSize: 11, textAlign: "center", marginBottom: 0 }}>
+            Padrão inicial: admin@vulnscope.local / changeme — altere após o 1º acesso.
+          </p>
+        )}
       </form>
     </div>
   );

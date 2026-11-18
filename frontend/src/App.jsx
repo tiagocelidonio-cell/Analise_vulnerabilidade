@@ -1101,10 +1101,16 @@ export default function App() {
     <div className="shell">
       <header className="topbar">
         <div className="topbrand">
-          <img src={branding.logo} alt="logo" className="brandLogo" />
-          <span>{branding.appName}</span>
+          <button className="brandlink brandname" title="Ir para a tela inicial"
+            onClick={() => { setView("overview"); setSelected(null); setMenuOpen(false); }}>
+            {branding.appName}
+          </button>
         </div>
         <div className="topright">
+          <button className="brandlink logolink" title="Ir para a tela inicial"
+            onClick={() => { setView("overview"); setSelected(null); setMenuOpen(false); }}>
+            <img src={branding.logo} alt={branding.appName} className="brandLogo" />
+          </button>
           {user.role === "admin" && (
             <button className={`topbtn ${view === "admin" ? "active" : ""}`} title="Administração"
               onClick={() => { setView("admin"); setSelected(null); setMenuOpen(false); }}>⚙</button>

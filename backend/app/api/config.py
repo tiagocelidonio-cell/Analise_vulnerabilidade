@@ -27,7 +27,7 @@ class ConfigBody(BaseModel):
     timezone: str | None = None
 
 
-def _out(c: PlatformConfig) -> dict:
+def _out(c: PlatformConfig, first_run: bool = False) -> dict:
     return {
         "platform_name": c.platform_name,
         "logo": c.logo,
@@ -35,7 +35,30 @@ def _out(c: PlatformConfig) -> dict:
         "font": c.font,
         "heading_font": c.heading_font,
         "timezone": c.timezone,
+        "first_run": first_run,
     }
+
+
+async def _is_first_run(session: AsyncSession) -> bool:
+    """True SOMENTE no primeiro acesso: existe um único usuário, que é o admin
+    padrão com a senha padrão ainda inalterada. Vira False ao trocar a senha do
+    admin OU ao criar qualquer outro usuário."""
+    from sqlalchemy import func, select
+
+    from app.auth import verify_password
+    from app.config import settings
+
+    total = await session.scalar(select(func.count()).select_from(User))
+    if total != 1:
+        return False
+    admin = await session.scalar(
+        select(User).where(User.email == settings.admin_email))
+    if admin is None:
+        return False
+    try:
+        return verify_password(settings.admin_password, admin.hashed_password)
+    except Exception:  # noqa: BLE001
+        return False
 
 
 async def _get_or_create(session: AsyncSession) -> PlatformConfig:
@@ -50,7 +73,8 @@ async def _get_or_create(session: AsyncSession) -> PlatformConfig:
 
 @router.get("/config")
 async def get_config(session: AsyncSession = Depends(get_session)) -> dict:
-    return _out(await _get_or_create(session))
+    c = await _get_or_create(session)
+    return _out(c, first_run=await _is_first_run(session))
 
 
 @router.put("/config")
