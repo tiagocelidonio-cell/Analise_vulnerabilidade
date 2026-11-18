@@ -24,12 +24,12 @@ class Settings(BaseSettings):
     # Limites de seguranca do scanner
     scan_max_concurrency: int = 200
     scan_connect_timeout: float = 2.0
-    # Tempo maximo de UMA etapa (coletor) antes de ser abortada com erro claro.
-    scan_stage_timeout: int = 1800          # 30 min por etapa
-    # Orcamento TOTAL de tempo de parede de um scan inteiro.
-    scan_max_seconds: int = 10800           # 3 h por scan
-    # Timeout do job ARQ (deve ser >= scan_max_seconds + folga).
-    scan_job_timeout: int = 12600           # 3h30 (ARQ mata o job)
+    # SEM teto de tempo fixo: uma etapa só é abortada se ficar este tempo SEM
+    # sinal de vida (inatividade). Scans lentos mas funcionais rodam até o fim.
+    scan_stall_seconds: int = 900           # 15 min sem atividade = travado
+    # Backstop final do ARQ (bem alto; a detecção de inatividade é o mecanismo
+    # principal). Evita que um scan legítimo e longo seja morto por tempo.
+    scan_job_timeout: int = 86400           # 24 h (apenas rede de segurança)
 
     # Google Programmable Search (dorks reais). Sem chave -> so checklist.
     # Crie em https://programmablesearchengine.google.com (CX) e

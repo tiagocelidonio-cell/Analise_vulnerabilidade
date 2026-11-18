@@ -270,6 +270,13 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 
         import time as _time
         _beat_state = {"t": 0.0}
+        # Última vez que a etapa deu SINAL DE VIDA (log/tick/checagem). A etapa só
+        # é considerada travada se ficar MUITO tempo sem atividade — um scan lento
+        # mas progredindo (ex.: brute-force de horas) nunca é abortado por tempo.
+        _activity = {"t": _time.monotonic()}
+
+        def _touch() -> None:
+            _activity["t"] = _time.monotonic()
 
         # ---- Log de execução ao vivo (terminal) ----
         _logbuf: list[dict] = []
@@ -277,6 +284,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
         def _log(msg: str, level: str = "info") -> None:
             """Acrescenta uma linha ao log (em memória; NÃO comita -> seguro de
             chamar de qualquer lugar, inclusive corrotinas concorrentes)."""
+            _touch()
             _logbuf.append({
                 "ts": datetime.now(timezone.utc).isoformat(),
                 "level": level, "msg": str(msg)[:600]})
@@ -296,6 +304,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
         async def _beat(phase: str | None = None) -> None:
             """Batimento: marca que o scan esta VIVO (mesmo em processo longo).
             Throttle de 4s para nao martelar o banco."""
+            _touch()
             nowm = _time.monotonic()
             if phase is None and (nowm - _beat_state["t"]) < 4:
                 return
@@ -310,6 +319,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
 
         async def _control() -> str | None:
             """Le as flags frescas do banco: 'cancel', 'pause' ou None."""
+            _touch()  # coletor consultando cancelamento = sinal de vida
             row = (await session.execute(
                 select(ScanJob.cancel_requested, ScanJob.pause_requested)
                 .where(ScanJob.id == scan.id)
@@ -417,10 +427,30 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                  f"({len(host_targets)} host(s) após expansão)")
             # Orçamento de tempo: etapa e scan inteiro têm teto -> nada trava
             # indefinidamente; estouro vira ERRO visível (não hang silencioso).
-            _scan_t0 = _time.monotonic()
-            _stage_to = max(60, int(settings.scan_stage_timeout))
-            _scan_budget = max(_stage_to, int(settings.scan_max_seconds))
-            _log(f"Orçamento: {_stage_to}s por etapa, {_scan_budget}s no total.")
+            # Sem teto de tempo fixo: o scan só é abortado se PARAR de dar sinal
+            # de vida (inatividade). Assim, scans lentos mas funcionais (ex.:
+            # brute-force de horas) rodam até o fim.
+            _stall_limit = max(120, int(getattr(settings, "scan_stall_seconds", 900)))
+
+            async def _run_stage(coro):
+                """Roda a etapa e só aborta se ficar _stall_limit s SEM atividade
+                (nenhum log/tick/checagem). Retorna o resultado ou levanta erro."""
+                task = asyncio.ensure_future(coro)
+                _touch()
+                while True:
+                    done, _pending = await asyncio.wait({task}, timeout=20)
+                    if done:
+                        return task.result()
+                    if (_time.monotonic() - _activity["t"]) > _stall_limit:
+                        task.cancel()
+                        try:
+                            await task
+                        except BaseException:  # noqa: BLE001
+                            pass
+                        raise TimeoutError(
+                            f"sem sinal de vida por {_stall_limit}s — etapa travada")
+            _log("Monitor de atividade ativo: etapa só é abortada se ficar "
+                 f"{_stall_limit}s sem progresso (sem teto de tempo fixo).")
             await _flush_log()
 
             # Sub-passos selecionados (checkbox na UI). Vazio = roda tudo.
@@ -450,27 +480,29 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                     return host_targets
                 return host_targets
 
-            budget_exceeded = False
             for i, name in enumerate(stage_keys):
                 if await _halted():
                     return {"halted": True}
-                # Teto de tempo TOTAL: se estourou, encerra o resto como erro.
-                if (_time.monotonic() - _scan_t0) > _scan_budget:
-                    budget_exceeded = True
-                    _log(f"⏱ Orçamento total de {_scan_budget}s esgotado — "
-                         f"etapas restantes não executadas.", "error")
-                    await _flush_log()
-                    break
                 label = STAGE_LABELS.get(name, name)
                 entry = {"key": name, "label": label, "status": "running",
                          "found": 0, "created": 0, "error": None}
                 stage_log.append(entry)
                 base = 5 + int(85 * i / nstages)
+                span = 85 / nstages
                 scan.phase = f"Etapa {i + 1}/{nstages}: {label}"
                 scan.progress = base
                 scan.stages = list(stage_log)
                 scan.heartbeat = datetime.now(timezone.utc)
                 await session.commit()
+
+                async def _on_progress(frac, _b=base, _s=span):
+                    """Avança a % da BARRA dentro da etapa (sub-progresso)."""
+                    try:
+                        scan.progress = min(99, _b + int(_s * max(0.0, min(1.0, frac))))
+                        scan.heartbeat = datetime.now(timezone.utc)
+                        await session.commit()
+                    except Exception:  # noqa: BLE001
+                        pass
 
                 collector = COLLECTORS.get(name)
                 tlist = _stage_targets(name)
@@ -506,43 +538,36 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 # meio). Falha de UMA etapa é registrada e o scan segue.
                 steps = collector_enabled_steps(name, sel_steps)
                 facts: list = []
-                _stage_t0 = _time.monotonic()
                 try:
                     if name in HOST_COLLECTORS and len(tlist) > 16:
                         for j in range(0, len(tlist), 16):
                             if await _halted():
                                 return {"halted": True}
-                            # Teto por etapa: mesmo em lotes, o acumulado não
-                            # pode passar do limite (senão o scan "trava").
-                            left = _stage_to - (_time.monotonic() - _stage_t0)
-                            if left <= 0:
-                                raise asyncio.TimeoutError(
-                                    f"etapa excedeu {_stage_to}s")
                             batch = tlist[j:j + 16]
                             _log(f"  lote {j // 16 + 1}: {len(batch)} alvo(s) "
                                  f"({j + len(batch)}/{len(tlist)})")
-                            facts.extend(await asyncio.wait_for(collector.run(
+                            facts.extend(await _run_stage(collector.run(
                                 batch, ports=scan.ports or None, profile=prof,
                                 cancel_check=_abort_check, on_tick=_beat,
-                                steps=steps, on_log=_log,
-                                params=scan.params or {}), timeout=left))
+                                steps=steps, on_log=_log, on_progress=_on_progress,
+                                params=scan.params or {})))
                             frac = (j + len(batch)) / len(tlist)
                             scan.phase = (f"Etapa {i + 1}/{nstages}: {label} "
                                           f"({int(frac * 100)}%)")
                             await _flush_log()
                     else:
-                        facts = await asyncio.wait_for(collector.run(
+                        facts = await _run_stage(collector.run(
                             tlist, ports=scan.ports or None, profile=prof,
                             cancel_check=_abort_check, on_tick=_beat, steps=steps,
-                            on_log=_log, params=scan.params or {}), timeout=_stage_to)
-                except asyncio.TimeoutError:
+                            on_log=_log, on_progress=_on_progress,
+                            params=scan.params or {}))
+                except TimeoutError as exc:
                     entry["status"] = "failed"
-                    entry["error"] = f"tempo esgotado (> {_stage_to}s) — etapa abortada"
-                    _log(f"⏱ Etapa abortada por tempo: {label} "
-                         f"(> {_stage_to}s). Scan segue para a próxima.", "error")
+                    entry["error"] = str(exc)[:300]
+                    _log(f"⏱ Etapa travada (sem atividade): {label} — {exc}. "
+                         "Scan segue para a próxima.", "error")
                     scan.stages = list(stage_log)
                     await _flush_log()
-                    # A etapa pode ter coletado fatos PARCIAIS antes do corte.
                     if not facts:
                         continue
                 except Exception as exc:  # noqa: BLE001  etapa falha, scan segue
@@ -608,20 +633,12 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                 parts.append(f"{counters['ot']} OT/IoT")
             failed = [e["label"] for e in stage_log if e["status"] == "failed"]
             scan.summary = ", ".join(parts) or f"{created} achados"
-            if budget_exceeded:
-                scan.summary += " · interrompido por tempo (orçamento esgotado)"
             if failed:
                 scan.summary += f" · falhas: {', '.join(failed)}"
 
             scan.status = ScanStatus.completed
-            if budget_exceeded:
-                scan.error = (f"orçamento de tempo esgotado ({_scan_budget}s): "
-                              f"etapas restantes não executadas. Achados parciais "
-                              f"preservados.")
-                scan.phase = "interrompido por tempo (parcial)"
-            else:
-                scan.phase = ("concluído com falhas em " + ", ".join(failed)
-                              if failed else "concluído")
+            scan.phase = ("concluído com falhas em " + ", ".join(failed)
+                          if failed else "concluído")
             scan.progress = 100
             scan.findings_count = created
             scan.finished_at = datetime.now(timezone.utc)
@@ -842,8 +859,8 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     on_startup = _startup
     max_jobs = 10
-    # ARQ mata o job se passar deste teto (defesa em profundidade: mesmo que uma
-    # etapa ignore o wait_for, o job não roda por horas). > scan_max_seconds.
+    # Backstop final do ARQ (bem alto, 24h): a detecção de INATIVIDADE é o
+    # mecanismo principal; scans lentos mas funcionais não são mortos por tempo.
     job_timeout = int(settings.scan_job_timeout)
     # Não re-enfileira automaticamente um scan que estourou (evita loop de 12h).
     max_tries = 1
