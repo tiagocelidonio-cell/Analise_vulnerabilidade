@@ -634,7 +634,8 @@ function EngagementView({ engagement, onDeleted, onUpdated }) {
         `Re-associação concluída (${r.total} achados):\n`
         + `• ${r.confirmed} com CVE CONFIRMADO (produto+versão)\n`
         + `• ${r.potential} com CVE por REGRA (menor severidade; versão não detectada)\n`
-        + `   → severidade conservadora atribuída; demais CVEs ficam como possibilidades\n\n`
+        + `   → severidade conservadora atribuída; demais CVEs ficam como possibilidades\n`
+        + `• ${r.cleared || 0} achado(s) de exposição/conteúdo CORRIGIDOS (CVE removido; severidade ajustada)\n\n`
         + `Achados com produto reconhecido: ${d.com_produto || 0}\n`
         + `Achados sem produto (subdomínios, headers, etc.): ${d.sem_produto || 0}\n\n`
         + `Produtos detectados:\n  ${prods}\n\n`

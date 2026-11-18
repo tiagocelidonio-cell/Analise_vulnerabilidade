@@ -49,8 +49,32 @@ async def reenrich_cves(
     updated = confirmed = potential = 0
     diag: dict = {"com_produto": 0, "sem_produto": 0, "produtos": {}}
 
+    cleared = 0
     for f in findings:
-        prod, ver = extract_pv(f.data or {}, f.title or "")
+        d = f.data or {}
+        # Achados de EXPOSIÇÃO/conteúdo/recon não recebem CVE de produto. Se tinham
+        # CVE associado por engano (falsos CRÍTICOS), limpa e corrige a severidade.
+        is_exposure = (
+            d.get("path") is not None
+            or f.service in ("content", "dns", "protection", "diag")
+            or d.get("kind") in ("coverage", "api_surface", "protection",
+                                  "protection_absent", "dns_info")
+            or d.get("source") in ("content_discovery", "net_recon", "web_content",
+                                    "api_exploit_surface"))
+        if is_exposure:
+            if f.cve_ids or d.get("potential_cves") or d.get("cve_rule"):
+                f.cve_ids = []
+                f.cvss = None
+                hint = d.get("severity_hint")
+                if hint in ("info", "low", "medium", "high", "critical"):
+                    f.severity = Severity(hint)
+                for k in ("potential_cves", "cve_rule", "cve_rule_reason", "cve_source"):
+                    d.pop(k, None)
+                f.data = d
+                cleared += 1
+                updated += 1
+            continue
+        prod, ver = extract_pv(d, f.title or "")
         if not prod:
             diag["sem_produto"] += 1
             continue
@@ -116,7 +140,7 @@ async def reenrich_cves(
             updated += 1
 
     await session.commit()
-    return {"total": len(findings), "updated": updated,
+    return {"total": len(findings), "updated": updated, "cleared": cleared,
             "confirmed": confirmed, "potential": potential, "diag": diag}
 
 

@@ -64,6 +64,24 @@ class WebContentCollector:
         sem = asyncio.Semaphore(conc)
         facts: list[CollectedFact] = []
 
+        # Detecção de CATCH-ALL: apps SPA respondem 200 para QUALQUER caminho.
+        # Sem isso, cada caminho da wordlist virava um falso achado. Medimos o
+        # tamanho da resposta a um caminho aleatório por base.
+        import secrets as _secrets
+        catchall: dict[str, int | None] = {}
+
+        async def _detect_catchall(base: str):
+            lens = []
+            for _ in range(2):
+                res = await http_fetch(f"{base}/{_secrets.token_hex(12)}", timeout,
+                                       max_body=4096, follow_redirects=False)
+                if res and res[0] == 200:
+                    lens.append(len(res[2] or ""))
+                else:
+                    catchall[base] = None
+                    return
+            catchall[base] = max(lens) if lens else None
+
         async def check(base: str, path: str, hint: str):
             url = f"{base}/{path}"
             async with sem:
@@ -78,30 +96,54 @@ class WebContentCollector:
                 return
             body = body_full if status == 200 else ""
             listing = "Index of /" in body
+            # Suprime falso-positivo de catch-all: 200 com tamanho ~ ao da
+            # resposta genérica (e sem listagem) não é um caminho real.
+            ca = catchall.get(base)
+            if ca is not None and status == 200 and not listing:
+                if abs(len(body_full) - ca) <= max(80, ca * 0.05):
+                    return
             # 200 em caminho sensivel confirma exposicao; 401/403 indica existencia
             sev = hint if status == 200 else (
                 "low" if hint in ("high", "medium") else "info"
+            )
+            clen = len(body_full or "")
+            ctype = (_headers or {}).get("content-type", "")
+            server = (_headers or {}).get("server", "")
+            raw = (
+                f"TESTE REALIZADO : requisição GET a caminho comum/sensível\n"
+                f"REQUISIÇÃO      : GET {url}\n"
+                f"RESPOSTA        : HTTP {status}"
+                + (" (listagem de diretório!)" if listing else "") + "\n"
+                f"CONTENT-TYPE    : {ctype or '-'}\n"
+                f"TAMANHO         : {clen} bytes\n"
+                + (f"SERVIDOR        : {server}\n" if server else "")
+                + (f"TRECHO DA RESPOSTA:\n{body[:600]}\n" if body else "")
+                + f"REPRODUZIR      : curl -s -i \"{url}\""
             )
             facts.append(
                 CollectedFact(
                     target=base.split("//")[1], service="http",
                     title=f"[{status}] /{path}"
                           + (" (directory listing!)" if listing else ""),
-                    raw=f"{url}\nHTTP {status}"
-                        + (f"\n{body[:300]}" if body else ""),
+                    raw=raw,
                     data={"severity_hint": "high" if listing else sev,
-                          "url": url, "status": status,
-                          "listing": listing, "path": path},
+                          "url": url, "status": status, "content_type": ctype,
+                          "size": clen, "listing": listing, "path": path,
+                          "source": "web_content"},
                 )
             )
 
         # Monta todos os probes (host x base x path) e roda em BLOCOS, com
         # cancelamento e heartbeat ENTRE blocos.
         probes = []
+        bases = []
         for host in sorted({host_only(t) for t in targets if host_only(t)}):
             for base in _base_urls(host, ports):
+                bases.append(base)
                 for path, hint in _PATHS.items():
                     probes.append((base, path, hint))
+        # Primeiro detecta catch-all em cada base (em paralelo).
+        await asyncio.gather(*(_detect_catchall(b) for b in bases))
         chunk = max(conc, 64)
         for k in range(0, len(probes), chunk):
             if cancel_check is not None:

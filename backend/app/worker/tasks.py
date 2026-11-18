@@ -54,9 +54,27 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
 
         # 1) CVEs: nuclei/nmap ja trazem; senao, BASE LOCAL por produto+versao
         #    (offline, usa a base que voce baixou); por ultimo, correlacao NVD.
+        # Achados de EXPOSIÇÃO/conteúdo/recon NÃO recebem CVE de produto: um
+        # caminho "[200] /info.php" não é "serviço PHP versão X". Associar CVE
+        # aqui gerava falsos CRÍTICOS. Só serviços com fingerprint real (porta/
+        # versão/banner) entram na correlação de CVE.
+        _src = fact.data.get("source")
+        _kind = fact.data.get("kind")
+        is_exposure = (
+            fact.data.get("path") is not None
+            or fact.service in ("content", "dns", "protection", "diag")
+            or _kind in ("coverage", "api_surface", "protection",
+                         "protection_absent", "dns_info", "content")
+            or _src in ("content_discovery", "net_recon", "web_content",
+                        "api_exploit_surface")
+        )
         if fact.data.get("cve_ids"):
             cve_ids = fact.data["cve_ids"]
             correlation = {"cve_ids": cve_ids, "max_cvss": fact.data.get("cvss")}
+        elif is_exposure:
+            # Sem CVE: a severidade vem da dica do coletor (categoria), não de CVE.
+            cve_ids = []
+            correlation = {"cve_ids": [], "max_cvss": None}
         else:
             from app.enrichment.local_cve import (
                 cves_for_product, cves_for_service, extract_pv)
