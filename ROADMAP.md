@@ -228,6 +228,25 @@ cloud** (ou exige presença na rede do cliente). Legenda: ✅ adota · 🔒 gate
 - [ ] **Biblioteca de módulos de exploração** (CVEs conhecidos, defaults,
   exposições) — roda contra alvos **no escopo**, com evidência e rollback quando
   aplicável. Nada de exploração em massa automática.
+- [ ] **Ataques ESPECÍFICOS por tecnologia (não-destrutivos, gated)** — pedido do
+  operador. Cada tecnologia detectada ganha um módulo de checagens dirigidas, com
+  achados no cliente/relatório. Candidatos:
+  - **Bancos de dados expostos**: Redis/MongoDB/Elasticsearch/Memcached **sem
+    autenticação** (connect + ping/INFO, sem ler dados — achado crítico clássico);
+    MySQL/Postgres por versão→CVE + credenciais padrão.
+  - **Auditoria WordPress**: versão + plugins/temas vulneráveis, enum de usuários
+    (wp-json/author), xmlrpc exposto, backups/config expostos, + credencial fraca
+    no wp-login.
+  - **Roteadores / dispositivos**: painel admin exposto + credenciais default +
+    CVE do modelo pelo banner/título.
+  - **PHP / servidores**: phpinfo exposto, versão→CVE, config/.env exposto.
+  - **Acabamento**: item no catálogo (Exploração) **e/ou** disparo automático
+    quando a tecnologia é detectada (a decidir).
+- [ ] **Validação DIRIGIDA por CVE** — pega o CVE já detectado (base local) e roda
+  **verificação SEGURA** onde existe (estilo template nuclei), priorizando por
+  **EPSS/KEV**, com remediação. **Linha vermelha:** não rodamos exploit/RCE
+  destrutivo (quebra serviço = DoS / altera o alvo) — a exploração real fica para
+  o operador, manualmente, fora da ferramenta. Confirmamos a falha sem detoná-la.
 - [ ] **Escalonamento de privilégio guiado**: checagens e provas de conceito
   não-destrutivas, com trilha do caminho ("de X cheguei a Y").
 - [ ] **Cadeia de ataque**: registrar o encadeamento (foothold → pivot → alvo)
