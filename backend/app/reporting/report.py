@@ -161,8 +161,51 @@ _TEMPLATE = Template(
    Número = achados na célula.</p>
 {% endif %}
 
+<h2 class="pb">3. Conclusão — Fatos, Achados e Implicações</h2>
+
+<h3>Fatos — o ambiente do cliente</h3>
+<p class="muted small">O que foi confirmado como existente no ambiente avaliado
+   (tecnologias, serviços, domínios e endereços).</p>
+<ul>{% for x in conclusion.fatos %}<li>{{ x }}</li>{% endfor %}</ul>
+
+{% if conclusion.protecoes %}
+<h3>Camadas de proteção identificadas</h3>
+<p class="muted small">Mecanismos de defesa detectados no perímetro — mérito da
+   equipe de segurança do cliente. A existência dessas camadas também orienta a
+   estratégia do pentest.</p>
+<ul>{% for x in conclusion.protecoes %}<li>{{ x }}</li>{% endfor %}</ul>
+{% endif %}
+
+<h3>Achados — o que foi encontrado e o que foi explorado</h3>
+<p class="muted small">Vulnerabilidades identificadas e, quando confirmada, a
+   exploração realizada durante o pentest (prova de conceito não-destrutiva).</p>
+<p>{{ conclusion.achados.resumo }}</p>
+{% if conclusion.achados.exploited %}
+<p><strong style="color:#7f1d1d">Vulnerabilidades exploradas (invasão/acesso confirmado):</strong></p>
+<ul>{% for e in conclusion.achados.exploited %}<li>{{ e }}</li>{% endfor %}</ul>
+{% endif %}
+
+<h3>Implicações — riscos para o negócio</h3>
+<p class="muted small">Além do que foi explorado, o que um atacante poderia obter,
+   nas dimensões de confidencialidade, integridade, disponibilidade e privacidade.{%
+   if conclusion.implicacoes_ai %} Redigido com apoio de IA a partir dos achados
+   desta avaliação.{% endif %}</p>
+<table><thead><tr><th>Dimensão</th><th>Implicação / risco</th></tr></thead><tbody>
+  <tr><td><strong>Confidencialidade</strong></td><td>{{ conclusion.implicacoes.confidencialidade }}</td></tr>
+  <tr><td><strong>Integridade</strong></td><td>{{ conclusion.implicacoes.integridade }}</td></tr>
+  <tr><td><strong>Disponibilidade</strong></td><td>{{ conclusion.implicacoes.disponibilidade }}</td></tr>
+  <tr><td><strong>Privacidade</strong></td><td>{{ conclusion.implicacoes.privacidade }}</td></tr>
+</tbody></table>
+
+<h3>Encerramento</h3>
+<p>{{ exec_line }} Recomenda-se priorizar os achados de severidade crítica e alta, em especial os
+   que possuem exploração ativa conhecida (KEV), seguidos pela correção dos itens de severidade
+   média. A reavaliação após as correções (reteste) permite confirmar o fechamento das exposições.</p>
+<h4>Continuidade — segurança como processo</h4>
+<div class="legal">{{ premissas }}</div>
+
 {% if opt.include_targets %}
-<h2 class="pb">3. Alvos identificados e testados</h2>
+<h2 class="pb">4. Alvos identificados e testados</h2>
 <h3>Superfície de ataque</h3>
 <div class="kpis">
   <div class="kpi"><div class="n">{{ surface.counts.domains }}</div><div class="l">DOMÍNIOS</div></div>
@@ -194,7 +237,7 @@ _TEMPLATE = Template(
 {% endif %}
 
 {% if topology %}
-<h2 class="pb">4. Topologia do ambiente</h2>
+<h2 class="pb">5. Topologia do ambiente</h2>
 <p>Mapa dos ativos descobertos, colorido por risco, com serviços e tecnologias
 identificados em cada host. (A versão interativa está no painel &gt; Topologia.)</p>
 {% if topo_png %}
@@ -215,7 +258,7 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
 </tbody></table>
 {% endif %}
 
-<h2 class="pb">5. Vulnerabilidades encontradas</h2>
+<h2 class="pb">6. Vulnerabilidades encontradas</h2>
 <h3>Resumo geral</h3>
 <table><thead><tr><th>Sev</th><th>Alvo</th><th>Achado</th><th>CVSS</th>
   <th>EPSS</th><th>KEV</th></tr></thead><tbody>
@@ -299,49 +342,6 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
 {% endfor %}
 {% endfor %}
 {% if not findings %}<p class="muted">Nenhum achado no filtro selecionado.</p>{% endif %}
-
-<h2 class="pb">6. Conclusão</h2>
-
-<h3>Fatos — o ambiente do cliente</h3>
-<p class="muted small">O que foi confirmado como existente no ambiente avaliado
-   (tecnologias, serviços, domínios e endereços).</p>
-<ul>{% for x in conclusion.fatos %}<li>{{ x }}</li>{% endfor %}</ul>
-
-{% if conclusion.protecoes %}
-<h3>Camadas de proteção identificadas</h3>
-<p class="muted small">Mecanismos de defesa detectados no perímetro — mérito da
-   equipe de segurança do cliente. A existência dessas camadas também orienta a
-   estratégia do pentest.</p>
-<ul>{% for x in conclusion.protecoes %}<li>{{ x }}</li>{% endfor %}</ul>
-{% endif %}
-
-<h3>Achados — o que foi encontrado e o que foi explorado</h3>
-<p class="muted small">Vulnerabilidades identificadas e, quando confirmada, a
-   exploração realizada durante o pentest (prova de conceito não-destrutiva).</p>
-<p>{{ conclusion.achados.resumo }}</p>
-{% if conclusion.achados.exploited %}
-<p><strong style="color:#7f1d1d">Vulnerabilidades exploradas (invasão/acesso confirmado):</strong></p>
-<ul>{% for e in conclusion.achados.exploited %}<li>{{ e }}</li>{% endfor %}</ul>
-{% endif %}
-
-<h3>Implicações — riscos para o negócio</h3>
-<p class="muted small">Além do que foi explorado, o que um atacante poderia obter,
-   nas dimensões de confidencialidade, integridade, disponibilidade e privacidade.{%
-   if conclusion.implicacoes_ai %} Redigido com apoio de IA a partir dos achados
-   desta avaliação.{% endif %}</p>
-<table><thead><tr><th>Dimensão</th><th>Implicação / risco</th></tr></thead><tbody>
-  <tr><td><strong>Confidencialidade</strong></td><td>{{ conclusion.implicacoes.confidencialidade }}</td></tr>
-  <tr><td><strong>Integridade</strong></td><td>{{ conclusion.implicacoes.integridade }}</td></tr>
-  <tr><td><strong>Disponibilidade</strong></td><td>{{ conclusion.implicacoes.disponibilidade }}</td></tr>
-  <tr><td><strong>Privacidade</strong></td><td>{{ conclusion.implicacoes.privacidade }}</td></tr>
-</tbody></table>
-
-<h3>Encerramento</h3>
-<p>{{ exec_line }} Recomenda-se priorizar os achados de severidade crítica e alta, em especial os
-   que possuem exploração ativa conhecida (KEV), seguidos pela correção dos itens de severidade
-   média. A reavaliação após as correções (reteste) permite confirmar o fechamento das exposições.</p>
-<h4>Continuidade — segurança como processo</h4>
-<div class="legal">{{ premissas }}</div>
 
 {% if anexos %}
 <h2 class="pb">7. Anexos</h2>
