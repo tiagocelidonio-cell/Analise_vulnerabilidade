@@ -60,9 +60,10 @@ export async function captureTopologyPng(data) {
       ],
       layout: {
         name: "cose", animate: false, nodeDimensionsIncludeLabels: true,
-        padding: 24, componentSpacing: 140, nodeRepulsion: () => 9000,
-        idealEdgeLength: () => 90, edgeElasticity: () => 120, gravity: 0.3,
-        numIter: 1200, randomize: true,
+        padding: 18, componentSpacing: 85, nodeRepulsion: () => 7000,
+        idealEdgeLength: () => 65, edgeElasticity: () => 100, gravity: 1.2,
+        gravityRange: 4.0, nestingFactor: 1.1, numIter: 1600,
+        coolingFactor: 0.95, randomize: true,
       },
     });
     cy.nodes().forEach((n) => { if (n.degree(false) === 0) n.addClass("orphan"); });

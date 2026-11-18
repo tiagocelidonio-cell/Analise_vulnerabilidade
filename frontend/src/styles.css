@@ -299,6 +299,15 @@ textarea { resize: vertical; }
 .topoTools button:hover { background: #1e2a3a; border-color: #3b82f6; }
 .topoTools button:disabled { opacity: .5; cursor: default; }
 .topoTools .sep { width: 1px; height: 18px; background: #2b3647; margin: 0 2px; }
+/* Legenda sobre o grafo (canto inferior esquerdo) */
+.topoLegend { position: absolute; left: 10px; bottom: 10px; z-index: 5;
+  background: rgba(12,16,22,.82); border: 1px solid #2b3647; border-radius: 10px;
+  padding: 7px 10px; backdrop-filter: blur(3px); color: #e2e8f0; font-size: 11px;
+  max-width: calc(100% - 20px); }
+.topoLegend span { display: inline-flex; align-items: center; white-space: nowrap; }
+.topoLegend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.topoLegend .sh { color: #94a3b8; margin-top: 5px; }
+.topoLegend .st { color: #cbd5e1; margin-top: 3px; }
 
 .loginWrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
 .loginCard { background: var(--card); border: 1px solid var(--line); border-radius: 12px;

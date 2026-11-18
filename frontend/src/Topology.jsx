@@ -189,13 +189,16 @@ export default function Topology({ engagement }) {
         name: "cose",
         animate: false,
         nodeDimensionsIncludeLabels: true,
-        padding: 24,
-        componentSpacing: 140,       // separa bem os grupos desconectados
-        nodeRepulsion: () => 9000,
-        idealEdgeLength: () => 90,
-        edgeElasticity: () => 120,
-        gravity: 0.3,
-        numIter: 1200,
+        padding: 18,
+        componentSpacing: 85,        // agrupa os componentes mais próximos
+        nodeRepulsion: () => 7000,
+        idealEdgeLength: () => 65,
+        edgeElasticity: () => 100,
+        gravity: 1.2,                // puxa para o centro -> menos espaço vazio
+        gravityRange: 4.0,
+        nestingFactor: 1.1,
+        numIter: 1600,
+        coolingFactor: 0.95,
         randomize: true,
       },
       wheelSensitivity: 0.25,
@@ -238,28 +241,9 @@ export default function Topology({ engagement }) {
         </div>
       </div>
 
-      <div className="row" style={{ gap: 14, fontSize: 12, marginBottom: 6, flexWrap: "wrap" }}>
-        {Object.entries(RISK_COLOR).map(([k, c]) => (
-          <span key={k}><i style={{ display: "inline-block", width: 10, height: 10, background: c, borderRadius: 2, marginRight: 4 }} />{k}</span>
-        ))}
-        <span><i style={{ display: "inline-block", width: 10, height: 10, background: "#3b2f0a", border: "2px dashed #f59e0b", borderRadius: 2, marginRight: 4 }} />sem conexão</span>
-        <span><i style={{ display: "inline-block", width: 10, height: 10, background: "#15803d", border: "2px solid #22c55e", borderRadius: 2, marginRight: 4 }} />camada de proteção</span>
-        <span className="muted">· ◆ IP · ⬡ serviço · ▭ domínio · ○ host/subdomínio</span>
-      </div>
-      {data && data.nodes.length > 0 && (
-        <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-          {stats.nodes} ativo(s) · {stats.edges} conexão(ões)
-          {stats.orphans > 0 && (
-            <span style={{ color: "#f59e0b", fontWeight: 700 }}>
-              {" "}· ⚠ {stats.orphans} sem conexão</span>
-          )}
-          {" "}· clique num nó para isolar a vizinhança
-        </div>
-      )}
-
       <div ref={boxWrap} style={{ position: "relative", background: "#0b0b0c",
         border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden",
-        height: fs ? "100vh" : "62vh" }}>
+        height: fs ? "100vh" : "66vh" }}>
         <div ref={box} style={{ width: "100%", height: "100%" }} />
         {/* Barra de ferramentas flutuante sobre o grafo (tela preta). */}
         <div className="topoTools">
@@ -272,6 +256,24 @@ export default function Topology({ engagement }) {
           <button title="Exportar PowerPoint editável (.pptx)" onClick={exportPpt} disabled={busy === "ppt"}>
             {busy === "ppt" ? "…" : "📊 PPT"}</button>
         </div>
+        {/* Legenda sobre a tela preta (canto inferior esquerdo). */}
+        {data && data.nodes.length > 0 && (
+          <div className="topoLegend">
+            <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              {Object.entries(RISK_COLOR).map(([k, c]) => (
+                <span key={k}><i style={{ background: c }} />{k}</span>
+              ))}
+              <span><i style={{ background: "#3b2f0a", border: "2px dashed #f59e0b" }} />sem conexão</span>
+              <span><i style={{ background: "#15803d", border: "2px solid #22c55e" }} />proteção</span>
+            </div>
+            <div className="sh">◆ IP · ⬡ serviço · ▭ domínio · ○ host · ▷ proteção</div>
+            <div className="st">
+              {stats.nodes} ativo(s) · {stats.edges} conexão(ões)
+              {stats.orphans > 0 && <span style={{ color: "#f59e0b", fontWeight: 700 }}>{" "}· ⚠ {stats.orphans} sem conexão</span>}
+              {" "}· clique num nó para isolar
+            </div>
+          </div>
+        )}
       </div>
       {!data && <div className="muted" style={{ marginTop: 8 }}>Carregando…</div>}
       {data && data.nodes.length === 0 && <p className="muted" style={{ marginTop: 8 }}>
