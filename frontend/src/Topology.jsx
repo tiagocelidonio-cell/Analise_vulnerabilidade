@@ -19,10 +19,54 @@ export default function Topology({ engagement }) {
   const [sel, setSel] = useState(null);
   const [stats, setStats] = useState({ nodes: 0, edges: 0, orphans: 0 });
 
+  const [busy, setBusy] = useState("");
+
   const load = useCallback(async () => {
     try { setData(await api.topology(engagement.id)); } catch (e) { setErr(e.message); }
   }, [engagement.id]);
   useEffect(() => { load(); }, [load]);
+
+  function _png(scale = 2) {
+    const cy = cyRef.current;
+    if (!cy || cy.nodes().length === 0) return null;
+    return cy.png({ full: true, scale, bg: "#0b0b0c" });
+  }
+  const _slug = (engagement.name || "ambiente").replace(/[^\w.-]+/g, "_").slice(0, 60);
+
+  function exportPng() {
+    const png = _png(2);
+    if (!png) { setErr("Nada para exportar — rode varreduras primeiro."); return; }
+    const a = document.createElement("a");
+    a.href = png; a.download = `topologia-${_slug}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  async function exportPpt() {
+    const png = _png(2);
+    if (!png) { setErr("Nada para exportar — rode varreduras primeiro."); return; }
+    setBusy("ppt");
+    try {
+      const PptxGenJS = (await import("pptxgenjs")).default;
+      const p = new PptxGenJS();
+      p.layout = "LAYOUT_WIDE";            // 13.33 x 7.5 in
+      const slide = p.addSlide();
+      slide.background = { color: "FFFFFF" };
+      slide.addText(`Topologia do ambiente — ${engagement.name || ""}`, {
+        x: 0.4, y: 0.25, w: 12.5, h: 0.5, fontSize: 22, bold: true, color: "052E16",
+      });
+      slide.addText(
+        `${stats.nodes} ativo(s) · ${stats.edges} conexão(ões)`
+        + (stats.orphans ? ` · ${stats.orphans} sem conexão` : "")
+        + `  —  cor = risco; tamanho = nº de achados.`,
+        { x: 0.4, y: 0.75, w: 12.5, h: 0.35, fontSize: 12, color: "475569" });
+      slide.addImage({
+        data: png, x: 0.4, y: 1.2, w: 12.5, h: 5.9,
+        sizing: { type: "contain", w: 12.5, h: 5.9 },
+      });
+      await p.writeFile({ fileName: `topologia-${_slug}.pptx` });
+    } catch (e) { setErr(`Falha ao gerar PPT: ${e.message}`); }
+    finally { setBusy(""); }
+  }
 
   useEffect(() => {
     if (!data || !box.current) return;
@@ -117,6 +161,10 @@ export default function Topology({ engagement }) {
         <div className="row">
           <button className="btn" onClick={() => cyRef.current && cyRef.current.fit()}>Ajustar</button>
           <button className="btn" onClick={load}>Atualizar</button>
+          <button className="btn" onClick={exportPng} title="Baixar a topologia como imagem PNG">🖼️ PNG</button>
+          <button className="btn" onClick={exportPpt} disabled={busy === "ppt"}
+            title="Baixar a topologia em PowerPoint (.pptx)">
+            {busy === "ppt" ? "Gerando…" : "📊 PPT"}</button>
         </div>
       </div>
 
