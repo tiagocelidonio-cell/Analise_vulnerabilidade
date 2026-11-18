@@ -223,8 +223,17 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
 {% endfor %}
 </tbody></table>
 
-<h3>Detalhamento das vulnerabilidades</h3>
-{% for f in findings %}
+<h3>Detalhamento por host</h3>
+<p class="muted small">Cada ativo é apresentado com o seu risco máximo e todos os
+   achados associados, do mais grave ao menos grave.</p>
+{% for g in by_host %}
+<div style="margin-top:18px; page-break-inside:avoid;">
+  <h3 style="border-left:6px solid {{ sev_color[g.risk] }}; padding-left:8px; background:#f8fafc;">
+    {{ g.host }}
+    <span class="pill" style="background:{{ sev_color[g.risk] }}">{{ sev_pt[g.risk]|upper }}</span>
+    <span class="muted small">— {{ g.count }} achado(s)</span></h3>
+</div>
+{% for f in g.findings %}
 <div class="finding">
   <h3 style="border-left-color:{{ sev_color[f.severity.value] }}">
     <span class="pill" style="background:{{ sev_color[f.severity.value] }}">{{ sev_pt[f.severity.value]|upper }}</span>
@@ -233,25 +242,39 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
      &nbsp;|&nbsp; Serviço: {{ f.service or '-' }}
      &nbsp;|&nbsp; Identificado em: {{ f.created_at.strftime('%d/%m/%Y') if f.created_at else '-' }}
      {% if f.cve_ids %}&nbsp;|&nbsp; CVEs: {{ f.cve_ids|join(', ') }}{% endif %}</p>
-  {% if f.ai_assessment %}
-    <h4>Descrição da vulnerabilidade</h4>
-    <p>{{ f.ai_assessment.get('cve_description') or f.description or f.ai_assessment.get('risk_summary','') }}</p>
-    <h4>Descrição do risco</h4>
-    <p>{{ f.ai_assessment.get('risk_summary','') }}
-       {% if f.ai_assessment.get('exploitability') %}<br><em>Explorabilidade:</em> {{ f.ai_assessment.get('exploitability') }}{% endif %}</p>
-    <h4>Recomendação</h4>
-    <p>{{ f.ai_assessment.get('recommendation','') }}
-       {% if f.ai_assessment.get('remediation') %}<br>{{ f.ai_assessment.get('remediation') }}{% endif %}</p>
-    {% if f.ai_assessment.get('references') %}
-      <h4>Referências / patch</h4>
-      <ul>{% for ref in f.ai_assessment.get('references') %}<li class="small">{{ ref }}</li>{% endfor %}</ul>
-    {% endif %}
+  <h4>Descrição da vulnerabilidade</h4>
+  <p>{{ (f.ai_assessment.get('cve_description') if f.ai_assessment else '') or f.description
+        or (f.ai_assessment.get('risk_summary','') if f.ai_assessment else '') or f.title }}</p>
+  <h4>Descrição do risco</h4>
+  <p>{{ (f.ai_assessment.get('risk_summary','') if f.ai_assessment else '') or f.description or '-' }}
+     {% if f.ai_assessment and f.ai_assessment.get('exploitability') %}<br><em>Explorabilidade:</em> {{ f.ai_assessment.get('exploitability') }}{% endif %}</p>
+  {% if f.data and f.data.get('cve_rule_reason') %}
+    <p class="small" style="color:#92400e"><em>Associação de CVE por regra:</em> {{ f.data.get('cve_rule_reason') }}</p>
+  {% endif %}
+  {% if f.data and f.data.get('potential_cves') %}
+    <h4>CVEs possíveis do produto (versão não confirmada)</h4>
+    <table><thead><tr><th>CVE</th><th>CVSS</th></tr></thead><tbody>
+    {% for c in f.data.get('potential_cves')[:12] %}
+      <tr><td>{{ c.cve_id }}</td><td>{{ '%.1f'|format(c.cvss) if c.cvss else '-' }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+  {% endif %}
+  <h4>Recomendação</h4>
+  <p>{{ (f.ai_assessment.get('recommendation','') if f.ai_assessment else '') or 'Revisar a exposição, restringir o acesso e manter o serviço atualizado.' }}
+     {% if f.ai_assessment and f.ai_assessment.get('remediation') %}<br>{{ f.ai_assessment.get('remediation') }}{% endif %}</p>
+  {% if f.ai_assessment and f.ai_assessment.get('references') %}
+    <h4>Referências / patch</h4>
+    <ul>{% for ref in f.ai_assessment.get('references') %}<li class="small">{{ ref }}</li>{% endfor %}</ul>
   {% endif %}
   {% if opt.include_evidence and f.evidences %}
     <h4>Evidências</h4>
     {% for ev in f.evidences %}
       <p class="meta small">{{ ev.kind }} · {{ ev.collected_at.strftime('%d/%m/%Y %H:%M UTC') }}</p>
-      <div class="evi">{{ ev.content or ev.s3_key or '(sem conteúdo inline)' }}</div>
+      {% if ev.kind == 'screenshot' and ev.content and ev.content.startswith('data:image') %}
+        <img src="{{ ev.content }}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:6px;">
+      {% else %}
+        <div class="evi">{{ ev.content or ev.s3_key or '(sem conteúdo inline)' }}</div>
+      {% endif %}
     {% endfor %}
   {% endif %}
   {% if f.ai_assessment and f.ai_assessment.get('exploit_available') %}
@@ -265,6 +288,7 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
      &nbsp;|&nbsp; Confiança: {{ '%.0f'|format(f.confidence*100) }}%
      &nbsp;|&nbsp; Visto {{ f.times_seen or 1 }}×</p>
 </div>
+{% endfor %}
 {% endfor %}
 {% if not findings %}<p class="muted">Nenhum achado no filtro selecionado.</p>{% endif %}
 
@@ -584,6 +608,18 @@ async def render_html(
          for v in topo.values()),
         key=lambda x: (_SEV_ORDER.index(x["risk"]), -x["findings"]))[:80]
 
+    # Detalhamento agrupado por HOST (host por host, risco por risco, vuln por
+    # vuln). Cada host traz seu risco máximo e seus achados ordenados.
+    host_groups: dict[str, list] = {}
+    for f in findings:
+        host_groups.setdefault(f.target or "—", []).append(f)
+    by_host = []
+    for h, fs in host_groups.items():
+        fs.sort(key=lambda f: (_SEV_ORDER.index(f.severity.value), -(f.cvss or 0)))
+        risk = _SEV_ORDER[min(_SEV_ORDER.index(f.severity.value) for f in fs)]
+        by_host.append({"host": h, "findings": fs, "risk": risk, "count": len(fs)})
+    by_host.sort(key=lambda g: (_SEV_ORDER.index(g["risk"]), -g["count"]))
+
     # Conclusão estruturada (Fatos / Achados / Implicações).
     conclusion = _conclusion(findings, surface)
     # Implicações redigidas pela IA (se houver chave), seguindo as regras; senão
@@ -613,7 +649,7 @@ async def render_html(
         hosts=hosts, targets=targets, sev_order=_SEV_ORDER, sev_color=_SEV_COLOR,
         sev_pt=_SEV_PT, exec_line=_exec_line(counts), risk=risk, risk_rows=risk_rows,
         opt=opt, surface=surface, topology=topology, conclusion=conclusion,
-        anexos=anexos, premissas=_PREMISSAS,
+        anexos=anexos, premissas=_PREMISSAS, by_host=by_host,
         generated_at=datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC"),
     )
 
