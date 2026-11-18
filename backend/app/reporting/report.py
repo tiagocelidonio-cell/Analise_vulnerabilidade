@@ -124,10 +124,12 @@ _TEMPLATE = Template(
   <tr><td><span class="pill" style="background:#a16207">BAIXO</span></td><td>0.1 – 3.9</td><td>Risco baixo. Tratar conforme viabilidade.</td></tr>
   <tr><td><span class="pill" style="background:#334155">INFO</span></td><td>—</td><td>Informativo. Sem impacto direto.</td></tr>
 </tbody></table>
+<h3>Premissas e natureza evolutiva do risco</h3>
+<div class="legal">{{ premissas }}</div>
 <h3>Aviso legal</h3>
 <div class="legal">As atividades foram executadas sob autorização formal do cliente, restritas ao
-  escopo acima. As evidências são brutas, coletadas de forma não-destrutiva, e não foram geradas
-  por IA. A reprodução deste documento é restrita ao cliente.</div>
+  escopo acima. As evidências são brutas, coletadas de forma não-destrutiva. A reprodução
+  deste documento é restrita ao cliente.</div>
 {% endif %}
 
 <h2 class="pb">2. Resumo executivo</h2>
@@ -284,7 +286,9 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
 
 <h3>Implicações — riscos para o negócio</h3>
 <p class="muted small">Além do que foi explorado, o que um atacante poderia obter,
-   nas dimensões de confidencialidade, integridade, disponibilidade e privacidade.</p>
+   nas dimensões de confidencialidade, integridade, disponibilidade e privacidade.{%
+   if conclusion.implicacoes_ai %} Redigido com apoio de IA a partir dos achados
+   desta avaliação.{% endif %}</p>
 <table><thead><tr><th>Dimensão</th><th>Implicação / risco</th></tr></thead><tbody>
   <tr><td><strong>Confidencialidade</strong></td><td>{{ conclusion.implicacoes.confidencialidade }}</td></tr>
   <tr><td><strong>Integridade</strong></td><td>{{ conclusion.implicacoes.integridade }}</td></tr>
@@ -296,6 +300,8 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
 <p>{{ exec_line }} Recomenda-se priorizar os achados de severidade crítica e alta, em especial os
    que possuem exploração ativa conhecida (KEV), seguidos pela correção dos itens de severidade
    média. A reavaliação após as correções (reteste) permite confirmar o fechamento das exposições.</p>
+<h4>Continuidade — segurança como processo</h4>
+<div class="legal">{{ premissas }}</div>
 
 {% if anexos %}
 <h2 class="pb">7. Anexos</h2>
@@ -311,7 +317,9 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
 
 <p class="muted small" style="margin-top:24px;">
   Documento confidencial. Análise realizada sob autorização do cliente.
-  Evidências são brutas e não foram geradas por IA.</p>
+  As evidências técnicas são brutas, coletadas de forma automatizada e não-destrutiva.
+  {% if conclusion.implicacoes_ai %}A redação da seção de implicações contou com apoio de IA,
+  sempre baseada nos achados desta avaliação.{% endif %}</p>
 </body></html>"""
 )
 
@@ -331,6 +339,18 @@ async def _load(session: AsyncSession, engagement_id: str, min_sev: str):
     findings.sort(key=lambda f: (_SEV_ORDER.index(f.severity.value), -(f.cvss or 0)))
     return eng, findings
 
+
+_PREMISSAS = (
+    "As vulnerabilidades identificadas e exploradas neste relatório refletem o "
+    "estado do ambiente no momento da avaliação. A segurança é dinâmica: novos "
+    "CVEs são publicados diariamente, as tecnologias evoluem e surgem ferramentas "
+    "de exploração mais avançadas — de modo que um ambiente considerado seguro "
+    "hoje pode tornar-se vulnerável amanhã, sem qualquer alteração por parte do "
+    "cliente. Por isso, a segurança não é um estado permanente obtido com uma "
+    "única avaliação, mas o resultado de PROCESSOS CONTÍNUOS de análise de "
+    "vulnerabilidades e testes de intrusão (pentest), executados periodicamente, "
+    "que acompanham a evolução das ameaças e validam a eficácia das correções "
+    "aplicadas.")
 
 _DOC_KIND_PT = {
     "nda": "Acordo de Confidencialidade (NDA)",
@@ -461,16 +481,34 @@ def _conclusion(findings: list, surface: dict) -> dict:
         "Risco à privacidade e possível exposição de dados pessoais (atenção à LGPD)."
         if priv_b else "Risco residual à privacidade neste ciclo.", priv_b)
 
+    implicacoes = {
+        "confidencialidade": confidencialidade,
+        "integridade": integridade,
+        "disponibilidade": disponibilidade,
+        "privacidade": privacidade,
+    }
+    # Contexto para a IA redigir (opcional) as implicações a partir dos MESMOS
+    # achados — a IA elabora, as regras continuam valendo (ver prompt).
+    ai_context = {
+        "achados_por_severidade": sevc,
+        "cve_count": cve_n,
+        "exploradas": exploited_list,
+        "sinais": {
+            "credenciais_fracas": cred, "injecao_sqli_xss": inj,
+            "autorizacao_idor_bola": authz, "arquivos_sensiveis": sensfile,
+            "diretorio_listavel": listado, "apis_expostas": exposed_api,
+            "emails_expostos": emails, "cve_alto_critico": cve_high,
+        },
+        "fatos": fatos,
+        "implicacoes_base": implicacoes,
+    }
     return {
         "fatos": fatos,
         "achados": {"resumo": resumo, "exploited": exploited_list,
                     "sev_counts": sevc, "cve_n": cve_n},
-        "implicacoes": {
-            "confidencialidade": confidencialidade,
-            "integridade": integridade,
-            "disponibilidade": disponibilidade,
-            "privacidade": privacidade,
-        },
+        "implicacoes": implicacoes,
+        "implicacoes_ai": False,
+        "ai_context": ai_context,
     }
 
 
@@ -548,6 +586,16 @@ async def render_html(
 
     # Conclusão estruturada (Fatos / Achados / Implicações).
     conclusion = _conclusion(findings, surface)
+    # Implicações redigidas pela IA (se houver chave), seguindo as regras; senão
+    # mantém o texto determinístico.
+    try:
+        from app.ai.agent import analyst
+        ai_impl = await analyst.write_implications(conclusion.get("ai_context", {}))
+        if ai_impl:
+            conclusion["implicacoes"] = ai_impl
+            conclusion["implicacoes_ai"] = True
+    except Exception:  # noqa: BLE001  IA nunca derruba o relatório
+        pass
 
     # Documentos do engagement (NDA etc.) citados como ANEXOS.
     from app.models import EngagementDocument
@@ -565,7 +613,7 @@ async def render_html(
         hosts=hosts, targets=targets, sev_order=_SEV_ORDER, sev_color=_SEV_COLOR,
         sev_pt=_SEV_PT, exec_line=_exec_line(counts), risk=risk, risk_rows=risk_rows,
         opt=opt, surface=surface, topology=topology, conclusion=conclusion,
-        anexos=anexos,
+        anexos=anexos, premissas=_PREMISSAS,
         generated_at=datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC"),
     )
 

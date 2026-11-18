@@ -140,6 +140,34 @@ def _stub_assessment(fact: dict, enrichment: dict) -> AiAssessment:
     )
 
 
+IMPLICATIONS_PROMPT = """Voce e um analista de seguranca senior redigindo a secao \
+de IMPLICACOES de um relatorio profissional de analise de vulnerabilidades e \
+pentest, para um publico executivo do cliente.
+
+Voce recebe um JSON com os ACHADOS reais da avaliacao (contagens por severidade, \
+vulnerabilidades exploradas, sinais presentes como credenciais fracas, injecao, \
+IDOR/BOLA, arquivos sensiveis, APIs expostas, e-mails expostos, CVEs) e bullets \
+deterministicos de apoio.
+
+REGRAS INVIOLAVEIS:
+- Baseie-se SOMENTE nos achados fornecidos. NUNCA invente vulnerabilidades, CVEs, \
+tecnologias ou impactos que nao tenham base nos dados.
+- Mantenha EXATAMENTE as quatro dimensoes: confidencialidade, integridade, \
+disponibilidade e privacidade.
+- Para cada dimensao, 1 a 3 frases, tom profissional e objetivo, focado no risco \
+de negocio e no que um atacante poderia obter (alem do que ja foi explorado).
+- Mencione a LGPD apenas quando houver indicio de dados pessoais/e-mails expostos.
+- NUNCA afirme que houve teste ou risco de negacao de servico (DoS) comprovado: \
+DoS esta FORA do escopo; no maximo mencione que software vulneravel PODERIA afetar \
+a continuidade, sem afirmar teste de DoS.
+- Se a evidencia for fraca para uma dimensao, declare o risco como residual, sem \
+exagerar.
+
+Responda SOMENTE com um objeto JSON valido, sem texto ao redor, com as chaves:
+  confidencialidade, integridade, disponibilidade, privacidade (todas strings).
+"""
+
+
 class AiAnalyst:
     """Fachada unica para o resto do sistema. Trocar de provider mora aqui."""
 
@@ -159,6 +187,30 @@ class AiAnalyst:
             self._client = AsyncAnthropic(api_key=key)
             self._key = key
         return self._client
+
+    async def write_implications(self, context: dict) -> dict | None:
+        """Redige as 4 dimensoes de IMPLICACOES a partir dos achados (seguindo as
+        regras). Retorna dict com as 4 chaves, ou None (sem chave de IA / erro /
+        resposta invalida) para o relatorio cair no texto deterministico."""
+        client = self._get_client()
+        if client is None:
+            return None
+        import json as _json
+        keys = ("confidencialidade", "integridade", "disponibilidade", "privacidade")
+        try:
+            msg = await client.messages.create(
+                model=settings.ai_model, max_tokens=900,
+                system=IMPLICATIONS_PROMPT,
+                messages=[{"role": "user",
+                           "content": _json.dumps(context, ensure_ascii=False)}],
+            )
+            text = "".join(b.text for b in msg.content if b.type == "text")
+            data = _json.loads(text)
+            if all(isinstance(data.get(k), str) and data[k].strip() for k in keys):
+                return {k: data[k].strip() for k in keys}
+        except Exception:  # noqa: BLE001  nunca derruba o relatorio
+            return None
+        return None
 
     async def assess(self, fact: dict, enrichment: dict) -> AiAssessment:
         # Fatos de cobertura/diagnostico nunca viram "vulnerabilidade": recebem
