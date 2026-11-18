@@ -266,10 +266,48 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
 {% endfor %}
 {% if not findings %}<p class="muted">Nenhum achado no filtro selecionado.</p>{% endif %}
 
-<h2 class="pb">6. Conclusão e encerramento</h2>
+<h2 class="pb">6. Conclusão</h2>
+
+<h3>Fatos — o ambiente do cliente</h3>
+<p class="muted small">O que foi confirmado como existente no ambiente avaliado
+   (tecnologias, serviços, domínios e endereços).</p>
+<ul>{% for x in conclusion.fatos %}<li>{{ x }}</li>{% endfor %}</ul>
+
+<h3>Achados — o que foi encontrado e o que foi explorado</h3>
+<p class="muted small">Vulnerabilidades identificadas e, quando confirmada, a
+   exploração realizada durante o pentest (prova de conceito não-destrutiva).</p>
+<p>{{ conclusion.achados.resumo }}</p>
+{% if conclusion.achados.exploited %}
+<p><strong style="color:#7f1d1d">Vulnerabilidades exploradas (invasão/acesso confirmado):</strong></p>
+<ul>{% for e in conclusion.achados.exploited %}<li>{{ e }}</li>{% endfor %}</ul>
+{% endif %}
+
+<h3>Implicações — riscos para o negócio</h3>
+<p class="muted small">Além do que foi explorado, o que um atacante poderia obter,
+   nas dimensões de confidencialidade, integridade, disponibilidade e privacidade.</p>
+<table><thead><tr><th>Dimensão</th><th>Implicação / risco</th></tr></thead><tbody>
+  <tr><td><strong>Confidencialidade</strong></td><td>{{ conclusion.implicacoes.confidencialidade }}</td></tr>
+  <tr><td><strong>Integridade</strong></td><td>{{ conclusion.implicacoes.integridade }}</td></tr>
+  <tr><td><strong>Disponibilidade</strong></td><td>{{ conclusion.implicacoes.disponibilidade }}</td></tr>
+  <tr><td><strong>Privacidade</strong></td><td>{{ conclusion.implicacoes.privacidade }}</td></tr>
+</tbody></table>
+
+<h3>Encerramento</h3>
 <p>{{ exec_line }} Recomenda-se priorizar os achados de severidade crítica e alta, em especial os
    que possuem exploração ativa conhecida (KEV), seguidos pela correção dos itens de severidade
    média. A reavaliação após as correções (reteste) permite confirmar o fechamento das exposições.</p>
+
+{% if anexos %}
+<h2 class="pb">7. Anexos</h2>
+<p>Os documentos a seguir integram este engagement e são citados como anexos
+   deste relatório. O conteúdo é mantido em arquivo e disponibilizado ao cliente
+   em separado, conforme os termos de confidencialidade acordados.</p>
+<table><thead><tr><th>#</th><th>Documento</th><th>Arquivo</th><th>Registrado em</th></tr></thead><tbody>
+{% for a in anexos %}
+<tr><td>Anexo {{ loop.index }}</td><td>{{ a.label }}</td><td>{{ a.filename }}</td><td>{{ a.uploaded_at }}</td></tr>
+{% endfor %}
+</tbody></table>
+{% endif %}
 
 <p class="muted small" style="margin-top:24px;">
   Documento confidencial. Análise realizada sob autorização do cliente.
@@ -292,6 +330,148 @@ async def _load(session: AsyncSession, engagement_id: str, min_sev: str):
     findings = [f for f in findings if _SEV_ORDER.index(f.severity.value) <= max_rank]
     findings.sort(key=lambda f: (_SEV_ORDER.index(f.severity.value), -(f.cvss or 0)))
     return eng, findings
+
+
+_DOC_KIND_PT = {
+    "nda": "Acordo de Confidencialidade (NDA)",
+    "authorization": "Autorização formal / Carta de autorização",
+    "goocj": "Termo de ciência (GOOCJ)",
+    "prior_report": "Relatório anterior",
+    "other": "Documento de apoio",
+}
+
+
+def _conclusion(findings: list, surface: dict) -> dict:
+    """Monta a conclusão estruturada: FATOS, ACHADOS e IMPLICAÇÕES, a partir das
+    etapas (inventário → vulnerabilidades/CVE → risco → exploração/pentest)."""
+    c = (surface or {}).get("counts", {}) if isinstance(surface, dict) else {}
+
+    # ----- FATOS: o que EXISTE no ambiente do cliente (inventário factual) -----
+    fatos: list[str] = []
+    inv = []
+    if c.get("domains"):
+        inv.append(f"{c['domains']} domínio(s)")
+    if c.get("subdomains"):
+        inv.append(f"{c['subdomains']} subdomínio(s)")
+    if c.get("ips"):
+        inv.append(f"{c['ips']} endereço(s) IP")
+    if c.get("services"):
+        inv.append(f"{c['services']} serviço(s) ({c.get('web_services', 0)} web)")
+    if inv:
+        fatos.append("Superfície identificada: " + ", ".join(inv) + ".")
+    if c.get("emails"):
+        fatos.append(f"{c['emails']} e-mail(s) corporativo(s) localizados em fontes públicas (OSINT).")
+    techs = []
+    for cat in ((surface or {}).get("tech_map") or []):
+        for it in (cat.get("items") or [])[:6]:
+            if it.get("tech"):
+                techs.append(it["tech"])
+    techs = techs[:12]
+    if techs:
+        fatos.append("Tecnologias e serviços em uso: " + ", ".join(techs) + ".")
+    if not fatos:
+        fatos.append("Inventário insuficiente neste ciclo para consolidar fatos de ambiente.")
+
+    # ----- ACHADOS: o que foi ENCONTRADO (e o que foi EXPLORADO no pentest) -----
+    real = [f for f in findings if f.severity.value != "info"]
+    sevc = {s: sum(1 for f in real if f.severity.value == s)
+            for s in ("critical", "high", "medium", "low")}
+    cve_n = sum(1 for f in findings if f.cve_ids)
+    exploited = [f for f in findings if (f.data or {}).get("validated")]
+    exploited_list = [
+        f"{f.title} — {f.target}{(':' + str(f.port)) if f.port else ''}"
+        for f in exploited]
+
+    partes = []
+    for s, lbl in (("critical", "crítico(s)"), ("high", "alto(s)"),
+                   ("medium", "médio(s)"), ("low", "baixo(s)")):
+        if sevc[s]:
+            partes.append(f"{sevc[s]} {lbl}")
+    resumo = ("Foram identificados " + ", ".join(partes) + " achado(s) de segurança"
+              if partes else "Não foram identificadas vulnerabilidades de severidade relevante")
+    if cve_n:
+        resumo += f", com {cve_n} achado(s) associado(s) a CVE(s) conhecido(s)"
+    resumo += "."
+    if exploited:
+        resumo += (f" Em {len(exploited)} caso(s), a exploração foi CONFIRMADA de "
+                   "forma controlada — ou seja, além de vulnerável, foi possível "
+                   "explorar o ambiente (prova de conceito não-destrutiva).")
+    else:
+        resumo += (" Nenhuma exploração ativa foi confirmada nesta janela; os "
+                   "achados refletem exposição e vulnerabilidade potencial.")
+
+    # ----- IMPLICAÇÕES: riscos para C, I, D e Privacidade -----
+    vulset = {(f.data or {}).get("vuln") for f in findings}
+    catset = {(f.data or {}).get("category") for f in findings}
+    cred = "weak_credentials" in vulset
+    inj = bool({"sqli", "xss"} & vulset)
+    authz = bool({"idor", "broken_auth"} & vulset)
+    sensfile = "arquivo_sensivel" in catset
+    listado = "diretorio_listado" in catset
+    exposed_api = any((f.data or {}).get("kind") == "api_surface" for f in findings)
+    emails = bool(c.get("emails"))
+    cve_high = any(f.severity.value in ("critical", "high") and f.cve_ids
+                   for f in findings)
+    has_high = bool(sevc["critical"] or sevc["high"])
+
+    def _join(base, bullets):
+        extra = (" Em especial: " + "; ".join(bullets) + ".") if bullets else ""
+        return base + extra
+
+    conf_b = []
+    if cred:
+        conf_b.append("credenciais fracas/padrão permitem acesso autenticado não autorizado")
+    if inj:
+        conf_b.append("injeção (SQLi/XSS) pode expor dados e sessões")
+    if authz:
+        conf_b.append("falhas de autorização (IDOR/BOLA) expõem dados de outros usuários")
+    if sensfile or listado:
+        conf_b.append("arquivos/diretórios sensíveis acessíveis podem vazar segredos e código")
+    if exposed_api:
+        conf_b.append("APIs expostas ampliam a superfície de coleta de informação")
+    confidencialidade = _join(
+        "Risco ELEVADO de exposição de informações." if (conf_b or has_high)
+        else "Risco residual de exposição de informações.", conf_b)
+
+    integ_b = []
+    if inj:
+        integ_b.append("SQLi pode permitir alteração/inserção de registros")
+    if cred or authz:
+        integ_b.append("acesso autenticado indevido permite modificar dados e configurações")
+    integridade = _join(
+        "Risco de alteração não autorizada de dados." if integ_b
+        else "Risco baixo à integridade, limitado às vulnerabilidades listadas.", integ_b)
+
+    disp_b = []
+    if cve_high:
+        disp_b.append("serviços com CVEs conhecidos podem ser abusados para degradar a operação")
+    disponibilidade = _join(
+        "Risco à continuidade do serviço decorrente de software vulnerável." if disp_b
+        else "Sem indícios diretos de risco à disponibilidade neste ciclo.",
+        disp_b) + " Não foram executados testes de negação de serviço (DoS), fora do escopo."
+
+    priv_b = []
+    if emails:
+        priv_b.append("e-mails corporativos expostos favorecem phishing/engenharia social")
+    if authz:
+        priv_b.append("IDOR/BOLA pode expor dados pessoais de titulares")
+    if sensfile:
+        priv_b.append("arquivos sensíveis podem conter dados pessoais")
+    privacidade = _join(
+        "Risco à privacidade e possível exposição de dados pessoais (atenção à LGPD)."
+        if priv_b else "Risco residual à privacidade neste ciclo.", priv_b)
+
+    return {
+        "fatos": fatos,
+        "achados": {"resumo": resumo, "exploited": exploited_list,
+                    "sev_counts": sevc, "cve_n": cve_n},
+        "implicacoes": {
+            "confidencialidade": confidencialidade,
+            "integridade": integridade,
+            "disponibilidade": disponibilidade,
+            "privacidade": privacidade,
+        },
+    }
 
 
 def _exec_line(counts: dict) -> str:
@@ -366,11 +546,26 @@ async def render_html(
          for v in topo.values()),
         key=lambda x: (_SEV_ORDER.index(x["risk"]), -x["findings"]))[:80]
 
+    # Conclusão estruturada (Fatos / Achados / Implicações).
+    conclusion = _conclusion(findings, surface)
+
+    # Documentos do engagement (NDA etc.) citados como ANEXOS.
+    from app.models import EngagementDocument
+    docs = list(await session.scalars(
+        select(EngagementDocument)
+        .where(EngagementDocument.engagement_id == engagement_id)
+        .order_by(EngagementDocument.uploaded_at)))
+    anexos = [{"label": _DOC_KIND_PT.get(d.kind, "Documento de apoio"),
+               "filename": d.filename,
+               "uploaded_at": d.uploaded_at.strftime("%d/%m/%Y")
+               if d.uploaded_at else "-"} for d in docs]
+
     return _TEMPLATE.render(
         eng=eng, findings=findings, counts=counts, total=len(findings),
         hosts=hosts, targets=targets, sev_order=_SEV_ORDER, sev_color=_SEV_COLOR,
         sev_pt=_SEV_PT, exec_line=_exec_line(counts), risk=risk, risk_rows=risk_rows,
-        opt=opt, surface=surface, topology=topology,
+        opt=opt, surface=surface, topology=topology, conclusion=conclusion,
+        anexos=anexos,
         generated_at=datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC"),
     )
 
