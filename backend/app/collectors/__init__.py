@@ -5,6 +5,7 @@ from app.collectors.google_dorks import GoogleDorksCollector
 from app.collectors.host_discovery import HostDiscoveryCollector
 from app.collectors.http_probe import HttpProbeCollector
 from app.collectors.leaks import LeaksCollector
+from app.collectors.net_recon import NetReconCollector
 from app.collectors.nmap_scan import NmapCollector
 from app.collectors.nuclei_scan import NucleiCollector
 from app.collectors.osint import OsintCollector
@@ -27,6 +28,7 @@ COLLECTORS = {
     "content_discovery": ContentDiscoveryCollector(),
     "web_vuln": NucleiCollector(),
     "subdomain_enum": SubfinderCollector(),
+    "net_recon": NetReconCollector(),
     "wayback": WaybackCollector(),
     "google_dorks": GoogleDorksCollector(),
     "tech_detect": TechDetectCollector(),
@@ -48,7 +50,7 @@ EXPLOIT_COLLECTORS = {"web_exploit", "cred_attack", "api_exploit"}
 # Ordem canonica das ETAPAS do pipeline (quando varias sao selecionadas).
 # Cada etapa usa o resultado da anterior (hosts vivos -> portas -> web...).
 STAGE_ORDER = [
-    "subdomain_enum", "osint", "host_discovery", "port_scan", "http_probe",
+    "subdomain_enum", "net_recon", "osint", "host_discovery", "port_scan", "http_probe",
     "tech_detect", "web_content", "content_discovery", "web_vuln",
     "web_exploit", "api_exploit", "cred_attack", "screenshot", "wayback",
     "google_dorks", "leaks",
@@ -57,6 +59,7 @@ STAGE_ORDER = [
 # Rotulo funcional (UI nunca ve o nome do binario).
 STAGE_LABELS = {
     "subdomain_enum": "Enumeração de ativos",
+    "net_recon": "Rede e proteções (DNS/WAF/e-mail)",
     "osint": "OSINT (e-mails, domínios, IPs)",
     "host_discovery": "Descoberta de hosts ativos",
     "port_scan": "Descoberta de portas e serviços",

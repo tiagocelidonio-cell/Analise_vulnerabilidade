@@ -307,6 +307,14 @@ identificados em cada host. (A versão interativa está no painel &gt; Topologia
    (tecnologias, serviços, domínios e endereços).</p>
 <ul>{% for x in conclusion.fatos %}<li>{{ x }}</li>{% endfor %}</ul>
 
+{% if conclusion.protecoes %}
+<h3>Camadas de proteção identificadas</h3>
+<p class="muted small">Mecanismos de defesa detectados no perímetro — mérito da
+   equipe de segurança do cliente. A existência dessas camadas também orienta a
+   estratégia do pentest.</p>
+<ul>{% for x in conclusion.protecoes %}<li>{{ x }}</li>{% endfor %}</ul>
+{% endif %}
+
 <h3>Achados — o que foi encontrado e o que foi explorado</h3>
 <p class="muted small">Vulnerabilidades identificadas e, quando confirmada, a
    exploração realizada durante o pentest (prova de conceito não-destrutiva).</p>
@@ -424,6 +432,16 @@ def _conclusion(findings: list, surface: dict) -> dict:
     if not fatos:
         fatos.append("Inventário insuficiente neste ciclo para consolidar fatos de ambiente.")
 
+    # Camadas de proteção (mérito da equipe de segurança; orientam o pentest).
+    protecoes: list[str] = []
+    for f in findings:
+        d = f.data or {}
+        if d.get("kind") == "protection" and d.get("protection"):
+            for k, v in (d.get("layers") or {}).items():
+                item = f"{k}: {v}"
+                if item not in protecoes:
+                    protecoes.append(item)
+
     # ----- ACHADOS: o que foi ENCONTRADO (e o que foi EXPLORADO no pentest) -----
     real = [f for f in findings if f.severity.value != "info"]
     sevc = {s: sum(1 for f in real if f.severity.value == s)
@@ -536,6 +554,7 @@ def _conclusion(findings: list, surface: dict) -> dict:
     }
     return {
         "fatos": fatos,
+        "protecoes": protecoes,
         "achados": {"resumo": resumo, "exploited": exploited_list,
                     "sev_counts": sevc, "cve_n": cve_n},
         "implicacoes": implicacoes,

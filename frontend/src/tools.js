@@ -17,6 +17,7 @@ export const CATEGORIES = [
   },
   {
     cat: "Varredura", items: [
+      { name: "Rede e Proteções", icon: "🛡️", kind: "domain", desc: "DNS (registros, hospedagem, provedor de DNS) + camadas de proteção: CDN/WAF, gateway de e-mail, DMARC/SPF/DNSSEC/CAA. As proteções entram na topologia e no relatório e orientam o pentest. Passivo.", collectors: ["net_recon"] },
       { name: "Descoberta de Portas", icon: "📡", kind: "host", desc: "Portas, serviços e versões (acha host sem ping). Completo = CVEs por versão.", collectors: ["port_scan"] },
       { name: "Varredura de Rede", icon: "🖧", kind: "host", desc: "Range completo + tecnologias + captura de tela. Acha todos os hosts ativos.", collectors: ["port_scan", "http_probe", "tech_detect", "screenshot"] },
       { name: "Varredura Web", icon: "🕷️", kind: "url", desc: "Mapeamento de conteúdo + tecnologias + captura de tela + verificação de vulnerabilidades.", collectors: ["http_probe", "web_content", "content_discovery", "tech_detect", "screenshot", "web_vuln"] },
