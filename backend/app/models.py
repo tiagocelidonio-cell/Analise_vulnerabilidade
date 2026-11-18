@@ -130,6 +130,8 @@ class ScanJob(Base):
     substeps: Mapped[list] = mapped_column(JSON, default=list)
     # Log de execução ao vivo (terminal): [{ts, level, msg}]. Ultimas ~500.
     log: Mapped[list] = mapped_column(JSON, default=list)
+    # Parâmetros extras por scan (ex.: ataque de credenciais -> listas/modo).
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     pause_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     # Batimento: atualizado enquanto o scan trabalha (inclusive durante um
@@ -338,3 +340,22 @@ class AuditLog(Base):
     path: Mapped[str] = mapped_column(String, default="")
     status: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=_now)
+
+
+class CredentialList(Base):
+    """Biblioteca de credenciais para o ataque de credenciais (gated).
+
+    kind: 'passwords' (uma senha por linha), 'users' (um usuario por linha) ou
+    'pairs' (user:pass por linha). 'builtin' marca listas publicas embutidas.
+    """
+
+    __tablename__ = "credential_lists"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    kind: Mapped[str] = mapped_column(String, default="passwords")
+    content: Mapped[str] = mapped_column(Text, default="")
+    builtin: Mapped[bool] = mapped_column(Boolean, default=False)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

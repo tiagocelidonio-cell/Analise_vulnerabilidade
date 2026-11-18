@@ -524,7 +524,8 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                             facts.extend(await asyncio.wait_for(collector.run(
                                 batch, ports=scan.ports or None, profile=prof,
                                 cancel_check=_abort_check, on_tick=_beat,
-                                steps=steps, on_log=_log), timeout=left))
+                                steps=steps, on_log=_log,
+                                params=scan.params or {}), timeout=left))
                             frac = (j + len(batch)) / len(tlist)
                             scan.phase = (f"Etapa {i + 1}/{nstages}: {label} "
                                           f"({int(frac * 100)}%)")
@@ -533,7 +534,7 @@ async def run_scan(ctx: dict, scan_id: str) -> dict:
                         facts = await asyncio.wait_for(collector.run(
                             tlist, ports=scan.ports or None, profile=prof,
                             cancel_check=_abort_check, on_tick=_beat, steps=steps,
-                            on_log=_log), timeout=_stage_to)
+                            on_log=_log, params=scan.params or {}), timeout=_stage_to)
                 except asyncio.TimeoutError:
                     entry["status"] = "failed"
                     entry["error"] = f"tempo esgotado (> {_stage_to}s) — etapa abortada"

@@ -57,6 +57,7 @@ async def create_scan(
         collectors=body.collectors,
         profile=body.profile if body.profile in ("basic", "full") else "full",
         substeps=body.steps or [],
+        params=body.params or {},
         status=ScanStatus.queued,
     )
     session.add(scan)

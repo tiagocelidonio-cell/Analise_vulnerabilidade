@@ -21,4 +21,5 @@ class CredAttackCollector:
             cancel_check=kwargs.get("cancel_check"),
             on_tick=kwargs.get("on_tick"),
             on_log=kwargs.get("on_log"),
+            params=kwargs.get("params") or {},
         )

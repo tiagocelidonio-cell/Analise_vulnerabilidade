@@ -86,6 +86,8 @@ class ScanCreate(BaseModel):
     profile: str = "full"  # basic | full
     # Sub-passos selecionados ("<collector>:<passo>"). Vazio = roda tudo.
     steps: list[str] = Field(default_factory=list)
+    # Parâmetros extras (ex.: ataque de credenciais: {cred_lists, cred_extra, cred_mode}).
+    params: dict = Field(default_factory=dict)
 
 
 class ScanOut(BaseModel):

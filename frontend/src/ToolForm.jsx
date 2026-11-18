@@ -40,8 +40,26 @@ function modeText(tool, scanType) {
 export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, initialTarget }) {
   const isExploit = tool.exploit !== undefined;
   const isPortTool = (tool.collectors || []).includes("port_scan");
+  const hasCred = (tool.collectors || []).includes("cred_attack");
   const hasProfiles = (tool.collectors || []).some((c) => c === "port_scan" || c === "web_vuln");
   const mask = MASKS[tool.kind] || MASKS.host;
+
+  // Ataque de credenciais: biblioteca + modo + colar na hora.
+  const [wordlists, setWordlists] = useState([]);
+  const [credLists, setCredLists] = useState(() => new Set());
+  const [credMode, setCredMode] = useState("cauteloso");
+  const [credExtra, setCredExtra] = useState("");
+  useEffect(() => {
+    if (!hasCred) return;
+    api.listWordlists().then((ls) => {
+      setWordlists(ls);
+      // Por padrão marca as listas públicas embutidas.
+      setCredLists(new Set(ls.filter((l) => l.builtin).map((l) => l.id)));
+    }).catch(() => setWordlists([]));
+  }, [hasCred]);
+  function toggleCredList(id) {
+    setCredLists((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
 
   // Alvo começa VAZIO (máscara é só exemplo). Só herda se veio de "escanear
   // selecionados" nos Achados.
@@ -149,6 +167,9 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
         targets: targetList(), ports: portsForRun(), collectors: tool.collectors,
         profile: scanType === "light" ? "basic" : "full",
         steps: [...selSteps],
+        params: hasCred ? {
+          cred_lists: [...credLists], cred_mode: credMode, cred_extra: credExtra,
+        } : {},
       });
       onRan && onRan(`${tool.name} iniciada.`);
       onClose();
@@ -278,6 +299,50 @@ export default function ToolForm({ engagement, tool, onClose, onRan, onUpdated, 
                 <span className="muted" style={{ fontSize: 11 }}>
                   Passos marcados “sempre” são o núcleo da capacidade e não podem ser desligados.
                 </span>
+              </div>
+            )}
+
+            {/* ATAQUE DE CREDENCIAIS: biblioteca + modo + colar/importar. */}
+            {hasCred && (
+              <div className="info" style={{ marginTop: 12 }}>
+                <b>Credenciais a testar</b>
+                <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>
+                  Escolha as listas da biblioteca (gerencie em Administração ›
+                  Credenciais), cole credenciais na hora, ou ambos.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 150, overflow: "auto" }}>
+                  {wordlists.length === 0 && <span className="muted" style={{ fontSize: 12 }}>Nenhuma lista. Cole abaixo ou crie em Administração › Credenciais.</span>}
+                  {wordlists.map((l) => (
+                    <label key={l.id} className="check" style={{ display: "flex", gap: 6 }}>
+                      <input type="checkbox" checked={credLists.has(l.id)} onChange={() => toggleCredList(l.id)} />
+                      <span>{l.name} <span className="muted" style={{ fontSize: 11 }}>· {l.kind} · {l.count}{l.builtin ? " · público" : ""}</span></span>
+                    </label>
+                  ))}
+                </div>
+
+                <label className="muted" style={{ fontSize: 12, marginTop: 8, display: "block" }}>
+                  Colar na hora (uma por linha — senha, ou user:pass):
+                </label>
+                <textarea value={credExtra} onChange={(e) => setCredExtra(e.target.value)}
+                  placeholder={"admin:admin\nP@ssw0rd\nroot:toor"} style={{ minHeight: 60, fontFamily: "monospace", fontSize: 12 }} />
+                <label className="btn" style={{ cursor: "pointer", marginTop: 4, display: "inline-block", padding: "3px 10px" }}>
+                  Importar .txt
+                  <input type="file" accept=".txt,text/plain" style={{ display: "none" }}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (!f) return;
+                      const rd = new FileReader(); rd.onload = () => setCredExtra((p) => (p ? p + "\n" : "") + String(rd.result || "")); rd.readAsText(f); }} />
+                </label>
+
+                <label className="muted" style={{ fontSize: 12, marginTop: 10, display: "block" }}>Modo (velocidade × risco de bloqueio):</label>
+                <div className="row" style={{ gap: 14, flexWrap: "wrap" }}>
+                  {[["cauteloso", "Cauteloso (anti-lockout, seguro)"], ["balanceado", "Balanceado"], ["agressivo", "Agressivo (rápido — risco de bloqueio)"]].map(([v, l]) => (
+                    <label key={v} className="check"><input type="radio" checked={credMode === v} onChange={() => setCredMode(v)} /> {l}</label>
+                  ))}
+                </div>
+                {credMode === "agressivo" && (
+                  <div className="warn" style={{ fontSize: 11, marginTop: 6 }}>
+                    ⚠ Modo agressivo pode BLOQUEAR contas (lockout) em login web. Use só onde há autorização para isso (ex.: SSH/FTP). A estimativa de tempo aparece no log do scan.
+                  </div>
+                )}
               </div>
             )}
           </>

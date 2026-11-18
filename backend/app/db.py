@@ -57,6 +57,7 @@ _MIGRATIONS = [
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS stages JSON DEFAULT '[]'",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS substeps JSON DEFAULT '[]'",
     "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS log JSON DEFAULT '[]'",
+    "ALTER TABLE scan_jobs ADD COLUMN IF NOT EXISTS params JSON DEFAULT '{}'",
     "ALTER TABLE cve_remediation ADD COLUMN IF NOT EXISTS published TIMESTAMPTZ",
     "ALTER TABLE cve_remediation ADD COLUMN IF NOT EXISTS products JSON DEFAULT '[]'",
     "ALTER TABLE cve_remediation ADD COLUMN IF NOT EXISTS cpe JSON DEFAULT '[]'",

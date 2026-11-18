@@ -27,6 +27,7 @@ from app.api import (
     integrations,
     netlookup,
     overview,
+    wordlists,
     postexploit,
     reports,
     risk,
@@ -44,6 +45,9 @@ async def lifespan(app: FastAPI):
     await init_db()
     async with SessionLocal() as session:
         await ensure_seed_admin(session)
+        # Listas públicas de credenciais embutidas.
+        from app.wordlists_builtin import seed_builtin_wordlists
+        await seed_builtin_wordlists(session)
         # Chaves de API salvas no painel sobrepoem o .env.
         from app.api.integrations import apply_db_keys
         await apply_db_keys(session)
@@ -116,6 +120,7 @@ app.include_router(surface.router, dependencies=_auth)
 app.include_router(topology.router, dependencies=_auth)
 app.include_router(intel.router, dependencies=_auth)
 app.include_router(netlookup.router, dependencies=_auth)
+app.include_router(wordlists.router, dependencies=_auth)
 
 
 @app.exception_handler(Exception)
