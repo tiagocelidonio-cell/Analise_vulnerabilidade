@@ -284,6 +284,14 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
         <td><span className="pill" style={{ background: st.c, fontSize: 10 }}>{st.l}</span></td>
         <td>{f.target}{f.port ? `:${f.port}` : ""}</td>
         <td>{f.title}
+          {(f.data?.kind === "coverage") && <span className="persist"
+            title="Relatório de cobertura: o que foi testado e o resultado. Não é uma vulnerabilidade."
+            style={{ background: "#1c476b", color: "#dbeafe", borderColor: "#1c476b" }}>
+            ℹ cobertura</span>}
+          {(f.data?.kind === "api_surface") && <span className="persist"
+            title="Superfície exposta mapeada (informativo)"
+            style={{ background: "#1c476b", color: "#dbeafe", borderColor: "#1c476b" }}>
+            ℹ superfície</span>}
           {f.times_seen > 1 && <span className="persist" title="encontrado em múltiplos scans">
             persiste ×{f.times_seen}</span>}
           {f.ai_assessment?.exploit_available && <span className="persist"
@@ -428,7 +436,10 @@ function FindingRow({ f, selected, onToggle, onUpdated }) {
                 </ul>
               </div>
             )}
-            <p className="muted">Avaliado por: {a.model || "stub"}</p>
+            <p className="muted">Avaliação: {
+              a.model === "cobertura" ? "diagnóstico automático (cobertura do teste)"
+              : a.model === "stub" || !a.model ? "heurística determinística (sem IA configurada)"
+              : a.model}</p>
             {f.evidences?.map((ev) => (
               <div key={ev.id}>
                 <p className="muted">Evidência ({ev.kind}):</p>

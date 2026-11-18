@@ -165,6 +165,18 @@ async def persist_facts(session, eng, scan, facts, exploit_cache, halted,
             existing.ai_assessment = {**(existing.ai_assessment or {}), **assess_dict}
             if fdata:
                 existing.data = {**(existing.data or {}), **fdata}
+            # Screenshot: no re-scan, SUBSTITUI a evidência visual (a imagem é
+            # nova a cada captura). Antes só o achado NOVO ganhava screenshot ->
+            # re-escanear nunca atualizava a captura.
+            shot = fact.data.get("screenshot_b64")
+            if shot:
+                from sqlalchemy import delete as _delete
+                await session.execute(
+                    _delete(Evidence).where(Evidence.finding_id == existing.id,
+                                            Evidence.kind == "screenshot"))
+                session.add(Evidence(
+                    finding_id=existing.id, kind="screenshot",
+                    content="data:image/png;base64," + shot))
         else:
             finding = Finding(
                 engagement_id=eng.id, scan_id=scan.id,

@@ -48,7 +48,17 @@ class ScreenshotCollector:
         chrome = _chromium()
         cancel_check = kwargs.get("cancel_check")
         on_tick = kwargs.get("on_tick")
+        on_log = kwargs.get("on_log")
+
+        def _lg(m, lvl="info"):
+            if on_log:
+                try:
+                    on_log(m, lvl)
+                except Exception:  # noqa: BLE001
+                    pass
+
         if chrome is None:
+            _lg("  Chromium não encontrado — captura de tela indisponível", "warn")
             return [CollectedFact(
                 target=targets[0] if targets else "-", service="screenshot",
                 title="Captura de tela indisponível (Chromium não instalado)",
@@ -68,11 +78,14 @@ class ScreenshotCollector:
                         return f"{_scheme(p)}://{host}:{p}"
             return None
 
+        _lg(f"  Chromium: {chrome}")
         alive = [u for u in await asyncio.gather(*(first_alive(h) for h in hosts)) if u]
+        _lg(f"  {len(alive)} host(s) web respondendo (de {len(hosts)}) — capturando")
 
         # 2) Captura (sequencial, chromium e pesado) ate o teto.
         facts: list[CollectedFact] = []
         count = 0
+        fails = 0
         for url in alive:
             if count >= _MAX:
                 break
@@ -91,25 +104,49 @@ class ScreenshotCollector:
                     "--virtual-time-budget=8000", "--window-size=1280,800",
                     f"--screenshot={tmp}", url]
             b64 = None
+            err = None
             try:
                 # Teto de 25s por captura: pagina ruim nunca pendura o scan.
                 await run_killable(args, cancel_check=cancel_check, on_tick=on_tick,
-                                   max_seconds=25, on_log=kwargs.get("on_log"))
+                                   max_seconds=25, on_log=on_log)
                 if os.path.exists(tmp) and os.path.getsize(tmp) > 0:
                     with open(tmp, "rb") as fh:
                         b64 = base64.b64encode(fh.read()).decode("ascii")
+                else:
+                    err = "Chromium não gerou a imagem (página pesada, timeout ou bloqueio)"
+            except Exception as exc:  # noqa: BLE001
+                err = f"{type(exc).__name__}: {exc}"
             finally:
                 try:
                     os.unlink(tmp)
                 except OSError:
                     pass
             if not b64:
+                fails += 1
+                _lg(f"  ✕ captura falhou em {url}: {err}", "warn")
                 continue
             count += 1
+            _lg(f"  ✓ captura de {url}")
             facts.append(CollectedFact(
                 target=host, port=p, service="screenshot",
                 title=f"Captura de tela: {url}",
                 raw=url,
                 data={"severity_hint": "info", "source": "screenshot",
                       "screenshot_b64": b64, "url": url}))
+
+        # Transparência: se havia hosts web mas nenhuma captura saiu, não fica
+        # silencioso — emite um diagnóstico explicando.
+        if alive and count == 0:
+            facts.append(CollectedFact(
+                target=alive[0].split("://")[-1].split(":")[0], service="diag",
+                title="Cobertura — Captura de tela sem imagens",
+                raw=(f"MOTOR    : Chromium headless ({chrome}).\n"
+                     f"HOSTS WEB : {len(alive)} responderam; CAPTURAS: 0 "
+                     f"({fails} falha(s)).\n"
+                     "CAUSA PROVÁVEL: páginas demoram mais que 25s, bloqueiam "
+                     "headless, ou exigem TLS/autenticação. Nenhum erro derruba "
+                     "o scan — a etapa é apenas evidência visual."),
+                data={"severity_hint": "info", "kind": "coverage",
+                      "source": "screenshot_diag", "found": 0,
+                      "note": f"{len(alive)} host(s) web, 0 captura(s), {fails} falha(s)."}))
         return facts

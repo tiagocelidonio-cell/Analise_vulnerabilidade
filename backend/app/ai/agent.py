@@ -45,6 +45,33 @@ class AiAssessment:
         return asdict(self)
 
 
+def _coverage_assessment(fact: dict) -> AiAssessment:
+    """Avaliacao determinista para fatos de COBERTURA/diagnostico (o que foi
+    testado), NUNCA tratados como vulnerabilidade. Vale para stub e IA."""
+    data = fact.get("data") or {}
+    note = data.get("note") or "teste executado."
+    found = int(data.get("found", 0) or 0)
+    return AiAssessment(
+        severity="info",
+        confidence=0.9,
+        exploitability="Cobertura de teste — não é uma vulnerabilidade.",
+        risk_summary=("Cobertura do teste (o que foi verificado): " + note),
+        recommendation=(
+            "Nenhuma ação necessária: o resultado negativo é evidência de "
+            "robustez do alvo para este vetor de ataque."
+            if not found else
+            "Veja os achados confirmados desta etapa, listados à parte."),
+        model="cobertura",
+    )
+
+
+def _is_coverage(fact: dict) -> bool:
+    data = fact.get("data") or {}
+    return (data.get("kind") == "coverage"
+            or (fact.get("service") or "") in ("diag",)
+            or str(data.get("source") or "").endswith("_diag"))
+
+
 def _stub_assessment(fact: dict, enrichment: dict) -> AiAssessment:
     """Heuristica deterministica usada quando nao ha chave de IA."""
     any_kev = enrichment.get("any_kev", False)
@@ -88,18 +115,26 @@ def _stub_assessment(fact: dict, enrichment: dict) -> AiAssessment:
     else:
         conf = 0.50
 
+    # Resumo de risco: para servicos de REDE (porta aberta) descreve a exposicao;
+    # para achados web/exploracao/conteudo (sem porta) usa o TITULO do achado, que
+    # ja e' descritivo — evita o confuso "Servico content exposto em host:None".
+    port = fact.get("port")
+    title = (fact.get("title") or "").strip()
+    note = (data.get("note") or "").strip()
+    if port:
+        risk_summary = (f"Servico {service or 'desconhecido'} exposto em "
+                        f"{fact.get('target')}:{port}.")
+    else:
+        risk_summary = note or title or f"Exposicao detectada em {fact.get('target')}."
     return AiAssessment(
         severity=sev,
         confidence=conf,
         exploitability=(
             "Explorado ativamente (KEV)." if any_kev
             else f"EPSS max={max_epss:.2f}." if max_epss
-            else "Sem CVE associado; exposicao de servico."
+            else "Sem CVE associado; exposicao/observacao de superficie."
         ),
-        risk_summary=(
-            f"Servico {service or 'desconhecido'} exposto em "
-            f"{fact.get('target')}:{fact.get('port')}."
-        ),
+        risk_summary=risk_summary,
         recommendation="Revisar exposicao, restringir acesso e atualizar o servico.",
         model="stub",
     )
@@ -126,6 +161,10 @@ class AiAnalyst:
         return self._client
 
     async def assess(self, fact: dict, enrichment: dict) -> AiAssessment:
+        # Fatos de cobertura/diagnostico nunca viram "vulnerabilidade": recebem
+        # uma avaliacao informativa clara, sem passar pela IA.
+        if _is_coverage(fact):
+            return _coverage_assessment(fact)
         client = self._get_client()
         if client is None:
             return _stub_assessment(fact, enrichment)
