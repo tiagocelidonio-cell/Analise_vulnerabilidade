@@ -7,7 +7,7 @@ const RISK_COLOR = {
 };
 const TYPE_SHAPE = {
   domain: "round-rectangle", subdomain: "ellipse", host: "ellipse",
-  ip: "diamond", service: "hexagon",
+  ip: "diamond", service: "hexagon", protection: "tag",
 };
 
 export async function captureTopologyPng(data) {
@@ -18,7 +18,8 @@ export async function captureTopologyPng(data) {
   try {
     const elements = [
       ...data.nodes.map((n) => ({
-        data: { id: n.id, label: n.label, type: n.type, risk: n.risk, findings: n.findings },
+        data: { id: n.id, label: n.label, type: n.type, risk: n.risk,
+          findings: n.findings, protection: n.protection ? 1 : 0 },
       })),
       ...data.edges.map((e, i) => ({ data: { id: `e${i}`, source: e.source, target: e.target } })),
     ];
@@ -41,6 +42,14 @@ export async function captureTopologyPng(data) {
           },
         },
         { selector: "edge", style: { "width": 1.2, "line-color": "#334155", "curve-style": "bezier", "opacity": 0.55 } },
+        {
+          selector: 'node[protection = 1]',
+          style: {
+            "background-color": "#15803d", "shape": "tag",
+            "border-color": "#22c55e", "border-width": 2,
+            "color": "#dcfce7", "width": 22, "height": 16,
+          },
+        },
         {
           selector: "node.orphan",
           style: {

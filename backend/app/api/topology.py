@@ -106,6 +106,17 @@ async def topology(
             n["findings"] += 1
             add_item(n, f, sev, d)
 
+        # Camadas de proteção identificadas (DNS/WAF/e-mail) viram nós próprios,
+        # ligados ao ativo, destacados como defesa (mérito da equipe).
+        if d.get("kind") == "protection" and d.get("layers"):
+            for k, v in (d["layers"] or {}).items():
+                pid = f"🛡 {k}: {v}"[:70]
+                pn = node(pid, "protection")
+                if pn is not None:
+                    pn["label"] = f"{k}: {v}"
+                    pn["protection"] = True
+                    edges.add((tgt, pid))
+
         parent = (d.get("parent") or "").lower()
         if parent:
             node(parent, "domain")

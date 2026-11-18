@@ -79,7 +79,7 @@ def _facts(domain: str, r: dict) -> list[CollectedFact]:
                  "spoofing do domínio."),
             data={"severity_hint": "info", "source": "net_recon",
                   "kind": "protection", "protection": True, "layers": layers,
-                  "waf": waf, "email": email, "posture": posture,
+                  "waf_cdn": waf, "email_gateways": email, "posture": posture,
                   "technologies": [f"Proteção: {k}" for k in layers]}))
     else:
         out.append(CollectedFact(

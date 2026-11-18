@@ -629,7 +629,8 @@ async def render_html(
         if f.port:
             h["services"].add(f"{f.port}/{f.service or 'tcp'}")
         for t in (f.data or {}).get("technologies", []) or []:
-            h["techs"].add(t)
+            if isinstance(t, str):
+                h["techs"].add(t)
     topology = sorted(
         ({**v, "services": sorted(v["services"]), "techs": sorted(v["techs"])}
          for v in topo.values()),

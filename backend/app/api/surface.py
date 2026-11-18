@@ -88,13 +88,16 @@ def build_surface(findings: list, scope: list[str]) -> dict:
         if _is_ip(tgt):
             ips.add(tgt)
         for ip in d.get("ips", []) or []:
-            ips.add(ip)
-        if d.get("email"):
+            if isinstance(ip, str):
+                ips.add(ip)
+        if isinstance(d.get("email"), str):
             emails.add(d["email"])
         for e in d.get("emails", []) or []:
-            emails.add(e)
+            if isinstance(e, str):
+                emails.add(e)
         for t in d.get("technologies", []) or []:
-            tech_hosts.setdefault(t, set()).add(tgt)
+            if isinstance(t, str):
+                tech_hosts.setdefault(t, set()).add(tgt)
 
     # Monta o mapa de tecnologias por categoria.
     cats: dict[str, dict] = {}

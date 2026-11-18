@@ -8,7 +8,7 @@ const RISK_COLOR = {
 };
 const TYPE_SHAPE = {
   domain: "round-rectangle", subdomain: "ellipse", host: "ellipse",
-  ip: "diamond", service: "hexagon",
+  ip: "diamond", service: "hexagon", protection: "tag",
 };
 
 const RISK_HEX = {
@@ -113,12 +113,15 @@ export default function Topology({ engagement }) {
       cy.nodes().forEach((n) => {
         const d = n.data(); const pos = n.position();
         const orphan = n.hasClass("orphan");
+        const prot = d.protection === 1;
         const sz = 0.34 + Math.min(0.3, (d.findings || 0) * 0.045);
         const cx = mx(pos.x), cy2 = my(pos.y);
-        slide.addShape(shapeFor(d.type), {
+        const shp = prot ? S.roundRect : shapeFor(d.type);
+        slide.addShape(shp, {
           x: cx - sz / 2, y: cy2 - sz / 2, w: sz, h: sz,
-          fill: { color: orphan ? "3B2F0A" : (RISK_HEX[d.risk] || "475569") },
-          line: orphan ? { color: "F59E0B", width: 1.5, dashType: "dash" }
+          fill: { color: prot ? "15803D" : (orphan ? "3B2F0A" : (RISK_HEX[d.risk] || "475569")) },
+          line: prot ? { color: "22C55E", width: 1.5 }
+            : orphan ? { color: "F59E0B", width: 1.5, dashType: "dash" }
             : { color: "0B0B0C", width: 0.5 },
         });
         slide.addText(String(d.label || ""), {
@@ -135,7 +138,8 @@ export default function Topology({ engagement }) {
     const elements = [
       ...data.nodes.map((n) => ({
         data: { id: n.id, label: n.label, type: n.type, risk: n.risk,
-          findings: n.findings, items: n.items || [], techs: n.techs || [] },
+          findings: n.findings, items: n.items || [], techs: n.techs || [],
+          protection: n.protection ? 1 : 0 },
       })),
       ...data.edges.map((e, i) => ({ data: { id: `e${i}`, source: e.source, target: e.target } })),
     ];
@@ -159,6 +163,15 @@ export default function Topology({ engagement }) {
           },
         },
         { selector: "edge", style: { "width": 1.2, "line-color": "#334155", "curve-style": "bezier", "opacity": 0.55 } },
+        // Camada de proteção (DNS/WAF/e-mail): verde (defesa = mérito).
+        {
+          selector: 'node[protection = 1]',
+          style: {
+            "background-color": "#15803d", "shape": "tag",
+            "border-color": "#22c55e", "border-width": 2,
+            "color": "#dcfce7", "width": 22, "height": 16,
+          },
+        },
         // Ativo SEM conexão: destaque (borda tracejada âmbar + halo).
         {
           selector: "node.orphan",
@@ -230,6 +243,7 @@ export default function Topology({ engagement }) {
           <span key={k}><i style={{ display: "inline-block", width: 10, height: 10, background: c, borderRadius: 2, marginRight: 4 }} />{k}</span>
         ))}
         <span><i style={{ display: "inline-block", width: 10, height: 10, background: "#3b2f0a", border: "2px dashed #f59e0b", borderRadius: 2, marginRight: 4 }} />sem conexão</span>
+        <span><i style={{ display: "inline-block", width: 10, height: 10, background: "#15803d", border: "2px solid #22c55e", borderRadius: 2, marginRight: 4 }} />camada de proteção</span>
         <span className="muted">· ◆ IP · ⬡ serviço · ▭ domínio · ○ host/subdomínio</span>
       </div>
       {data && data.nodes.length > 0 && (
