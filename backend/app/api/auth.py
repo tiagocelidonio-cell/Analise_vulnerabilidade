@@ -123,6 +123,33 @@ async def update_user(
     return u
 
 
+class ResetPassword(BaseModel):
+    new_password: str
+
+
+@router.post("/users/{user_id}/reset-password", response_model=UserOut)
+async def reset_user_password(
+    user_id: str,
+    body: ResetPassword,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """Admin define uma NOVA senha para qualquer usuário (reset).
+
+    Não exige a senha atual (é um reset administrativo). O usuário deve trocá-la
+    depois pelo próprio perfil."""
+    u = await session.get(User, user_id)
+    if u is None:
+        raise HTTPException(404, "Usuario nao encontrado")
+    pw = (body.new_password or "").strip()
+    if len(pw) < 6:
+        raise HTTPException(400, "A nova senha deve ter ao menos 6 caracteres.")
+    u.hashed_password = hash_password(pw)
+    await session.commit()
+    await session.refresh(u)
+    return u
+
+
 @router.delete("/users/{user_id}", status_code=204)
 async def delete_user(
     user_id: str,

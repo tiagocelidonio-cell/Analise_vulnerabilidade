@@ -65,6 +65,8 @@ export const api = {
   createUser: (body) => req("/auth/users", { method: "POST", body: JSON.stringify(body) }),
   updateUser: (id, body) => req(`/auth/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteUser: (id) => req(`/auth/users/${id}`, { method: "DELETE" }),
+  resetUserPassword: (id, new_password) => req(`/auth/users/${id}/reset-password`,
+    { method: "POST", body: JSON.stringify({ new_password }) }),
   overview: () => req("/overview"),
   getIntegrations: () => req("/integrations"),
   updateIntegrations: (updates) => req("/integrations", { method: "PUT", body: JSON.stringify({ updates }) }),

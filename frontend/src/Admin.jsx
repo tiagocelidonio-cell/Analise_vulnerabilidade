@@ -126,6 +126,18 @@ function Users({ me }) {
     try { await api.updateUser(u.id, { email: u.email, password: "", role }); await load(); }
     catch (e) { setErr(e.message); }
   }
+  async function resetPw(u) {
+    setErr(""); setMsg("");
+    const pw = window.prompt(
+      `Definir NOVA senha para ${u.email} (mínimo 6 caracteres).\n`
+      + `O usuário deve trocá-la depois no próprio perfil.`);
+    if (pw == null) return;                 // cancelou
+    if (pw.trim().length < 6) { setErr("A nova senha deve ter ao menos 6 caracteres."); return; }
+    try {
+      await api.resetUserPassword(u.id, pw.trim());
+      setMsg(`Senha de ${u.email} redefinida. Informe a nova senha ao usuário.`);
+    } catch (e) { setErr(e.message); }
+  }
 
   return (
     <div>
@@ -160,6 +172,8 @@ function Users({ me }) {
               <td><span className="pill" style={{ background: u.role === "admin" ? "#1f6feb" : "#334155" }}>{u.role}</span></td>
               <td>{u.is_active ? "sim" : "não"}</td>
               <td className="row">
+                <button className="btn" onClick={() => resetPw(u)}
+                  title="Definir uma nova senha para este usuário">🔑 Resetar senha</button>
                 {u.id !== me.id && (
                   <>
                     <button className="btn" onClick={() => toggleRole(u)}>
