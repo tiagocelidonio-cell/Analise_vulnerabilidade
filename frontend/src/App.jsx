@@ -13,6 +13,7 @@ import Overview from "./Overview.jsx";
 import ScanConsole from "./ScanConsole.jsx";
 import Admin from "./Admin.jsx";
 import Reports from "./Reports.jsx";
+import NetLookup from "./NetLookup.jsx";
 import Profile from "./Profile.jsx";
 import Login from "./Login.jsx";
 
@@ -1140,6 +1141,8 @@ export default function App() {
             onClick={() => { setView("overview"); setSelected(null); }}>Visão geral</button>
           <button className={`navbtn ${view === "reports" ? "active" : ""}`}
             onClick={() => { setView("reports"); setSelected(null); }}>Relatório</button>
+          <button className={`navbtn ${view === "netlookup" ? "active" : ""}`}
+            onClick={() => { setView("netlookup"); setSelected(null); }}>Rede / DNS</button>
         </nav>
         <div className="clientshead">{user.role === "admin" ? "Clientes por consultor" : "Meus clientes"}</div>
         <div className="list">
@@ -1152,6 +1155,7 @@ export default function App() {
       <main className="main">
         {view === "overview" && <Overview />}
         {view === "reports" && <Reports me={user} />}
+        {view === "netlookup" && <NetLookup />}
         {view === "admin" && <Admin me={user} />}
         {view === "client" && selected && (
           <EngagementView key={selected.id} engagement={selected}

@@ -25,6 +25,7 @@ from app.api import (
     findings,
     intel,
     integrations,
+    netlookup,
     overview,
     postexploit,
     reports,
@@ -114,6 +115,7 @@ app.include_router(audit.router, dependencies=_auth)
 app.include_router(surface.router, dependencies=_auth)
 app.include_router(topology.router, dependencies=_auth)
 app.include_router(intel.router, dependencies=_auth)
+app.include_router(netlookup.router, dependencies=_auth)
 
 
 @app.exception_handler(Exception)

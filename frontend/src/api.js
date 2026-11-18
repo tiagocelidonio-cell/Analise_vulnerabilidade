@@ -70,6 +70,7 @@ export const api = {
     { method: "POST", body: JSON.stringify({ new_password }) }),
   saveTopologyImage: (id, image) => req(`/engagements/${id}/topology-image`,
     { method: "PUT", body: JSON.stringify({ image }) }),
+  netlookup: (target) => req(`/netlookup?target=${encodeURIComponent(target)}`),
   overview: () => req("/overview"),
   getIntegrations: () => req("/integrations"),
   updateIntegrations: (updates) => req("/integrations", { method: "PUT", body: JSON.stringify({ updates }) }),
